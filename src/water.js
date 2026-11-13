@@ -1,0 +1,153 @@
+// Sea surface: reflections, glitter, foam and swell. The see-through colour of the
+// water itself is drawn by the seabed (terrain.js); this layer adds only the surface.
+import * as THREE from 'three';
+import { U, VEX, makeMat, LOGV, LOGF } from './common.js';
+import { heightAt, maskAt } from './terrain.js';
+
+const waves = [];           // {dx, dz, amp, k, w, ph}
+export function setWaves(list) {
+  waves.length = 0;
+  list.slice(0, 6).forEach((w, i) => {
+    const k = 2 * Math.PI / w.len;
+    waves.push({ dx: w.dx, dz: w.dz, amp: w.amp, k, w: Math.sqrt(9.81 * k), ph: i * 1.7, swell: w.swell ? 1 : 0 });
+    U.uWaves.value[i].set(w.dx, w.dz, w.amp, w.len);
+    U.uWavePh.value[i] = w.swell ? 1 : 0;
+  });
+  for (let i = list.length; i < 6; i++) U.uWaves.value[i].set(1, 0, 0, 100);
+}
+// CPU copy of the vertex shader swell, so boats ride the same water. Returns metres (un-exaggerated).
+export function waveAt(x, z, t, out) {
+  const m = maskAt(x, z), depth = U.uSeaM.value - heightAt(x, z);
+  const shoal = Math.min(1, Math.max(0, depth / 3.5));
+  let y = 0, sx = 0, sz = 0;
+  for (const w of waves) {
+    const a = w.amp * shoal * (w.swell ? m.expo * m.expo : 0.35 + 0.65 * m.expo);
+    const p = (w.dx * x + w.dz * z) * w.k - w.w * t + w.ph;
+    y += a * Math.sin(p); const c = a * w.k * Math.cos(p); sx += c * w.dx; sz += c * w.dz;
+  }
+  if (out) { out.sx = sx; out.sz = sz; }
+  return y;
+}
+
+export function buildWater(scene) {
+  // polar grid: dense under the camera target, reaching the horizon
+  const rings = 150, segs = 144, pos = [], idx = [];
+  pos.push(0, 0, 0);
+  for (let r = 1; r <= rings; r++) {
+    const rad = 6 * Math.pow(1.0745, r);
+    for (let s = 0; s < segs; s++) { const a = s / segs * Math.PI * 2; pos.push(Math.cos(a) * rad, 0, Math.sin(a) * rad); }
+  }
+  for (let s = 0; s < segs; s++) idx.push(0, 1 + (s + 1) % segs, 1 + s);
+  for (let r = 1; r < rings; r++) for (let s = 0; s < segs; s++) {
+    const a = 1 + (r - 1) * segs + s, b = 1 + (r - 1) * segs + (s + 1) % segs, c = a + segs, d = b + segs;
+    idx.push(a, b, c, b, d, c);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+
+  const mat = makeMat({
+    transparent: true, depthWrite: false,
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    vs: /* glsl */`
+      uniform vec4 uWaves[6]; uniform float uWavePh[6];
+      varying vec3 vW; varying vec2 vSlope; varying float vWaveH;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vec2 hg = texture2D(uHeight, clamp(worldUV(wp.xz), 0.0, 1.0)).rg;
+        float depth = uSeaM - hg.r, expo = hg.g;
+        float shoal = clamp(depth / 3.5, 0.0, 1.0);
+        float fade = 1.0 - smoothstep(2500.0, 9000.0, length(wp.xz - cameraPosition.xz));
+        float y = 0.0; vec2 sl = vec2(0.0);
+        for(int i = 0; i < 6; i++){
+          vec4 w = uWaves[i]; float k = 6.2831853 / w.w;
+          float a = w.z * shoal * mix(0.35 + 0.65 * expo, expo * expo, uWavePh[i]);
+          float p = dot(w.xy, wp.xz) * k - sqrt(9.81 * k) * uTime + float(i) * 1.7;
+          y += a * sin(p); sl += a * k * cos(p) * w.xy;
+        }
+        vWaveH = y; vSlope = sl * uVex;
+        wp.y = uSeaM * uVex + y * uVex * fade;
+        vW = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+        ${LOGV}
+      }`,
+    fs: /* glsl */`
+      uniform vec2 uWindDir; uniform float uChop, uSurf, uWhitecap, uRain, uSwell;
+      varying vec3 vW; varying vec2 vSlope; varying float vWaveH;
+      void main(){
+        ${LOGF}
+        vec2 uv = worldUV(vW.xz);
+        vec2 hg = texture2D(uHeight, clamp(uv, 0.0, 1.0)).rg;
+        float depth = uSeaM - hg.r, expo = hg.g;
+        if(depth < -0.25) discard;
+        vec3 toCam = cameraPosition - vW; float dist = length(toCam); vec3 V = toCam / dist;
+        vec2 wd = uWindDir, wp = vec2(-wd.y, wd.x);
+        float t = uTime;
+        // layered wind ripples (each layer fades before it would alias)
+        vec2 n = vec2(0.0);
+        float f0 = 1.0 - smoothstep(400.0, 2600.0, dist), f1 = 1.0 - smoothstep(2500.0, 12000.0, dist), f2 = 1.0 - smoothstep(9000.0, 45000.0, dist);
+        n += (texture2D(uWaterTex, vW.xz / 19.0 + wd * t * 0.11).rg - 0.5) * 0.9 * f0;
+        n += (texture2D(uWaterTex, vW.xz / 57.0 + (wd * 0.8 + wp * 0.3) * t * 0.055).rg - 0.5) * 1.0 * f1;
+        n += (texture2D(uWaterTex, vW.xz / 231.0 + (wd * 0.9 - wp * 0.2) * t * 0.021).rg - 0.5) * 0.9 * f1;
+        n += (texture2D(uWaterTex, (vW.xz * mat2(0.8, 0.6, -0.6, 0.8)) / 1730.0 + wd * t * 0.006).rg - 0.5) * 0.3 * f2 * (1.0 - 0.85 * uWhitecap);
+        float calm = smoothstep(0.0, 1.6, depth);
+        float gust = texture2D(uNoise, vW.xz / 6100.0 + wd * t * 0.0016).r;           // cat's paws: patches of ruffled and glassy water
+        float chop = min(uChop, mix(1.2, 0.34, smoothstep(1200.0, 10000.0, dist))) * mix(0.5, 1.0, expo) * (0.35 + 0.65 * calm) * (0.7 + 0.6 * gust);
+        if(uRain > 0.01) n += (texture2D(uWaterTex, vW.xz / 3.1 + t * vec2(0.3, -0.2)).rg - 0.5) * uRain * 1.6 * f0;
+        vec3 N = normalize(vec3(-vSlope.x - n.x * chop, 1.0, -vSlope.y - n.y * chop));
+        float ndv = max(dot(N, V), 0.0);
+        float F = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+        // far water: unresolved waves tilt the mirror, lowering the grazing reflectance a little
+        F = mix(F, min(F, 0.6), smoothstep(3000.0, 30000.0, dist));
+        vec3 R = reflect(-V, N); R.y = abs(R.y) + 0.02; R = normalize(R);
+        vec3 refl = skyColor(R);
+        // clouds mirrored in the sea
+        float ct = (uCloudAlt - vW.y) / max(R.y, 0.08);
+        float cl = cloudAt(vW.xz + R.xz * ct) * smoothstep(0.03, 0.2, R.y);
+        vec3 cloudCol = uLightCol * 0.22 + uAmbSky * 1.3;
+        refl = mix(refl, cloudCol, cl * 0.75);
+        refl *= 0.93 + 0.14 * gust * (1.0 - uWhitecap);
+        // sun / moon glitter: sharp up close, a broad glitter path far away
+        float cs = cloudShadow(vW);
+        float rough = mix(0.035, 0.16, smoothstep(300.0, 20000.0, dist)) * (0.6 + uChop * 0.7) * (0.7 + 0.6 * gust);
+        vec3 Hh = normalize(V + uLightDir);
+        float nh = max(dot(N, Hh), 0.0);
+        float a2 = rough * rough; float dd = nh * nh * (a2 - 1.0) + 1.0;
+        float D = a2 / (3.14159 * dd * dd);
+        float FL = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
+        vec3 spec = uLightCol * min(D * 0.25, 40.0) * FL * cs * step(0.0, uLightDir.y) * smoothstep(-0.02, 0.06, uLightDir.y);
+
+        // ---- foam ----
+        float fn = texture2D(uNoise, vW.xz / 46.0 + t * 0.008).r;
+        float ff = texture2D(uNoise, vW.xz / 7.0 - wd * t * 0.02).b;
+        float fg = texture2D(uNoise, vW.xz / 17.0 + wd * t * 0.012).g;
+        float surf = max(uSurf * (0.18 + 0.82 * expo * expo), 0.12);
+        float z = depth / surf;
+        float foam = 0.0;
+        if(z < 1.3){
+          float nearF = 1.0 - smoothstep(1800.0, 6500.0, dist);                    // breaker lines only where they can be resolved
+          float lines = smoothstep(0.62, 0.98, sin(z * 6.5 + t * 0.75 + fn * 7.0) * 0.5 + 0.5) * smoothstep(1.3, 0.2, z) * nearF + smoothstep(1.1, 0.1, z) * 0.3 * (1.0 - nearF);
+            float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
+          foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + ff) * (0.5 + 0.7 * expo), 0.0, 1.0);
+          foam *= smoothstep(-0.25, 0.02, depth);
+        }
+        // whitecaps offshore when it blows
+        float fbig = texture2D(uNoise, vW.xz / 173.0 + wd * t * 0.004).r;
+        float wc = smoothstep(1.0 - uWhitecap * 0.2, 1.0 - uWhitecap * 0.2 + 0.07, fn * 0.45 + fg * 0.35 + fbig * 0.35 + vWaveH * 0.04) * ff * ff * 2.4 * calm * (0.4 + 0.6 * expo) * (1.0 - smoothstep(2200.0, 8000.0, dist));
+        wc += uWhitecap * 0.07 * calm * (0.4 + 0.6 * expo) * smoothstep(2200.0, 8000.0, dist) * (0.6 + 0.8 * fbig);   // far away: just a paler, wind-whitened sea
+        foam = clamp(foam + wc * step(0.01, uWhitecap), 0.0, 1.0);
+        foam *= 1.0 - smoothstep(14000.0, 40000.0, dist) * 0.6;
+        vec3 foamCol = vec3(0.92, 0.95, 0.96) * (uLightCol * (0.22 + 0.22 * max(uLightDir.y, 0.0)) * cs + uAmbSky * 0.85);
+
+        float a = F + (1.0 - F) * foam * 0.92;
+        vec3 rgb = refl * F + spec + foamCol * foam * 0.92 * (1.0 - F);
+        rgb += vec3(uFlash) * 0.2 * F;
+        float fg2 = fogAmount(vW);
+        rgb = rgb * (1.0 - fg2) + fogColor(-V) * fg2 * a;
+        gl_FragColor = vec4(rgb, a);
+      }`,
+  });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 10;
+  scene.add(mesh);
+  return mesh;
+}

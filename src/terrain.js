@@ -1,0 +1,252 @@
+// Terrain: real elevation mesh, satellite colour, procedural detail, dune shadows,
+// and the see-through water column over the estimated seabed.
+import * as THREE from 'three';
+import { U, VEX, MOBILE, Q, makeMat, LOGV, LOGF } from './common.js';
+
+export const T = { W: 0, H: 0, mpp: 17, sx: 0, sz: 0, hgt: null, expo: null, mask: null, step: 2, alb: null, albW: 0, albH: 0 };
+
+async function pixels(url, w, h) {
+  const blob = await (await fetch(url)).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const c = document.createElement('canvas'); c.width = w || bmp.width; c.height = h || bmp.height;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(bmp, 0, 0, c.width, c.height);
+  return { data: g.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height, bmp };
+}
+function tex(bmp, srgb, repeat) {
+  const t = new THREE.Texture(bmp);
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.wrapS = t.wrapT = repeat ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true;
+  t.anisotropy = 8; t.flipY = false; t.needsUpdate = true;
+  return t;
+}
+
+export async function loadTerrainData(F, progress) {
+  const [hp, mp, ap, np, wp] = await Promise.all([
+    pixels('assets/height.png'), pixels('assets/mask.png'), pixels('assets/albedo.jpg', 496, 1024),
+    pixels('assets/noise.png'), pixels('assets/water.png'),
+  ]);
+  progress?.('Shaping the island');
+  const W = T.W = hp.w, H = T.H = hp.h; T.mpp = F.mpp; T.sx = W * F.mpp; T.sz = H * F.mpp;
+  const hgt = T.hgt = new Float32Array(W * H), expo = T.expo = new Uint8Array(W * H);
+  const half = new Uint16Array(W * H * 2);
+  for (let i = 0; i < W * H; i++) {
+    const h = (hp.data[i * 4] * 256 + hp.data[i * 4 + 1]) / 65535 * F.hrange + F.hmin;
+    hgt[i] = h; expo[i] = hp.data[i * 4 + 2];
+    half[i * 2] = THREE.DataUtils.toHalfFloat(h); half[i * 2 + 1] = THREE.DataUtils.toHalfFloat(expo[i] / 255);
+  }
+  T.mask = mp.data; T.alb = ap.data; T.albW = ap.w; T.albH = ap.h;
+  const ht = new THREE.DataTexture(half, W, H, THREE.RGFormat, THREE.HalfFloatType);
+  ht.minFilter = ht.magFilter = THREE.LinearFilter; ht.wrapS = ht.wrapT = THREE.ClampToEdgeWrapping; ht.needsUpdate = true;
+  U.uHeight.value = ht;
+  U.uMask.value = tex(mp.bmp, false, false);
+  const full = await createImageBitmap(await (await fetch('assets/albedo.jpg')).blob());
+  U.uAlbedo.value = tex(full, true, false);
+  U.uNoise.value = tex(np.bmp, false, true);
+  U.uWaterTex.value = tex(wp.bmp, false, true);
+  U.uWorld.value.set(1 / T.sx, 1 / T.sz, T.sx, T.sz);
+  U.uHTex.value.set(1 / W, 1 / H); U.uMpp.value = F.mpp;
+  T.step = +(Q.get('step') || (MOBILE ? 4 : 2));
+}
+
+// --- sampling helpers (world metres, x east, z south) ---
+const px = (x) => (x / T.sx + 0.5) * T.W - 0.5, pz = (z) => (z / T.sz + 0.5) * T.H - 0.5;
+export function heightAt(x, z) {            // true surface height in metres (bilinear)
+  let fx = px(x), fz = pz(z);
+  fx = Math.min(T.W - 1.001, Math.max(0, fx)); fz = Math.min(T.H - 1.001, Math.max(0, fz));
+  const x0 = fx | 0, z0 = fz | 0, tx = fx - x0, tz = fz - z0, i = z0 * T.W + x0, h = T.hgt;
+  return (h[i] * (1 - tx) + h[i + 1] * tx) * (1 - tz) + (h[i + T.W] * (1 - tx) + h[i + T.W + 1] * tx) * tz;
+}
+export function meshY(x, z) {               // world y of the drawn surface (matches the mesh triangles)
+  const s = T.step, W = T.W, h = T.hgt;
+  let gx = (x / T.sx + 0.5) * (T.W - 1) / s, gz = (z / T.sz + 0.5) * (T.H - 1) / s;
+  const nx = Math.floor((T.W - 1) / s), nz = Math.floor((T.H - 1) / s);
+  gx = Math.min(nx - 0.001, Math.max(0, gx)); gz = Math.min(nz - 0.001, Math.max(0, gz));
+  const x0 = gx | 0, z0 = gz | 0, tx = gx - x0, tz = gz - z0;
+  const a = h[z0 * s * W + x0 * s], b = h[z0 * s * W + (x0 + 1) * s], c = h[(z0 + 1) * s * W + x0 * s], d = h[(z0 + 1) * s * W + (x0 + 1) * s];
+  // triangles a-c-b and b-c-d
+  const A = shoreY(a), B = shoreY(b), C = shoreY(c), D = shoreY(d);
+  return tx + tz < 1 ? A + (B - A) * tx + (C - A) * tz : D + (C - D) * (1 - tx) + (B - D) * (1 - tz);
+}
+export function maskAt(x, z) {              // {land, sand, shore(m), expo}
+  const xi = Math.min(T.W - 1, Math.max(0, Math.round(px(x)))), zi = Math.min(T.H - 1, Math.max(0, Math.round(pz(z))));
+  const i = (zi * T.W + xi) * 4, m = T.mask;
+  return { land: m[i] / 255, sand: m[i + 1] / 255, shore: (m[i + 2] - 127.5) / 127.5 * 1500, expo: T.expo[zi * T.W + xi] / 255 };
+}
+export function albedoAt(x, z, out) {
+  const xi = Math.min(T.albW - 1, Math.max(0, ((x / T.sx + 0.5) * T.albW) | 0)), zi = Math.min(T.albH - 1, Math.max(0, ((z / T.sz + 0.5) * T.albH) | 0));
+  const i = (zi * T.albW + xi) * 4; out[0] = T.alb[i] / 255; out[1] = T.alb[i + 1] / 255; out[2] = T.alb[i + 2] / 255; return out;
+}
+
+// the mesh dips slightly at the waterline so the smooth per-pixel shoreline (not the coarse triangles) decides where water shows
+const shoreY = (h) => (h - 0.75 * Math.max(0, 1 - Math.abs(h) / 1.7)) * VEX;
+
+export function buildTerrain(scene) {
+  const s = T.step, nx = Math.floor((T.W - 1) / s), nz = Math.floor((T.H - 1) / s);
+  const pos = new Float32Array((nx + 1) * (nz + 1) * 3);
+  let k = 0;
+  for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+    pos[k++] = (i * s / (T.W - 1) - 0.5) * T.sx;
+    pos[k++] = shoreY(T.hgt[j * s * T.W + i * s]);
+    pos[k++] = (j * s / (T.H - 1) - 0.5) * T.sz;
+  }
+  const idx = new Uint32Array(nx * nz * 6); k = 0;
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+    idx[k++] = a; idx[k++] = c; idx[k++] = b; idx[k++] = b; idx[k++] = c; idx[k++] = d;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 60000);
+
+  const mat = makeMat({
+    vs: /* glsl */`
+      varying vec3 vW;
+      void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
+    fs: /* glsl */`
+      varying vec3 vW;
+      uniform vec3 uWaterDeep; uniform float uTurb, uRain; uniform vec2 uWindDir;
+      float hAt(vec2 uv){ return texture2D(uHeight, clamp(uv, 0.0, 1.0)).r; }
+      float duneShadow(vec3 p, vec3 L){
+        if(L.y > 0.93) return 1.0;
+        float res = 1.0, t = 26.0;
+        float jit = 0.75 + 0.5 * hash12(gl_FragCoord.xy);
+        for(int i = 0; i < 22; i++){
+          vec3 q = p + L * t * jit;
+          float h = hAt(worldUV(q.xz)) * uVex;
+          res = min(res, 9.0 * (q.y - h) / t + 0.55);
+          if(res < 0.02 || q.y > 520.0) break;
+          t *= 1.34;
+        }
+        return smoothstep(0.0, 1.0, res);
+      }
+      void main(){
+        ${LOGF}
+        vec2 uv = worldUV(vW.xz), cuv = clamp(uv, 0.0005, 0.9995);
+        float h = hAt(cuv);
+        vec2 e = uHTex;
+        float hl = hAt(cuv - vec2(e.x, 0.0)), hr = hAt(cuv + vec2(e.x, 0.0)), hu = hAt(cuv - vec2(0.0, e.y)), hd = hAt(cuv + vec2(0.0, e.y));
+        vec3 N = normalize(vec3((hl - hr) * uVex, 2.0 * uMpp, (hu - hd) * uVex));
+        float lap = (hl + hr + hu + hd - 4.0 * h);
+        vec4 mk4 = texture2D(uMask, cuv); vec3 mk = mk4.rgb;
+        float relief = mk4.a * 1.992;                 // baked hollow / ridge shading
+        vec2 ov = texture2D(uOver, cuv).rg;            // r: buildings (soft), g: tracks
+        vec3 alb = texture2D(uAlbedo, cuv).rgb;
+        float dist = length(vW - cameraPosition);
+        float near = 1.0 - smoothstep(1500.0, 9000.0, dist);
+
+        // detail noise at three scales
+        vec3 nA = texture2D(uNoise, vW.xz / 2300.0).rgb;
+        vec3 nB = texture2D(uNoise, vW.xz / 310.0).rgb;
+        vec3 nC = texture2D(uNoise, vW.xz / 47.0).rgb;
+        vec3 nD = texture2D(uNoise, vW.xz / 71.0 + nB.rg * 0.6).rgb;
+
+        float sand = smoothstep(0.2, 0.7, mk.g + (nB.r - 0.5) * 0.5 + (nC.r - 0.5) * 0.35 * near);
+        float slope = 1.0 - N.y;
+
+        // ---- vegetation: lift the satellite colour, add canopy clumps ----
+        float lum = dot(alb, vec3(0.3, 0.55, 0.15));
+        vec3 veg = alb * 1.45 + vec3(0.003, 0.009, 0.0);
+        veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), 0.4);
+        veg *= 0.72 + 0.5 * nA.r;
+        veg = mix(veg, veg * vec3(1.22, 1.08, 0.66), smoothstep(1.02, 1.32, relief) * 0.55);      // drier, paler ridge tops
+        veg = mix(veg, veg * vec3(0.72, 0.92, 0.86), smoothstep(0.95, 0.62, relief) * 0.6);       // lush, dark gullies
+        veg = mix(veg, veg * vec3(0.86, 1.0, 1.12), smoothstep(0.45, 0.75, texture2D(uNoise, vW.xz / 760.0 + 0.37).b) * 0.35);
+        float can1 = nB.g, can2 = nC.g;
+        float canopy = mix(can1, can2, 0.55 * near);
+        veg *= 0.55 + 0.85 * canopy;
+        veg = mix(veg, veg * vec3(1.25, 1.12, 0.6), smoothstep(0.55, 0.9, nA.b) * 0.5);    // drier heath patches
+        vec2 cg = vec2(texture2D(uNoise, vW.xz / 47.0 + vec2(0.012, 0.0)).g - can2, texture2D(uNoise, vW.xz / 47.0 + vec2(0.0, 0.012)).g - can2);
+        vec2 cg1 = vec2(texture2D(uNoise, vW.xz / 310.0 + vec2(0.006, 0.0)).g - can1, texture2D(uNoise, vW.xz / 310.0 + vec2(0.0, 0.006)).g - can1);
+        vec3 Nv = normalize(N + vec3(-(cg.x * near * 2.2 + cg1.x * 1.3), 0.0, -(cg.y * near * 2.2 + cg1.y * 1.3)));
+
+        // ---- sand: warm, wind-rippled, sparkling ----
+        vec3 sd = mix(alb * 1.05, vec3(0.90, 0.80, 0.60), 0.45);
+        sd *= 0.86 + 0.28 * nA.r;
+        float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
+        sd *= 1.0 - 0.10 * rip * near - 0.06 * nD.b * near;
+        sd = mix(sd, sd * vec3(0.90, 0.78, 0.60), smoothstep(0.06, 0.3, slope));              // slip faces
+        // wind-built dune forms: gradients of two noise scales bend the normal so bare sand shows relief from far away
+        vec2 dA = vec2(texture2D(uNoise, vW.xz / 310.0 + vec2(0.01, 0.0)).r - nB.r, texture2D(uNoise, vW.xz / 310.0 + vec2(0.0, 0.01)).r - nB.r);
+        vec2 dB = vec2(texture2D(uNoise, vW.xz / 47.0 + vec2(0.02, 0.0)).r - nC.r, texture2D(uNoise, vW.xz / 47.0 + vec2(0.0, 0.02)).r - nC.r);
+        vec3 Ns = normalize(N + vec3(-(dA.x * 5.0 + dB.x * 2.2 * near), 0.0, -(dA.y * 5.0 + dB.y * 2.2 * near)) + vec3(rip - 0.5, 0.0, 0.0) * 0.1 * near);
+
+        // ---- open ground: dry grass, heath and bare earth (mid-bright imagery) ----
+        vec3 gr = mix(vec3(lum), alb, 1.05) * vec3(0.94, 0.93, 0.78) * 0.9;
+        gr *= 0.80 + 0.28 * nB.r + (0.5 * (nC.b - 0.5) + 0.45 * (nD.r - 0.5)) * near;
+        gr = mix(gr, gr * vec3(0.70, 0.80, 0.50), smoothstep(0.42, 0.7, nC.g) * 0.45 * near);
+        float open = smoothstep(0.07, 0.19, lum) * (1.0 - sand);
+        sd *= 0.56; sd = mix(sd, sd * vec3(1.06, 0.93, 0.74), 0.5);
+        vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
+        // sand tracks worn into the ground (the crisp ribbon is drawn on top)
+        col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
+        vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
+        float ao = clamp(1.0 + lap * 0.045, 0.55, 1.15) * mix(0.75 + 0.35 * canopy, 1.0, sand) * clamp(relief, 0.4, 1.35) * (1.0 - 0.5 * smoothstep(0.05, 0.9, ov.r));
+
+        // ---- light ----
+        vec3 L = uLightDir;
+        float depth = uSeaM - h;                       // metres of water above this point
+        float sh = 1.0;
+        if(mk.b > 0.33 && L.y > 0.0) sh = duneShadow(vec3(vW.x, max(vW.y, uSeaM * uVex), vW.z) + vec3(0.0, 1.5, 0.0), L);
+        float cs = cloudShadow(vW);
+        float vis = sh * cs;
+        float nl = max(dot(Nn, L), 0.0);
+        nl = mix(nl, nl * 0.5 + 0.5, 0.25 * sand);     // sand glows a little into the shade
+        vec3 amb = mix(uAmbGnd, uAmbSky, Nn.y * 0.5 + 0.5) * ao;
+        vec3 V = normalize(cameraPosition - vW);
+
+        // wet sand just above the waterline
+        float wet = smoothstep(0.9, 0.0, -depth) * step(depth, 0.0);
+        col = mix(col, col * vec3(0.62, 0.6, 0.58), wet * 0.8);
+        vec3 lit = col * (uLightCol * nl * vis * mix(1.0, clamp(relief, 0.6, 1.25), 0.5) + amb);
+        float sp = pow(max(dot(reflect(-L, Nn), V), 0.0), 60.0);
+        lit += uLightCol * sp * vis * (sand * 0.06 * step(0.985, nD.g + nD.b * 0.5) * near * 14.0 + wet * 0.5);
+        lit += skyColor(reflect(-V, N)) * wet * 0.12;
+
+        // ---- under water: seabed seen through the water column ----
+        if(depth > 0.0){
+          float cn = texture2D(uWaterTex, vW.xz / 61.0 + uWindDir * uTime * 0.035).r - 0.5;
+          vec2 wob = vec2(cn, texture2D(uWaterTex, vW.xz / 61.0 + uWindDir * uTime * 0.035).g - 0.5) * min(depth, 4.0) * 0.9;
+          vec2 p = vW.xz + wob;
+          vec3 bA = texture2D(uNoise, p / 420.0).rgb, bB = texture2D(uNoise, p / 60.0).rgb;
+          vec3 bed = vec3(0.86, 0.80, 0.62) * (0.82 + 0.3 * bA.r);
+          float rp = sin((p.x * 0.55 - p.y * 0.35) * 1.3 + bB.r * 7.0) * 0.5 + 0.5;
+          bed *= 1.0 - 0.10 * rp * near;
+          float grass = smoothstep(0.52, 0.7, bA.g * 0.6 + bB.g * 0.5) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
+          bed = mix(bed, vec3(0.07, 0.13, 0.07), grass * 0.7);
+          bed = mix(col * 0.8, bed, smoothstep(0.0, 1.6, depth));
+          float c1 = texture2D(uWaterTex, p / 12.0 + uTime * vec2(0.031, 0.019)).b;
+          float c2 = texture2D(uWaterTex, p / 8.3 - uTime * vec2(0.027, 0.034)).b;
+          float caus = pow(min(c1, c2), 1.4) * 1.5;
+          caus *= exp(-depth * 0.22) * smoothstep(0.0, 0.5, depth) * (1.0 - smoothstep(50.0, 260.0, dist)) * (1.0 - uOvercast * 0.8);
+          float sun = max(L.y, 0.0);
+          vec3 bl = bed * (uLightCol * sun * vis * (0.72 + caus) + amb * 0.9);
+          float cosr = sqrt(1.0 - (1.0 - V.y * V.y) / 1.77);         // refracted view ray
+          float path = depth * (1.0 + 1.0 / max(cosr, 0.3));
+          vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * uTurb * path);
+          float ex = texture2D(uHeight, cuv).g, big = texture2D(uNoise, vW.xz / 9000.0).r;
+          vec3 deep = mix(uWaterDeep * vec3(1.0, 1.25, 0.85), uWaterDeep * vec3(1.0, 0.72, 1.12), smoothstep(0.3, 0.9, ex)) * (0.82 + 0.36 * big);   // green bay, indigo ocean
+          vec3 scat = deep * (uLightCol * (0.10 + 0.22 * sun) * (0.5 + 0.5 * cs) + uAmbSky * 0.8);
+          // a touch of turquoise back-scatter over bright sand
+          scat += vec3(0.0, 0.05, 0.04) * exp(-depth * 0.2) * (uLightCol * sun * vis + uAmbSky) * 0.22;
+          lit = bl * Tm + scat * (1.0 - Tm);
+        }
+        lit += vec3(uFlash) * 0.25 * col;
+        gl_FragColor = vec4(applyFog(lit, vW), 1.0);
+      }`,
+  });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.matrixAutoUpdate = false;
+  scene.add(mesh);
+
+  // deep sea floor skirt out to the horizon (same shader, flat at -20 m)
+  const R = 260000, y = -26 * VEX - 0.5, hx = T.sx / 2 - 60, hz = T.sz / 2 - 60;
+  const sp = [], si = [];
+  const quad = (x0, z0, x1, z1) => { const b = sp.length / 3; sp.push(x0, y, z0, x1, y, z0, x0, y, z1, x1, y, z1); si.push(b, b + 2, b + 1, b + 1, b + 2, b + 3); };
+  quad(-R, -R, R, -hz); quad(-R, hz, R, R); quad(-R, -hz, -hx, hz); quad(hx, -hz, R, hz);
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3)); sg.setIndex(si);
+  const skirt = new THREE.Mesh(sg, mat); skirt.frustumCulled = false; scene.add(skirt);
+  return mesh;
+}

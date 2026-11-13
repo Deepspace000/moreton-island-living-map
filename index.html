@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Moreton Island · Living Map</title>
+<meta name="description" content="A living 3D map of Moreton Island (Mulgumpin), Queensland, with real terrain, live weather, tides and time of day.">
+<meta name="apple-mobile-web-app-title" content="Moreton Island">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#06202e">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css?v=2">
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+
+<div id="loading"><div class="ld-box"><div class="ld-title">Moreton Island</div><div class="ld-sub">Mulgumpin · Queensland</div><div class="ld-bar"><i></i></div><div class="ld-msg" id="ldmsg">Loading the island</div></div></div>
+
+<header id="title" class="glass">
+  <h1>Moreton Island</h1>
+  <p>Mulgumpin · living map</p>
+</header>
+
+<aside id="wx" class="glass">
+  <div class="wx-top"><span id="wxTemp">--°</span><div><b id="wxDesc">Loading weather</b><small id="wxSrc">live</small></div></div>
+  <div class="wx-grid">
+    <div><svg id="wxArrow" viewBox="0 0 24 24"><path d="M12 2l5 14-5-3-5 3z"/></svg><span><b id="wxWind">--</b><small>wind km/h</small></span></div>
+    <div><span><b id="wxWave">--</b><small>swell m</small></span></div>
+    <div><span><b id="wxTide">--</b><small>tide m</small></span></div>
+    <div><span><b id="wxCloud">--</b><small>cloud %</small></span></div>
+    <div><span><b id="wxSea">--</b><small>sea °C</small></span></div>
+    <div><span><b id="wxSun">--</b><small id="wxSunL">sunset</small></span></div>
+  </div>
+  <div class="seg" id="wxMode">
+    <button data-m="live" class="on">Live</button><button data-m="clear">Clear</button><button data-m="cloudy">Cloudy</button><button data-m="storm">Storm</button>
+  </div>
+</aside>
+
+<nav id="places" class="glass"></nav>
+
+<footer id="bar" class="glass">
+  <button id="btLive" class="pill on" title="Follow the real time on the island">● Live</button>
+  <button id="btPlay" class="pill" title="Run a day in a few minutes">▶ Day cycle</button>
+  <span id="clock">--:--</span>
+  <input id="time" type="range" min="0" max="1439" step="1" value="720" aria-label="Time of day">
+  <span class="sep"></span>
+  <button id="btLabels" class="pill on">Names</button>
+  <button id="btClouds" class="pill on">Clouds</button>
+  <button id="btSpin" class="pill">Orbit</button>
+  <button id="btNorth" class="pill" title="Face north"><svg viewBox="0 0 24 24" id="compass"><path d="M12 3l4 9h-8z" fill="#ff6a5a"/><path d="M12 21l-4-9h8z" fill="#cfd8dc"/></svg></button>
+</footer>
+
+<div id="hint">Drag to move · right-drag or two fingers to turn · scroll or pinch to zoom</div>
+<div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Elevation: SRTM via AWS Terrain Tiles · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
+
+<script type="module" src="src/main.js?v=2"></script>
+</body>
+</html>
