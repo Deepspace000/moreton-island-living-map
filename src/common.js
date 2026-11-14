@@ -149,6 +149,22 @@ export function objectMat(opts = {}) {
   });
 }
 
+// downloads with progress (drives the loading bar)
+const prog = { files: new Map(), cb: null };
+const report = () => { let t = 0, g = 0; for (const s of prog.files.values()) { t += s.size; g += s.got; } prog.cb?.(t ? g / t : 0); };
+export function expect(list, cb) { prog.cb = cb; for (const [url, size] of list) prog.files.set(url, { size, got: 0 }); }
+export async function getBlob(url) {
+  const st = prog.files.get(url) || { size: 1, got: 0 }; prog.files.set(url, st);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url + ' ' + r.status);
+  const len = +r.headers.get('content-length'); if (len && !r.headers.get('content-encoding')) st.size = len;
+  if (!r.body) { const b = await r.blob(); st.got = st.size; report(); return b; }
+  const reader = r.body.getReader(), chunks = [];
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); st.got = Math.min(st.size, st.got + value.length); report(); }
+  st.got = st.size; report();
+  return new Blob(chunks, { type: r.headers.get('content-type') || '' });
+}
+
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 export const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };

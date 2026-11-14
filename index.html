@@ -11,14 +11,14 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }</script>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="labels"></div>
 
-<div id="loading"><div class="ld-box"><div class="ld-title">Moreton Island</div><div class="ld-sub">Mulgumpin · Queensland</div><div class="ld-bar"><i></i></div><div class="ld-msg" id="ldmsg">Loading the island</div></div></div>
+<div id="loading"><div class="ld-box"><div class="ld-title">Moreton Island</div><div class="ld-sub">Mulgumpin · Queensland</div><div class="ld-bar"><i id="ldbar"></i></div><div class="ld-pct" id="ldpct">0%</div><div class="ld-msg" id="ldmsg">Loading the island</div></div></div>
 
 <header id="title" class="glass">
   <h1>Moreton Island</h1>
@@ -69,11 +69,11 @@
   <button id="btNorth" class="pill" title="Face north"><svg viewBox="0 0 24 24" id="compass"><path d="M12 3l4 9h-8z" fill="#ff6a5a"/><path d="M12 21l-4-9h8z" fill="#cfd8dc"/></svg></button>
 </footer>
 
-<div id="hint">Drag to move · right-drag or two fingers to turn · scroll or pinch to zoom · double-click to walk there</div>
+<div id="hint">Drag to move · right-drag or twist two fingers to turn · scroll or pinch to zoom · double-click to walk there</div>
 <div id="walkHint"><b>Walking</b> W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br><small>Touch: left side moves, right side looks · Gamepad: sticks, A jump, RT run, B map</small></div>
 <div id="dot"></div>
 <div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=3"></script>
+<script type="module" src="src/main.js?v=4"></script>
 </body>
 </html>

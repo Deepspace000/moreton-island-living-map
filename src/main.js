@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp } from './common.js';
+import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp, expect, getBlob } from './common.js';
 import { loadTerrainData, buildTerrain, meshY, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
@@ -17,7 +17,10 @@ import { buildClouds } from './clouds.js';
 import { buildDetail } from './detail.js';
 
 const $ = (id) => document.getElementById(id);
-const msg = (t) => { $('ldmsg').textContent = t; };
+const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
+let shownPct = 0;
+const pct = (p) => { shownPct = Math.max(shownPct, Math.min(100, p)); const b = $('ldbar'), t = $('ldpct'); if (b) b.style.width = shownPct.toFixed(1) + '%'; if (t) t.textContent = Math.round(shownPct) + '%'; };
+const paint = () => new Promise(r => setTimeout(r, 30));
 if (Q.get('ui') === '0') document.body.classList.add('ui-off');
 
 // ---------- renderer ----------
@@ -141,6 +144,16 @@ $('btLabels').onclick = (e) => { showLabels = !showLabels; e.currentTarget.class
 $('btClouds').onclick = (e) => { showClouds = !showClouds; e.currentTarget.classList.toggle('on', showClouds); };
 $('btSpin').onclick = (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); };
 $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.position.distanceTo(controls.target), 0, null);
+let twist = null;
+const twistAngle = (e) => Math.atan2(e.touches[1].clientY - e.touches[0].clientY, e.touches[1].clientX - e.touches[0].clientX);
+canvas.addEventListener('touchstart', (e) => { twist = e.touches.length === 2 && !walk.active ? twistAngle(e) : null; }, { passive: true });
+canvas.addEventListener('touchmove', (e) => {
+  if (twist === null || e.touches.length !== 2 || walk.active) return;
+  const a = twistAngle(e); let d = a - twist; twist = a;
+  if (d > Math.PI) d -= Math.PI * 2; else if (d < -Math.PI) d += Math.PI * 2;
+  off.copy(camera.position).sub(controls.target).applyAxisAngle(camera.up, d); camera.position.copy(controls.target).add(off);
+}, { passive: true });
+canvas.addEventListener('touchend', (e) => { if (e.touches.length < 2) twist = null; }, { passive: true });
 const hideHint = () => { $('hint').style.opacity = 0; };
 canvas.addEventListener('pointerdown', () => { hideHint(); fly = null; }, { passive: true });
 canvas.addEventListener('wheel', () => { hideHint(); fly = null; }, { passive: true });
@@ -170,17 +183,21 @@ function stepFly(dt) {
 let features, boats, clouds, water, detail;
 const clock = new THREE.Clock();
 async function boot() {
-  const F = await (await fetch('assets/features.json')).json();
+  // downloads fill the bar to 78 %, building the scene takes it to 100 %
+  expect([['assets/features.json', 2e5], ['assets/height.png', 6.2e6], ['assets/mask.png', 1.8e6], ['assets/albedo.jpg', 9.6e5], ['assets/noise.png', 5e5], ['assets/water.png', 5.7e5]], (p) => pct(p * 78));
+  const F = JSON.parse(await (await getBlob('assets/features.json')).text());
   await loadTerrainData(F, msg);
+  pct(82); msg('Shaping the island'); await paint();
   buildSky(scene);
   buildTerrain(scene);
   water = buildWater(scene);
-  msg('Raising buildings, tracks and wrecks');
-  await new Promise(r => setTimeout(r, 30));
+  pct(88); msg('Raising buildings, tracks and wrecks'); await paint();
   features = buildFeatures(scene, F, flyTo);
+  pct(94); msg('Launching the boats'); await paint();
   boats = buildBoats(scene, F);
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
+  pct(98); msg('Checking the weather'); await paint();
   // quick-jump list
   const P = features.places;
   for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => flyTo(p.x, p.z, p.d, p.az, p.pol); $('places').appendChild(b); }
@@ -202,6 +219,8 @@ async function boot() {
     const r = await fetch('http://127.0.0.1:8765/' + name, { method: 'POST', body: canvas.toDataURL('image/jpeg', 0.93) });
     return name + ' ' + r.status;
   };
+  renderer.compile(scene, camera);
+  pct(100); msg('Ready'); await paint();
   renderer.setAnimationLoop(frame);
   if (Q.has('shot')) $('loading').remove(); else { $('loading').style.opacity = 0; $('loading').style.pointerEvents = 'none'; setTimeout(() => $('loading')?.remove(), 1600); }
 }

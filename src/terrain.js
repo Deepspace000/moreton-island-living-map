@@ -1,17 +1,17 @@
 // Terrain: real elevation mesh, satellite colour, procedural detail, dune shadows,
 // and the see-through water column over the estimated seabed.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, Q, makeMat, LOGV, LOGF } from './common.js';
+import { U, VEX, MOBILE, LOW, Q, makeMat, LOGV, LOGF, getBlob } from './common.js';
 
 export const T = { W: 0, H: 0, mpp: 17, sx: 0, sz: 0, hgt: null, expo: null, mask: null, step: 2, alb: null, albW: 0, albH: 0 };
 
 async function pixels(url, w, h) {
-  const blob = await (await fetch(url)).blob();
+  const blob = await getBlob(url);
   const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
   const c = document.createElement('canvas'); c.width = w || bmp.width; c.height = h || bmp.height;
   const g = c.getContext('2d', { willReadFrequently: true });
   g.drawImage(bmp, 0, 0, c.width, c.height);
-  return { data: g.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height, bmp };
+  return { data: g.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height, bmp, blob };
 }
 function tex(bmp, srgb, repeat) {
   const t = new THREE.Texture(bmp);
@@ -41,7 +41,7 @@ export async function loadTerrainData(F, progress) {
   ht.minFilter = ht.magFilter = THREE.LinearFilter; ht.wrapS = ht.wrapT = THREE.ClampToEdgeWrapping; ht.needsUpdate = true;
   U.uHeight.value = ht;
   U.uMask.value = tex(mp.bmp, false, false);
-  const full = await createImageBitmap(await (await fetch('assets/albedo.jpg')).blob());
+  const full = await createImageBitmap(ap.blob);
   U.uAlbedo.value = tex(full, true, false);
   U.uNoise.value = tex(np.bmp, false, true);
   U.uWaterTex.value = tex(wp.bmp, false, true);
