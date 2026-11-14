@@ -377,7 +377,7 @@ function buildTrees(F, scene) {
         vec3 limbAt(vec3 P, vec3 E, float u, float arch, float kink){
           vec3 d = E - P; float len = length(d);
           vec3 side = normalize(vec3(-d.z, 0.0, d.x) + vec3(0.001, 0.0, 0.0));
-          return P + d * u + vec3(0.0, (sin(3.1416 * u) * arch + sin(9.4 * u + len * 40.0) * kink * 0.35 * u * (1.0 - u) * 4.0) * len, 0.0) + side * (sin(6.2832 * u) * kink + sin(13.2 * u + len * 23.0) * kink * 0.4 * (1.0 - u)) * len;
+          return P + d * u + vec3(0.0, sin(3.1416 * u) * arch * len, 0.0) + side * sin(3.1416 * u) * kink * (fract(len * 37.0) > 0.5 ? 1.0 : -1.0) * len;      // one long bow up and one to the side: a limb sweeps, it does not zigzag
         }
         #endif
         void main(){
@@ -437,7 +437,7 @@ function buildTrees(F, scene) {
               bark = hs2 < 0.45 ? vec3(0.62, 0.60, 0.54) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
               if(form < 0.38){ fork = 0.46; spread = 0.24; top0 = 0.76; arch = 0.12; kink = 0.09; lean = 0.16; wig = 0.07; }           // tall, forking high
               else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
-              else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.48; wig = 0.13; } }                 // leaning and crooked
+              else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.38; wig = 0.13; } }                 // leaning and crooked
             else if(sp < 1.5){ H = 11.0; tr = 0.011; vPor = 0.75; rbK = 0.085; sc = vec3(0.85, 2.1, 0.85); twig = 0.17; hang = -0.8;                               // she-oak (casuarina): slender dark stems,
               bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.66, 0.78, 0.70); top0 = 0.72; arch = 0.1; kink = 0.07; wig = 0.05;                                      // grey-green tassels of needles hanging from the twig ends
               if(form < 0.55){ fork = 0.16; spread = 0.22; lean = 0.1; }               // the classic form: several stems rising from low down
@@ -452,13 +452,13 @@ function buildTrees(F, scene) {
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
             float dense = smoothstep(0.30, 0.12, lum);                                  // closed forest: crowns spread until they meet
             rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
-            wig = max(wig * 1.35, 0.085) * (0.7 + 0.6 * h4); kink = max(kink * 1.25, 0.09);          // no tree grows straight: every trunk and limb wanders
+            wig = max(wig * 0.75, 0.045) * (0.7 + 0.6 * h4); kink = max(kink * 0.8, 0.05);            // no tree grows straight, but real trunks and limbs bend in long, easy curves
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
             vec2 ld = (swept > 0.5 ? normalize(vec2(-0.8, -0.6) + (vec2(h2, h1) - 0.5) * 0.7) : vec2(cos(h2 * 6.2832), sin(h2 * 6.2832))) * lean * (0.4 + 0.6 * h3);
             float wph = h1 * 6.2832;
-            // centre of the trunk at fraction t of the way up to the fork: it leans and wanders
-            #define TRUNK(t) vec3(ld.x * (t) * (t) * fork + (sin((t) * 4.7 + wph) + 0.45 * sin((t) * 10.3 + wph * 1.7)) * wig * (t), (t) * fork, ld.y * (t) * (t) * fork + (cos((t) * 3.9 + wph) + 0.45 * cos((t) * 8.7 + wph * 2.3)) * wig * (t))
+            // centre of the trunk at fraction t of the way up to the fork: it leans, and sways once or twice on the way up
+            #define TRUNK(t) vec3(ld.x * (t) * (t) * fork + (sin((t) * 2.4 + wph) + 0.16 * sin((t) * 5.5 + wph * 1.7)) * wig * (t), (t) * fork, ld.y * (t) * (t) * fork + (cos((t) * 2.0 + wph) + 0.16 * cos((t) * 4.9 + wph * 2.3)) * wig * (t))
             vec3 P = TRUNK(1.0);
             float li = (aPart > 1.5 && aPart < 2.5) ? aBlob : mod(aBlob, NLIMB);          // the limb this vertex belongs to, or the limb its clump and twig grow from
             float hb = hash12(cell + li * 13.7), hb2 = hash12(cell * 1.3 + li * 5.1 + 2.0), la = 6.2832 * (li / NLIMB + 0.3 * hb + h1), reach = spread * (0.55 + 0.6 * hb);
@@ -474,7 +474,7 @@ function buildTrees(F, scene) {
             float burnt = max(smoothstep(0.5, 0.62, texture2D(uNoise, xz / 900.0).b), wetland * 0.8) * step(sp, 3.5), deadTree = step(hash12(cell * 0.31 + 2.0), 0.3 * wetland), mott = (sp < 0.5 && hs2 < 0.45) || (sp > 2.5 && sp < 3.5) ? 1.0 : 0.3;
             if(aPart > 2.5){                 // twig
               float u = position.y;
-              vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.16 * length(tw), 0.0) + normalize(vec3(-tw.z, 0.0, tw.x) + 0.0001) * sin(6.2832 * u + hk * 6.0) * 0.13 * length(tw), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
+              vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.16 * length(tw), 0.0) + normalize(vec3(-tw.z, 0.0, tw.x) + 0.0001) * sin(3.1416 * u) * (hk - 0.5) * 0.24 * length(tw), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
               vec3 ax = normalize(cross(dir, vec3(0.31, 0.0, 0.95))), ay = cross(dir, ax), ring = ax * position.x + ay * position.z;
               lp = (c0 + ring * tr * mix(0.22, 0.07, u)) * H * s; nrm = ring;
               c = bark * (0.7 + 0.5 * h2); ao = 0.7; vBark = vec2(mott, burnt * 0.1);
