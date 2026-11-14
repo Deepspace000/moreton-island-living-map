@@ -98,7 +98,11 @@ body.ui-off .glass, body.ui-off #hint, body.ui-off #credit { display: none !impo
 #walkHint { position: fixed; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); display: none; font-size: 12px; color: #e6f2f5; background: rgba(8, 28, 40, .55); padding: 8px 16px; border-radius: 14px; text-align: center; pointer-events: none; max-width: min(92vw, 760px); }
 #walkHint small { color: var(--dim); }
 #dot { position: fixed; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: rgba(255, 255, 255, .75); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35); display: none; pointer-events: none; }
+#stick { position: fixed; width: 0; height: 0; display: none; pointer-events: none; }
+#stick::before { content: ''; position: absolute; left: calc(var(--r) * -1); top: calc(var(--r) * -1); width: calc(var(--r) * 2); height: calc(var(--r) * 2); box-sizing: border-box; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .35); background: rgba(8, 28, 40, .18); }
+#stick i { position: absolute; left: -19px; top: -19px; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, .38); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .25); }
 body.walking #walkHint, body.walking #dot { display: block; }
 body.walking #title, body.walking #places, body.walking #hint { display: none; }
-body.ui-off #walkHint, body.ui-off #dot { display: none !important; }
-@media (max-width: 820px) { #walkHint { font-size: 10.5px; top: auto; bottom: 150px; } body.walking #wx { display: none; } }
+body.ui-off #walkHint, body.ui-off #dot, body.ui-off #stick { display: none !important; }
+@media (max-width: 820px) { #walkHint { font-size: 10.5px; } body.walking #wx { display: none; } }
+@media (pointer: coarse) { #walkHint .kb { display: none; } }

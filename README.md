@@ -8,7 +8,7 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - Yachts and cruisers at anchor that swing to the wind, yachts under sail, and the island ferries on their charted routes
 - Drifting clouds with shadows, sun, moon (true phase) and stars for the real time of day
 - Live weather, swell and tide from Open-Meteo, or set your own with sliders (sunshine, cloud cover and type, wind, rain, fog, swell, tide, lightning)
-- Walk mode: press Walk (or double-click a spot) to explore on foot with keyboard and mouse, touch or a gamepad
+- Walk mode: press Walk (or double-click a spot) to explore on foot with keyboard and mouse, touch or a gamepad. On a touch screen, hold a finger down to walk forward and slide it sideways to steer (up to run, down to stop or back up); a second finger looks around
 
 Run locally: serve this folder with any static web server (for example `python -m http.server`) and open it in a browser.
 

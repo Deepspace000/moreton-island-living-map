@@ -1,4 +1,6 @@
-// First-person walking: keyboard + mouse, touch (left half moves, right half looks) or a gamepad.
+// First-person walking: keyboard + mouse, touch or a gamepad.
+// Touch: the first finger walks (hold = forward, slide sideways = steer, up = run, down = stop then back up),
+// any other finger looks around.
 import * as THREE from 'three';
 import { U, VEX, clamp } from './common.js';
 import { meshY, T } from './terrain.js';
@@ -7,7 +9,18 @@ const EYE = 1.72 * VEX;
 export function makeWalk(camera, canvas) {
   const W = { active: false, pos: new THREE.Vector3(), yaw: 0, pitch: -0.05, vy: 0, air: false, swim: false, speed: 0, onExit: null };
   const keys = new Set();
-  let bob = 0, feet = 0, mvTouch = null, lkTouch = null, tmx = 0, tmz = 0;
+  let bob = 0, feet = 0, mvTouch = null, lkTouch = null, tf = 0, tfGoal = 0, tTurn = 0, tRun = 0;
+  const stick = document.getElementById('stick'), knob = stick?.firstElementChild;
+  const stickR = () => clamp(Math.min(innerWidth, innerHeight) * 0.2, 60, 110);
+  // finger offset from where it pressed (px, up is positive) -> forward amount, turn rate and run amount
+  const steer = (dx, dy) => {
+    const R = stickR(), m = clamp(dx / R, -1, 1), n = clamp(dy / R, -1, 1);
+    tTurn = Math.sign(m) * (Math.max(0, Math.abs(m) - 0.12) / 0.88) ** 1.5 * 2.2;
+    tRun = Math.max(0, n - 0.15) / 0.85;
+    tfGoal = n > -0.15 ? 1 : n > -0.45 ? (n + 0.45) / 0.3 : n > -0.7 ? 0 : (n + 0.7) / 0.3 * 0.6;
+    if (knob) knob.style.transform = `translate(${m * R}px, ${-n * R}px)`;
+  };
+  const dropMove = () => { mvTouch = null; tfGoal = tTurn = tRun = 0; if (stick) stick.style.display = 'none'; };
   const look = (dx, dy, k) => { W.yaw += dx * k; W.pitch = clamp(W.pitch - dy * k, -1.5, 1.5); };
   addEventListener('keydown', (e) => { if (!W.active) return; keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
   addEventListener('keyup', (e) => keys.delete(e.code));
@@ -17,18 +30,20 @@ export function makeWalk(camera, canvas) {
   canvas.addEventListener('touchstart', (e) => {
     if (!W.active) return; e.preventDefault();
     for (const t of e.changedTouches) {
-      if (t.clientX < innerWidth * 0.45 && !mvTouch) mvTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
-      else if (!lkTouch) lkTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
+      if (!mvTouch) {
+        mvTouch = { id: t.identifier, x: t.clientX, y: t.clientY }; steer(0, 0);
+        if (stick) { stick.style.cssText = `display:block; left:${t.clientX}px; top:${t.clientY}px; --r:${stickR()}px`; }
+      } else if (!lkTouch) lkTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
     }
   }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
     if (!W.active) return; e.preventDefault();
     for (const t of e.changedTouches) {
-      if (mvTouch && t.identifier === mvTouch.id) { tmx = clamp((t.clientX - mvTouch.x) / 55, -1, 1); tmz = clamp((mvTouch.y - t.clientY) / 55, -1, 1); }
+      if (mvTouch && t.identifier === mvTouch.id) steer(t.clientX - mvTouch.x, mvTouch.y - t.clientY);
       if (lkTouch && t.identifier === lkTouch.id) { look(t.clientX - lkTouch.x, t.clientY - lkTouch.y, 0.0055); lkTouch.x = t.clientX; lkTouch.y = t.clientY; }
     }
   }, { passive: false });
-  const endTouch = (e) => { for (const t of e.changedTouches) { if (mvTouch && t.identifier === mvTouch.id) { mvTouch = null; tmx = tmz = 0; } if (lkTouch && t.identifier === lkTouch.id) lkTouch = null; } };
+  const endTouch = (e) => { for (const t of e.changedTouches) { if (mvTouch && t.identifier === mvTouch.id) dropMove(); if (lkTouch && t.identifier === lkTouch.id) lkTouch = null; } };
   canvas.addEventListener('touchend', endTouch); canvas.addEventListener('touchcancel', endTouch);
 
   W.enter = (x, z, yaw) => {
@@ -36,10 +51,11 @@ export function makeWalk(camera, canvas) {
     camera.fov = innerWidth < innerHeight ? 80 : 70; camera.near = 0.25; camera.updateProjectionMatrix();
     if (matchMedia('(pointer: fine)').matches) canvas.requestPointerLock?.();
   };
-  W.exit = () => { W.active = false; keys.clear(); mvTouch = lkTouch = null; tmx = tmz = 0; if (document.pointerLockElement === canvas) document.exitPointerLock(); camera.near = 3; };
+  W.exit = () => { W.active = false; keys.clear(); dropMove(); lkTouch = null; tf = 0; if (document.pointerLockElement === canvas) document.exitPointerLock(); camera.near = 3; };
   W.update = (dt) => {
-    let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + tmz;
-    let s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + tmx;
+    tf += (tfGoal - tf) * Math.min(1, dt * 9); W.yaw += tTurn * dt;
+    let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + tf;
+    let s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
     let run = keys.has('ShiftLeft') || keys.has('ShiftRight'), jump = keys.has('Space');
     if (keys.has('ArrowLeft')) W.yaw -= dt * 1.6; if (keys.has('ArrowRight')) W.yaw += dt * 1.6;
     const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g && g.connected) : null;
@@ -53,7 +69,7 @@ export function makeWalk(camera, canvas) {
     const mag = Math.hypot(f, s); if (mag > 1) { f /= mag; s /= mag; }
     const sea = U.uSeaM.value * VEX, gy = meshY(W.pos.x, W.pos.z);
     W.swim = gy < sea - 1.25 * VEX;
-    const sp = W.swim ? 3.2 : run ? 17 : 5.2;
+    const sp = W.swim ? 3.2 : 5.2 + 11.8 * Math.max(run ? 1 : 0, tRun);
     const sn = Math.sin(W.yaw), cs = Math.cos(W.yaw);
     W.pos.x = clamp(W.pos.x + (sn * f + cs * s) * sp * dt, -T.sx / 2 + 150, T.sx / 2 - 150);
     W.pos.z = clamp(W.pos.z + (-cs * f + sn * s) * sp * dt, -T.sz / 2 + 150, T.sz / 2 - 150);
