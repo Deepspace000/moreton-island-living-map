@@ -172,7 +172,7 @@ function buildBeachLife(scene) {
 
 // ---------------------------------------------------------------- 4WDs on the beach
 const GLASS = [.06, .09, .13], TYRE = [.07, .07, .075], DARK = [.13, .13, .14];
-function fourWD(col) {
+export function fourWD(col) {
   const g = new GB(), M = new THREE.Matrix4();
   g.box(0, 0.42, 0, 4.7, 0.72, 1.86, col);                                   // body
   g.box(-0.55, 1.14, 0, 3.0, 0.72, 1.72, col); g.box(-0.55, 1.22, 0, 3.04, 0.48, 1.76, GLASS);     // cabin and windows
@@ -310,6 +310,7 @@ const STRIPED = fishMesh({ prof: [[0.40, 0.075, 0.045], [0.26, 0.16, 0.065], [0.
 const SLIM = fishMesh({ prof: [[0.40, 0.04, 0.035], [0.22, 0.085, 0.055], [0.02, 0.1, 0.06], [-0.18, 0.08, 0.045], [-0.33, 0.045, 0.025], [-0.42, 0.022, 0.012]], tail: { len: 0.18, up: 0.13, down: 0.13 }, dorsal: [[0.08, -0.12, 0.05, 0.06]], S: 5 });
 const SHARK = fishMesh({ prof: [[0.40, 0.045, 0.05], [0.25, 0.08, 0.085], [0.06, 0.095, 0.095], [-0.14, 0.07, 0.065], [-0.30, 0.04, 0.035], [-0.42, 0.022, 0.016]], tail: { len: 0.22, up: 0.2, down: 0.08, low: 0.55 }, dorsal: [[0.1, -0.06, 0.13, 0.1], [-0.24, -0.31, 0.045, 0.04]], pect: [0.2, -0.04, 0.2, 0.16, 0.05] });
 const SHOVEL = fishMesh({ prof: [[0.36, 0.02, 0.08], [0.2, 0.035, 0.2], [0.05, 0.05, 0.23], [-0.06, 0.055, 0.1], [-0.2, 0.045, 0.05], [-0.36, 0.03, 0.03], [-0.45, 0.018, 0.014]], nose: 0.14, tail: { len: 0.14, up: 0.1, down: 0.05, low: 0.7 }, dorsal: [[-0.12, -0.2, 0.07, 0.05], [-0.28, -0.35, 0.06, 0.04]] });
+const FLATHEAD = fishMesh({ prof: [[0.38, 0.028, 0.09], [0.22, 0.042, 0.13], [0.05, 0.05, 0.1], [-0.15, 0.045, 0.07], [-0.32, 0.03, 0.04], [-0.43, 0.018, 0.018]], tail: { len: 0.16, up: 0.09, down: 0.09 }, dorsal: [[0.0, -0.25, 0.05, 0.04]], pect: [0.2, 0.0, 0.12, 0.06, 0.0] });
 const TURTLE = (() => {
   const pos = [0, 0.17, 0, 0, -0.07, 0], flex = [0, 0], tone = [0, 1], idx = [];
   for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; pos.push(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.4); flex.push(0); tone.push(0.25); }
@@ -373,7 +374,7 @@ function buildSeaLife(scene, F) {
   // a spot anywhere round the island, in water of the wanted depth and within reach of the shore or a bank
   const anywhere = (d0, d1) => { for (let t = 0; t < 400; t++) { const x = (R() - 0.5) * (T.sx - 800), z = (R() - 0.5) * (T.sz - 800), d = depth(x, z); if (d > d0 && d < d1 && maskAt(x, z).shore > -900) return [x, z, d]; } return null; };
   const school = (out, x, z, d, n, r0, size) => { const ph = R() * 6.283, sp = 0.5 + R() * 0.5, way = R() < 0.5 ? 0.2 : 0.8; for (let i = 0; i < n; i++) out.push(x + (R() - .5) * 3, z + (R() - .5) * 3, r0 + R() * 2.5, Math.min(d - 0.3, 0.45 + R() * 1.3), ph + i * 0.11 + R() * 0.2, sp, size * (0.8 + R() * 0.4), way + R() * 0.15); };
-  const bream = [], stripey = [], blue = [], small = [], turtles = [], rays = [], sharks = [], shovels = [], jelly = [];
+  const bream = [], stripey = [], blue = [], small = [], whiting = [], flathead = [], turtles = [], rays = [], sharks = [], shovels = [], jelly = [];
   const tg = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p || [-1744, -540];
   // every wreck is a reef: striped sergeants close in, a cloud of small blue-green fish over the hull, bream and trevally circling wider
   for (const w of F.wrecks) {
@@ -385,6 +386,11 @@ function buildSeaLife(scene, F) {
   for (let i = 0; i < 26 * K; i++) { const s = spot(tg[0] - 250, tg[1] - 600, 1900, 1.5, 6); if (s) school(i % 2 ? bream : stripey, s[0], s[1], s[2], 9, 5 + R() * 9, i % 2 ? 0.95 : 0.7); }
   // schools of small fish (whiting, hardyheads, baitfish) all round the island, in the shallows and over the banks
   for (let i = 0; i < 190 * K; i++) { const s = anywhere(0.5, 4); if (s) school(small, s[0], s[1], s[2], 8 + ((R() * 9) | 0), 3 + R() * 8, 0.28 + R() * 0.16); }
+  // whiting: slim sand-coloured fish working the edge of the beaches in schools, in water barely knee deep
+  for (let i = 0; i < 150 * K; i++) { const s = anywhere(0.3, 1.5); if (s) school(whiting, s[0], s[1], s[2], 8 + ((R() * 7) | 0), 3 + R() * 6, 0.3 + R() * 0.1); }
+  // dusky flathead lying on the sand in the lagoons and the sheltered shallows, shifting a little now and then
+  const lag = F.lakes.filter(l => /Lagoon/.test(l.n || '')).map(l => l.c);
+  for (let i = 0; i < 110 * K; i++) { const s = i < 30 && lag.length ? spot(lag[i % lag.length][0], lag[i % lag.length][1], 500, 0.3, 3.5) : anywhere(0.4, 2.6); if (s && (i < 30 || maskAt(s[0], s[1]).expo < 0.5)) flathead.push(s[0], s[1], 2 + R() * 5, 0, R() * 6.283, 0.05 + R() * 0.12, 0.5 + R() * 0.35, R()); }
   const coast = (n, rad, d0, d1, f) => { for (let i = 0; i < n; i++) { const z = (R() - 0.5) * T.sz * 0.8; let x = -T.sx / 2 + 400; while (x < T.sx / 2 && depth(x, z) > 0.2) x += 40; const s = spot(i % 3 === 0 ? tg[0] - 300 : x - rad * 0.6, i % 3 === 0 ? tg[1] - 800 + (R() - .5) * 2600 : z, rad, d0, d1); if (s) f(s); } };
   coast(60 * K, 900, 1.6, 7, (s) => turtles.push(s[0], s[1], 12 + R() * 24, 0.5 + R() * 1.3, R() * 6.283, 0.45 + R() * 0.35, 1.3 + R() * 0.6, R()));     // green turtles over the seagrass on the bay side
   // stingrays over the sand: in water that is shallow at some state of the tide; more of them come in when it is low
@@ -398,6 +404,8 @@ function buildSeaLife(scene, F) {
   swimmers(scene, { ...SLIM, name: 'blue', amp: 0.15, rate: 13, colA: [0.14, 0.55, 0.74], colB: [0.75, 0.9, 0.55], see: 300, min: 0.5 }, blue);
   swimmers(scene, { ...STRIPED, name: 'stripey', amp: 0.13, rate: 10, colA: [0.92, 0.78, 0.16], colB: [0.12, 0.13, 0.16], see: 420 }, stripey);
   swimmers(scene, { ...SLIM, name: 'small', amp: 0.16, rate: 14, colA: [0.48, 0.52, 0.46], colB: [0.90, 0.90, 0.84], see: 260, min: 0.3 }, small);
+  swimmers(scene, { ...SLIM, name: 'whiting', amp: 0.15, rate: 13, colA: [0.74, 0.70, 0.50], colB: [0.96, 0.95, 0.90], see: 240, min: 0.22 }, whiting);
+  swimmers(scene, { ...FLATHEAD, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.50, 0.42, 0.28], colB: [0.80, 0.74, 0.60], see: 500, min: 0.25 }, flathead);
   swimmers(scene, { ...TURTLE, name: 'turtles', vertical: 1, amp: 0.22, rate: 1.8, colA: [0.30, 0.27, 0.16], colB: [0.62, 0.58, 0.42], see: 1100 }, turtles);
   swimmers(scene, { ...RAY, name: 'rays', vertical: 1, bottom: 1, tidal: 1, amp: 0.13, rate: 2.2, colA: [0.36, 0.31, 0.24], colB: [0.22, 0.19, 0.16], see: 900, min: 0.25 }, rays);
   swimmers(scene, { ...SHOVEL, name: 'shovelnose', bottom: 1, amp: 0.07, rate: 3, colA: [0.50, 0.42, 0.30], colB: [0.80, 0.76, 0.66], see: 900, min: 0.3 }, shovels);
@@ -549,11 +557,11 @@ function buildBirds(scene, F) {
 
 // ---------------------------------------------------------------- butterflies
 function buildInsects(scene) {
-  return scatter(scene, LOW ? 22 : 30, 5.5, (g) => {
+  return scatter(scene, LOW ? 26 : 38, 4.6, (g) => {
     attr(g, 'position', [0, 0, 0, 0.9, 0, 1, -0.7, 0, 0.8, 0, 0, 0, -0.7, 0, -0.8, 0.9, 0, -1], 3); attr(g, 'aK', [0, 1, 1, 0, -1, -1], 1); g.setIndex([0, 1, 2, 3, 4, 5]);
   }, /* glsl */`
         // blue tigers, common crows, common browns and tiny grass-blues over the heath and forest edge, by day, out of the rain
-        float veg = step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt) * step(h3, 0.16) * (1.0 - smoothstep(0.15, 0.5, uNight)) * (1.0 - smoothstep(0.05, 0.4, uRain));
+        float veg = step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt) * step(h3, 0.36) * (1.0 - smoothstep(0.15, 0.5, uNight)) * (1.0 - smoothstep(0.05, 0.4, uRain));
         float t = uTime * (0.6 + 0.5 * h1), fl = abs(sin(uTime * (9.0 + 6.0 * h2) + h1 * 20.0));
         float small = step(0.78, h2);                                            // grass-blues are small and keep low
         s = mix(0.055 + 0.03 * h2, 0.03, small) * veg;
@@ -585,9 +593,81 @@ function buildDragonflies(scene) {
         c = abs(aK) > 0.005 ? vec3(0.78, 0.84, 0.88) : (h4 < 0.35 ? vec3(0.50, 0.36, 0.10) : h4 < 0.7 ? vec3(0.80, 0.68, 0.10) : vec3(0.12, 0.35, 0.75));`, 90);
 }
 
+// clouds of small flies and midges hanging in the still air between the bushes
+function buildGnats(scene) {
+  return scatter(scene, LOW ? 56 : 84, 0.8, (g) => {
+    attr(g, 'position', [-1, 0, 0, 1, 0, 0, 0, 1.6, 0], 3); attr(g, 'aK', [0, 0, 0], 1); g.setIndex([0, 1, 2]);
+  }, /* glsl */`
+        float swarm = smoothstep(0.6, 0.72, texture2D(uNoise, xz / 17.0).g) * step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt) * (1.0 - smoothstep(0.2, 0.6, uNight)) * (1.0 - smoothstep(0.05, 0.3, uRain));
+        float t = uTime * (2.0 + 2.0 * h1);
+        s = 0.012 * swarm * step(h3, 0.6);
+        lp = position + vec3(sin(t * 1.3 + h1 * 40.0) + sin(t * 3.1 + h2 * 20.0) * 0.5, 1.3 + 1.2 * h2 + sin(t * 2.2 + h3 * 50.0) * 0.5, cos(t * 1.7 + h4 * 30.0) + cos(t * 2.7 + h1 * 9.0) * 0.5) * 0.45 / max(s, 0.0005);
+        nrm = vec3(0.0, 1.0, 0.0); c = vec3(0.03, 0.03, 0.03);`, 40);
+}
+// Rounded animal bodies: each part is a tube through a few stations [x, y, z, radius], closed at both ends.
+// kk marks the part for the shader (which colours and moves it).
+function tubes(parts, S = 5) {
+  const pos = [], k = [], idx = [], V = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], N = (v) => { const l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }, X = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  for (const { st, kk } of parts) {
+    const base = pos.length / 3, n = st.length;
+    st.forEach((c, i) => {
+      const t = N(V(st[Math.min(n - 1, i + 1)], st[Math.max(0, i - 1)])), side = N(X(t, Math.abs(t[1]) > 0.9 ? [0, 0, 1] : [0, 1, 0])), up = X(side, t);
+      for (let j = 0; j < S; j++) { const a = j / S * Math.PI * 2, ca = Math.cos(a) * c[3], sa = Math.sin(a) * c[3]; pos.push(c[0] + side[0] * ca + up[0] * sa, c[1] + side[1] * ca + up[1] * sa, c[2] + side[2] * ca + up[2] * sa); k.push(kk); }
+    });
+    for (let i = 0; i < n - 1; i++) for (let j = 0; j < S; j++) { const q = base + i * S, j2 = (j + 1) % S; idx.push(q + j, q + S + j, q + j2, q + j2, q + S + j, q + S + j2); }
+    const e0 = pos.length / 3; pos.push(st[0][0], st[0][1], st[0][2], st[n - 1][0], st[n - 1][1], st[n - 1][2]); k.push(kk, kk);
+    for (let j = 0; j < S; j++) { const j2 = (j + 1) % S; idx.push(e0, base + j2, base + j, e0 + 1, base + (n - 1) * S + j, base + (n - 1) * S + j2); }
+  }
+  return (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); };
+}
+// wallabies in the scrub: mostly still, now and then a few hops along and back
+function buildWallabies(scene) {
+  const parts = [
+    { kk: 0, st: [[-0.2, 0.3, 0, 0.15], [-0.05, 0.36, 0, 0.18], [0.16, 0.44, 0, 0.14], [0.3, 0.55, 0, 0.085], [0.38, 0.63, 0, 0.07]] },     // rump, back, chest, neck
+    { kk: 4, st: [[0.36, 0.64, 0, 0.065], [0.45, 0.65, 0, 0.06], [0.56, 0.61, 0, 0.03]] },                                             // head and muzzle
+    { kk: 3, st: [[-0.28, 0.27, 0, 0.075], [-0.6, 0.13, 0, 0.05], [-0.98, 0.04, 0, 0.022]] },                                           // tail
+  ];
+  for (const z of [-0.11, 0.11]) {
+    parts.push({ kk: 2, st: [[-0.14, 0.3, z, 0.075], [0.02, 0.14, z * 1.2, 0.05], [-0.06, 0.04, z * 1.2, 0.035], [0.2, 0.025, z * 1.2, 0.03]] });      // hind leg and long foot
+    parts.push({ kk: 1, st: [[0.2, 0.42, z * 0.7, 0.035], [0.3, 0.26, z * 0.8, 0.022]] });                                                   // forearm
+    parts.push({ kk: 4, st: [[0.4, 0.69, z * 0.4, 0.022], [0.37, 0.8, z * 0.6, 0.014]] });                                                   // ear
+  }
+  return scatter(scene, LOW ? 16 : 22, 24, tubes(parts), /* glsl */`
+        float scrub = step(0.92, mk.r) * (1.0 - smoothstep(0.25, 0.5, mk.g)) * step(2.5, hgt) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g))) * step(h3, 0.07);
+        float f = fract(uTime * 0.012 * (0.7 + 0.6 * h2) + h1 * 5.0), tri = abs(2.0 * f - 1.0), fwd = f < 0.5 ? -1.0 : 1.0;
+        float go = smoothstep(0.3, 0.7, tri), moving = smoothstep(0.3, 0.34, tri) * (1.0 - smoothstep(0.66, 0.7, tri));           // long rests at each end, a short run of hops between
+        float hop = abs(sin(go * 12.0)) * moving;
+        s = (1.1 + 0.35 * h2) * scrub;
+        lp = vec3(position.x * fwd, position.y, position.z);
+        if(aK > 1.5 && aK < 2.5) lp.x += hop * 0.1 * fwd * (0.3 - position.y);                                                   // the hind legs kick back in the hop
+        if(aK > 2.5 && aK < 3.5) lp.y += hop * 0.12 * (-position.x - 0.25);                                                      // the tail lifts as a balance
+        lp += vec3((go - 0.5) * 9.0, hop * 0.3, 0.0) / max(s, 0.001);
+        nrm = normalize(vec3(0.0, 0.5, position.z * 6.0));
+        c = aK < 0.5 ? vec3(0.115, 0.09, 0.07) : aK < 1.5 ? vec3(0.055, 0.045, 0.04) : aK < 2.5 ? vec3(0.12, 0.095, 0.07) : aK < 3.5 ? vec3(0.075, 0.06, 0.05) : vec3(0.10, 0.075, 0.065);
+        c *= 0.75 + 0.5 * smoothstep(0.1, 0.5, position.y) * (0.8 + 0.4 * h4);`, 420);
+}
+// lizards: goannas walking the sand between the bushes, and smaller skinks and blue-tongues that sit, then dart
+function buildLizards(scene) {
+  const parts = [{ kk: 0, st: [[0.5, 0.05, 0, 0.022], [0.4, 0.065, 0, 0.045], [0.3, 0.06, 0.01, 0.04], [0.17, 0.075, 0.02, 0.065], [0.0, 0.07, 0, 0.075], [-0.16, 0.065, -0.02, 0.06], [-0.45, 0.04, 0.02, 0.032], [-0.75, 0.025, -0.03, 0.018], [-1.0, 0.015, 0, 0.006]] }];
+  for (const [x, sg] of [[0.17, 1], [0.17, -1], [-0.14, 1], [-0.14, -1]]) parts.push({ kk: 2, st: [[x, 0.06, 0.05 * sg, 0.024], [x + 0.03, 0.05, 0.15 * sg, 0.02], [x + 0.07, 0.008, 0.19 * sg, 0.016]] });
+  const body = (big) => /* glsl */`
+        float ok = step(0.92, mk.r) * step(1.5, hgt) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * step(h3, ${big ? '0.05' : '0.04'});
+        float f = fract(uTime * ${big ? '0.02' : '0.05'} * (0.7 + 0.6 * h2) + h1 * 5.0), tri = abs(2.0 * f - 1.0), fwd = f < 0.5 ? -1.0 : 1.0;
+        float go = smoothstep(${big ? '0.15, 0.85' : '0.42, 0.58'}, tri), moving = smoothstep(${big ? '0.15, 0.2' : '0.42, 0.44'}, tri) * (1.0 - smoothstep(${big ? '0.8, 0.85' : '0.56, 0.58'}, tri));
+        s = ${big ? '(0.8 + 0.45 * h2)' : '(0.22 + 0.2 * h2)'} * ok;
+        float wag = sin(position.x * 7.0 - uTime * ${big ? '5.0' : '14.0'}) * moving;                                          // the body snakes from side to side as it walks
+        lp = vec3(position.x * fwd, position.y, position.z + wag * 0.045 * (0.3 + abs(position.x)));
+        if(aK > 1.5) lp.x += sin(uTime * ${big ? '5.0' : '14.0'} + position.x * 20.0 + position.z * 30.0) * 0.04 * moving;
+        lp += vec3((go - 0.5) * ${big ? '14.0' : '3.0'}, 0.0, 0.0) / max(s, 0.001);
+        nrm = normalize(vec3(0.0, 0.6, position.z * 8.0));
+        float band = step(0.5, fract(position.x * ${big ? '9.0' : '5.0'} + h4));
+        c = ${big ? 'mix(vec3(0.06, 0.065, 0.06), vec3(0.30, 0.27, 0.13), band * 0.55)' : 'mix(mix(vec3(0.36, 0.28, 0.18), vec3(0.20, 0.16, 0.12), band), vec3(0.42, 0.44, 0.40), step(0.6, h4) * 0.6)'} * (0.8 + 0.4 * smoothstep(0.02, 0.1, position.y));`;
+  return [scatter(scene, LOW ? 14 : 20, 28, tubes(parts), body(true), 300), scatter(scene, LOW ? 30 : 44, 3.6, tubes(parts, 4), body(false), 70)];
+}
+
 export function buildLife(scene, F) {
   const lights = makeLights(64); scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
-  const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene)];
+  const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene), buildGnats(scene), buildWallabies(scene), ...buildLizards(scene)];
   const cars = buildCars(scene, F, lights), snork = buildSnorkelers(scene, F), birds = buildBirds(scene, F);
   buildSeaLife(scene, F);
   return {

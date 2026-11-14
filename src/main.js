@@ -16,6 +16,7 @@ import { buildBoats } from './boats.js';
 import { buildClouds } from './clouds.js';
 import { buildDetail } from './detail.js';
 import { buildLife } from './life.js';
+import { buildFolk } from './folk.js';
 import { makeSound } from './sound.js';
 
 const $ = (id) => document.getElementById(id);
@@ -213,7 +214,7 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water, detail, life;
+let features, boats, clouds, water, detail, life, folk;
 const sound = makeSound();
 const clock = new THREE.Clock();
 async function boot() {
@@ -230,6 +231,7 @@ async function boot() {
   pct(94); msg('Launching the boats'); await paint();
   boats = buildBoats(scene, F);
   life = buildLife(scene, F);
+  folk = buildFolk(scene, F);
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   pct(98); msg('Checking the weather'); await paint();
@@ -241,7 +243,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();

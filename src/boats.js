@@ -61,6 +61,26 @@ function tinny() {
   g.box(-1.4, 0.62, 0.2, 0.4, 0.75, 0.45, [.75, .2, .15]); g.box(-1.4, 1.37, 0.2, 0.3, 0.3, 0.3, [.85, .68, .55]);
   return g.build();
 }
+function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm up top under a hardtop
+  const g = new GB();
+  hull(g, 14, 4.4, 0.9, 1.5, hc, DECK);
+  g.box(0.2, 1.5, 0, 7.4, 1.5, 3.7, WHITE); g.box(0.5, 2.0, 0, 7.0, 0.65, 3.76, GLASS);                    // saloon and its windows
+  g.box(3.6, 1.5, 0, 2.6, 0.8, 3.2, WHITE);                                                                // foredeck cabin
+  g.box(-0.6, 3.0, 0, 4.6, 0.25, 3.5, WHITE); g.box(0.9, 3.25, 0, 1.2, 0.75, 2.6, WHITE); g.box(1.5, 3.5, 0, 0.1, 0.6, 2.4, GLASS);       // flybridge deck, helm, screen
+  for (const [x, z] of [[1.2, 1.5], [1.2, -1.5], [-2.4, 1.5], [-2.4, -1.5]]) g.box(x, 3.25, z, 0.08, 1.7, 0.08, [.82, .82, .84]);
+  g.box(-0.6, 4.95, 0, 4.2, 0.1, 3.4, WHITE);                                                              // hardtop
+  g.box(-5.2, 1.5, 0, 3.2, 0.12, 3.9, [.6, .5, .4]); g.cyl(-0.6, 5.05, 0, 0.05, 0.03, 2.2, 4, [.8, .8, .8]);  // cockpit sole, aerial
+  return g.build();
+}
+function jetski(col) {       // a jet ski and its rider
+  const g = new GB(), SKIN = [.82, .64, .52];
+  hull(g, 3.2, 1.15, 0.18, 0.42, col, col, 0, [.15, .15, .16]);
+  g.box(0.5, 0.42, 0, 1.3, 0.3, 0.8, WHITE); g.box(-0.5, 0.42, 0, 1.3, 0.34, 0.5, [.1, .1, .11]);          // cowl and seat
+  g.box(0.55, 0.72, 0, 0.12, 0.35, 0.7, [.1, .1, .11]);                                                     // handlebar
+  g.box(-0.35, 0.76, 0, 0.36, 0.62, 0.42, [.95, .5, .1]); g.box(-0.2, 1.38, 0, 0.24, 0.26, 0.24, SKIN);     // rider in a life jacket
+  g.box(0.1, 1.05, 0.24, 0.55, 0.1, 0.1, SKIN); g.box(0.1, 1.05, -0.24, 0.55, 0.1, 0.1, SKIN); g.box(-0.3, 0.42, 0.3, 0.6, 0.36, 0.16, [.1, .2, .5]); g.box(-0.3, 0.42, -0.3, 0.6, 0.36, 0.16, [.1, .2, .5]);
+  return g.build();
+}
 function flyer() {            // fast passenger catamaran
   const g = new GB();
   for (const z of [-3.6, 3.6]) hull(g, 35, 2.8, 1.1, 1.7, WHITE, WHITE, z, NAVY);
@@ -91,6 +111,7 @@ export function buildBoats(scene, F) {
   const geo = {
     sail: [yacht(true, WHITE), yacht(true, HC[2])], moor: HC.map(c => yacht(false, c)),
     cru: [cruiser(WHITE), cruiser(HC[3])], tin: [tinny()], flyer: flyer(), barge: barge(),
+    fly: [flybridge(WHITE), flybridge(HC[2])], jet: [[.9, .15, .1], [.1, .45, .8], [.95, .8, .1], [.1, .1, .1]].map(jetski),
   };
   const pick = (a) => a[(R() * a.length) | 0];
   const boats = [], lights = makeLights(260);
@@ -115,6 +136,7 @@ export function buildBoats(scene, F) {
       const ty = pick(types);
       if (ty === 'moor') mk(pick(geo.moor), x, z, { anchor: 1, mast: 15.5, scope: 16 });
       else if (ty === 'cru') mk(pick(geo.cru), x, z, { anchor: 1, mast: 5.3, scope: 14 });
+      else if (ty === 'fly') mk(pick(geo.fly), x, z, { anchor: 1, mast: 7.4, scope: 18 });
       else mk(geo.tin[0], x, z, { anchor: 1, mast: 1.2, scope: 7, small: 1 });
       k++;
     }
@@ -140,6 +162,23 @@ export function buildBoats(scene, F) {
     let x = h[0], z = h[1];
     for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
     mk(sail ? pick(geo.sail) : pick(geo.cru), x, z, { move: 1, sail, home: h, tx: x, tz: z, tt: 0, tack: R() < .5 ? 1 : -1, mast: sail ? 15.5 : 5.3, cruise: sail ? 0 : 8 + R() * 5 });
+  }
+  // flybridge cruisers working up and down the west coast, and a few lying at anchor off the settlements
+  for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
+    const h = [[-6000, -9500, 3200], [-6500, -3000, 3500], [-5500, 4500, 3200], [-4500, 10500, 2600], [-6800, -6000, 3000]][i];
+    let x = h[0], z = h[1];
+    for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
+    mk(pick(geo.fly), x, z, { move: 1, sail: false, home: h, tx: x, tz: z, tt: 0, tack: 1, mast: 7.4, cruise: 7 + R() * 4 });
+  }
+  if (tg) moor(tg[0] - 500, tg[1] - 300, 2, 500, ['fly'], 2.5, 12);
+  if (bw) moor(bw[0] - 450, bw[1], 1, 420, ['fly'], 2.5, 12);
+  if (cc) moor(cc[0] - 400, cc[1], 1, 400, ['fly'], 2.5, 12);
+  // jet skis tearing about off Tangalooma
+  if (tg) for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
+    const h = [tg[0] - 700, tg[1] - 500, 1500];
+    let x = h[0], z = h[1];
+    for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 3) { x = px; z = pz; break; } }
+    mk(geo.jet[i % geo.jet.length], x, z, { move: 1, sail: false, jet: 1, home: h, tx: x, tz: z, tt: 0, tack: 1, mast: 1.4, small: 1, cruise: 8 + R() * 3 });
   }
   // small boats pottering between the resort and the wrecks
   if (tg) for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
@@ -219,7 +258,7 @@ export function buildBoats(scene, F) {
           const shoal = ahead(120, 0) < 3.2 || ahead(260, 0) < 2.6 || !inRect(b.x + Math.cos(b.hd) * 400, b.z - Math.sin(b.hd) * 400, 500);
           if (dd < 150 || b.tt < 0 || shoal) {
             for (let k = 0; k < 20; k++) { const px = b.home[0] + (Math.random() - .5) * b.home[2] * 2, pz = b.home[1] + (Math.random() - .5) * b.home[2] * 2; if (depth(px, pz) > 5 && inRect(px, pz, 600)) { b.tx = px; b.tz = pz; break; } }
-            b.tt = 60 + Math.random() * 80;
+            b.tt = b.jet ? 8 + Math.random() * 14 : 60 + Math.random() * 80;
           }
           let want = Math.atan2(-dz, dx);
           if (shoal) want = b.hd + (ahead(200, 0.7) > ahead(200, -0.7) ? 1.2 : -1.2);
@@ -233,7 +272,8 @@ export function buildBoats(scene, F) {
             roll = side * clamp(wx.wind * 0.011, 0.03, 0.42) * (1.25 - pt * 0.5);
             b.m.scale.z = S * (side > 0 ? 1 : -1);                                    // boom and sails set to leeward
           }
-          turn(b, want, b.sail ? 0.16 : 0.3, dt);
+          turn(b, want, b.sail ? 0.16 : b.jet ? 1.0 : 0.3, dt);
+          if (b.jet) roll = clamp(((want - b.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI, -1, 1) * 0.45;      // a jet ski leans hard into its turns
           b.sp += (cruise * 1.6 - b.sp) * Math.min(1, dt * 0.4);
           b.x += Math.cos(b.hd) * b.sp * dt; b.z -= Math.sin(b.hd) * b.sp * dt;
         }

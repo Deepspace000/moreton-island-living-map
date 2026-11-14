@@ -18,6 +18,11 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - The Bulwer wrecks: three hulks rusted down to red-brown shells and ribs, standing along the hull outlines in the map data (two across the beach, the third along the shore, awash)
 - Tides: the sea rises and falls with the clock (a harmonic model sized for Moreton Bay, shifted to the live sea level when online; the Tide slider overrides it). Low water bares wet, rippled sand: wider beaches and the sandbanks of the south-west. Boats left by the tide sit on the sand
 - Sea life: rounded fish that curve as they swim, schools of small fish all round the island, small sharks, shovelnose rays and stingrays over the sand (more stingrays come into the shallows at low tide), green turtles, swarms of blue blubber jellyfish, and armies of soldier crabs on the flats when the tide is out
+- People: walkers on the township streets and beaches, people fishing at the water's edge in front of each town, and small camps dotted behind the beaches (dome tents, a parked 4WD, a campfire that glows at night)
+- Name signs: a white name board at each township, green boards at the ends of every named street and track (boards share a post where tracks meet), and at lookouts, lakes, peaks, sand blows and camping areas
+- More on the water: flybridge cruisers at anchor and under way along the west coast, and jet skis carving about off Tangalooma
+- In the bush: clouds of butterflies and midges, wallabies resting and hopping in the scrub, goannas walking the sand and small skinks that sit, then dart
+- Under water: flathead lying on the sand in the lagoons and sheltered shallows, schools of whiting in the shallows, and in deeper water patches of rock grown over with weed and kelp, with sea cucumbers on the sand around them
 - Surf: on the open beaches the swell stands up into breakers that roll in to the sand, trailing lines and lace of foam
 - Sound (the Sound button): wind and leaves, ocean surf and bay ripples, rain and thunder, cicadas by day, crickets by night, and the calls of local birds, all made in the browser and following where you are, the weather and the hour
 - The ground is one smooth surface: a coarse mesh covers the island and finer grids follow the view, so dunes stay rounded up close and trees stand on the ground
