@@ -790,13 +790,15 @@ function buildWrecks(F, g) {
       const cin = [c2[0] * .55, c2[1] * .55, c2[2] * .6], TH = 0.55;
       for (const sd of [-1, 1]) {
         const o0 = b0 * sd * 1.12, o1 = b1 * sd * 1.12, i0 = o0 - TH * sd, i1 = o1 - TH * sd, ty0 = t0 + heel * sd * b0 * VEX, ty1 = t1 + heel * sd * b1 * VEX;
-        g.quad([x0, yb, b0 * sd * 0.7], [x1, yb, b1 * sd * 0.7], [x1, ty1, o1], [x0, ty0, o0], c2);                       // outer plating
-        g.quad([x1, yb, b1 * sd * 0.7 - TH * sd], [x0, yb, b0 * sd * 0.7 - TH * sd], [x0, ty0 - 0.3, i0], [x1, ty1 - 0.3, i1], cin);   // inner skin
-        g.quad([x0, ty0, o0], [x1, ty1, o1], [x1, ty1 - 0.3, i1], [x0, ty0 - 0.3, i0], [c2[0] * 1.15, c2[1] * 1.1, c2[2]]);          // gunwale
-        if (i % 2 === 0) g.box(x0, -0.3 * VEX, o0 - TH * sd * 1.6, 0.35, Math.max(0.1, ty0 + 0.3 * VEX - 0.4), 0.5, cin);                                // frames
+        // the plating is a single skin now, so where it has rusted through you see into the hull; its top edge is eaten ragged by the shader
+        // (the last number given to each corner says how far up the plate it is)
+        const ym0 = yb + (ty0 - yb) * 0.5, ym1 = yb + (ty1 - yb) * 0.5, m0 = b0 * sd * 1.0, m1 = b1 * sd * 1.0;        // the side bulges at half height: a ship's hull, not a slab
+        g.quad([x0, yb, b0 * sd * 0.7], [x1, yb, b1 * sd * 0.7], [x1, ym1, m1], [x0, ym0, m0], c2, [0, x0, 0], [0, x1, 0], [0, x1, 0.5], [0, x0, 0.5]);
+        g.quad([x0, ym0, m0], [x1, ym1, m1], [x1, ty1, o1], [x0, ty0, o0], c2, [0, x0, 0.5], [0, x1, 0.5], [0, x1, 1], [0, x0, 1]);
+        g.box(x0, -0.3 * VEX, o0 - TH * sd * 1.2, 0.22, Math.max(0.1, ty0 + 0.3 * VEX - 0.4) * (0.75 + 0.3 * brk[i]), 0.42, cin);                          // a rib at every station, standing inside the plating
       }
       if (i % 3 === 1 && i < S - 1) g.quad([x0, yb, -b0], [x0, yb, b0], [x0, t0 * 0.9, b0], [x0, t0 * 0.9, -b0], [col[0] * .7, col[1] * .7, col[2] * .7]);
-      if (!sunk && brk[i] > 0.36 && i > 0 && i < S - 1) { const yd = Math.min(t0, t1) - 0.9 * VEX; g.quad([x0, yd, -b0 * .92], [x1, yd, -b1 * .92], [x1, yd, b1 * .92], [x0, yd, b0 * .92], [col[0] * .85, col[1] * .8, col[2] * .8]); }
+      if (!sunk && brk[i] > 0.2 && i > 0 && i < S - 1) { const yd = Math.min(t0, t1) - (0.7 + 0.5 * brk[i]) * VEX; g.quad([x0, yd, -b0 * .92], [x1, yd, -b1 * .92], [x1, yd, b1 * .92], [x0, yd, b0 * .92], [col[0] * .85, col[1] * .8, col[2] * .8]); }
     }
     if (!sunk && rs() < 0.5) { const x = (0.3 + rs() * 0.15) * L; g.cyl(x, top(S - 3) - VEX, 0, 0.9, 0.8, (2.5 + rs() * 2) * VEX, 8, [col[0] * .8, col[1] * .8, col[2] * .8]); }
     if (!sunk && rs() < 0.8) { const x = (rs() - .5) * L * 0.5; g.at(m.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler((rs() - .5) * 0.5, 0, (rs() - .5) * 0.4)))); g.cyl(x, bed * VEX, 0, 0.3, 0.14, (H - bed + 3 + rs() * 4) * VEX, 7, [.2, .1, .06]); g.at(m); }      // what is left of a mast, leaning

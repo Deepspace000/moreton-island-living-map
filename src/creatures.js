@@ -201,7 +201,7 @@ export const PAINT = {
         float seam = min(0.5 - abs(c.x), abs(q.y - 0.6)); float rim = smoothstep(0.86, 0.93, length(vec2(vL.x / 0.5, vL.z / 0.41)));
         float burst = 0.5 + 0.5 * sin(atan(c.y, c.x) * 13.0 + n * 6.0);
         alb = mix(vec3(0.13, 0.10, 0.05), vec3(0.30, 0.23, 0.10), burst * burst * (0.3 + 0.7 * n2) * smoothstep(0.02, 0.3, length(c))); alb = mix(alb, vec3(0.17, 0.16, 0.07), 0.5 * n);
-        alb *= 0.45 + 0.55 * smoothstep(0.0, 0.07, seam); alb = mix(alb, vec3(0.12, 0.09, 0.05), rim * 0.6); alb *= 1.0 + 0.3 * smoothstep(0.1, 0.0, tone); gloss = 0.6; }
+        alb *= 0.45 + 0.55 * smoothstep(0.0, 0.07, seam); alb = mix(alb, vec3(0.12, 0.09, 0.05), rim * 0.6); alb *= 0.6; gloss = 0.5; }
       else alb = vec3(0.72, 0.66, 0.42) * (0.8 + 0.3 * n); }
       else { vec2 q = vUV * (vPart > 2.5 ? vec2(6.0, 17.0) : vec2(11.0, 9.0)) + (n2 - 0.5) * 0.35; q.x += 0.5 * floor(q.y); vec2 f = abs(fract(q) - 0.5); float edge = smoothstep(0.455, 0.497, max(f.x, f.y));
         alb = mix(vec3(0.075, 0.062, 0.036) * (0.7 + 0.6 * n), vec3(0.30, 0.27, 0.17), edge); if(vPart < 2.5 && tone > 0.6) alb = vec3(0.7, 0.66, 0.46); }`, fin: ``, top: 1,

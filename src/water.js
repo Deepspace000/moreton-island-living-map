@@ -51,7 +51,7 @@ export function buildWater(scene) {
     blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     vs: /* glsl */`
       uniform vec4 uWaves[6]; uniform float uWavePh[6], uSurf;
-      varying vec3 vW; varying vec2 vSlope; varying float vWaveH;
+      varying vec3 vW; varying vec2 vSlope; varying float vWaveH, vBreak;
       // The exposure map blurs to the land's low value right at the beach. Look about 250 m downhill (out to sea) instead,
       // so a surf beach is known as one all the way to the sand.
       float seaward(vec2 xz, float here){
@@ -60,6 +60,7 @@ export function buildWater(scene) {
         return max(here, texture2D(uHeight, clamp(uv + normalize(down + 1e-5) * uHTex * 22.0, 0.0, 1.0)).g);
       }
       void main(){
+        vBreak = 0.0;
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vec2 hg = texture2D(uHeight, clamp(worldUV(wp.xz), 0.0, 1.0)).rg;
         float depth = uSeaM - hg.r, expo = hg.g;
@@ -76,8 +77,17 @@ export function buildWater(scene) {
         // in to the sand (only near the middle of the mesh, where it is fine enough to carry them; foam is drawn at any distance)
         if(depth < 6.0 && depth > 0.0){
           float oe = seaward(wp.xz, expo), sv = uSurf * (0.18 + 0.82 * oe * oe), db = 2.0 * sv;
-          float crest = pow(0.5 + 0.5 * sin(6.2832 * (depth / 0.9 + uTime / 7.0)), 3.0);
-          y += 0.42 * sv * crest * smoothstep(db * 1.3, db * 0.5, depth) * smoothstep(0.05, db * 0.2, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz)));
+          // each wave has a long back and a steep face on its shoreward side (s is 0 on the crest, just under 1 on the face)
+          float s = fract(depth / 0.9 + uTime / 7.0 - 0.25);
+          float prof = s < 0.86 ? pow(1.0 - s / 0.86, 2.4) : pow((s - 0.86) / 0.14, 1.6);
+          float dprof = s < 0.86 ? -2.79 * pow(1.0 - s / 0.86, 1.4) : 11.4 * pow((s - 0.86) / 0.14, 0.6);
+          float env = smoothstep(db * 1.5, db * 0.6, depth) * smoothstep(0.03, db * 0.22, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz)));
+          float amp = 0.8 * sv * env;
+          y += amp * prof;
+          vec2 uvh = clamp(worldUV(wp.xz), 0.0, 1.0), e2 = uHTex * 2.0;
+          vec2 deeper = -vec2(texture2D(uHeight, uvh + vec2(e2.x, 0.0)).r - texture2D(uHeight, uvh - vec2(e2.x, 0.0)).r, texture2D(uHeight, uvh + vec2(0.0, e2.y)).r - texture2D(uHeight, uvh - vec2(0.0, e2.y)).r) / (4.0 * uMpp);
+          sl += amp * dprof / 0.9 * deeper;                      // so the face of the wave is tilted to the light and the sky
+          vBreak = env * prof;
         }
         vWaveH = y; vSlope = sl * uVex;
         wp.y = uSeaM * uVex + y * uVex * fade;
@@ -87,7 +97,7 @@ export function buildWater(scene) {
       }`,
     fs: /* glsl */`
       uniform vec2 uWindDir; uniform float uChop, uSurf, uWhitecap, uRain, uSwell;
-      varying vec3 vW; varying vec2 vSlope; varying float vWaveH;
+      varying vec3 vW; varying vec2 vSlope; varying float vWaveH, vBreak;
       // The exposure map blurs to the land's low value right at the beach. Look about 250 m downhill (out to sea) instead,
       // so a surf beach is known as one all the way to the sand.
       float seaward(vec2 xz, float here){
@@ -171,6 +181,7 @@ export function buildWater(scene) {
           float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));
           float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
           foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + 0.75 * oexp), 0.0, 1.0);
+          foam = max(foam, smoothstep(0.55, 0.9, vBreak / max(0.8 * surf, 0.05)) * (0.6 + 0.4 * ff));        // the crest itself: tumbling white water where the wave stands highest
           foam *= smoothstep(-0.25, 0.02, depth);
         }
         // whitecaps offshore when it blows
@@ -183,6 +194,7 @@ export function buildWater(scene) {
 
         float a = F + (1.0 - F) * foam * 0.92;
         vec3 rgb = refl * F + spec + foamCol * foam * 0.92 * (1.0 - F);
+        rgb += vec3(0.02, 0.16, 0.13) * (uLightCol * 0.25 + uAmbSky * 0.5) * smoothstep(0.15, 0.6, vBreak) * (1.0 - foam);          // green light through the thin wall of a rising wave
         rgb += vec3(uFlash) * 0.2 * F;
         float fg2 = fogAmount(vW);
         rgb = rgb * (1.0 - fg2) + fogColor(-V) * fg2 * a;

@@ -165,7 +165,7 @@ function buildBeachLife(scene) {
         float army = smoothstep(0.5, 0.64, texture2D(uNoise, xz / 31.0).r) * step(h3, 0.7);        // thousands here, none there
         float go = fract(uTime * 0.035 * (0.7 + 0.6 * h2) + h1 * 5.0);
         vec2 way = normalize(vec2(texture2D(uNoise, xz / 90.0).g - 0.5, texture2D(uNoise, xz / 90.0 + 0.3).b - 0.5) + 0.001), walk = way * (go - 0.5) * 1.1;
-        s = (0.024 + 0.018 * h1) * lowT * bare * army * smoothstep(0.0, 0.25, sin(go * 3.1416));
+        s = (0.042 + 0.03 * h1) * lowT * bare * army * smoothstep(0.0, 0.25, sin(go * 3.1416));
         lp = position * vec3(1.0, 0.85, 1.0) + vec3(walk.x * ca + walk.y * sa, 0.0, -walk.x * sa + walk.y * ca) / max(s, 0.0005);
         nrm = normalize(vec3(position.x, 0.7, position.z));
         c = aK > 0.5 ? vec3(0.50, 0.38, 0.46) * (0.6 + 0.6 * position.y) : mix(vec3(0.30, 0.20, 0.38), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
@@ -174,35 +174,56 @@ function buildBeachLife(scene) {
 
 // ---------------------------------------------------------------- 4WDs on the beach
 const GLASS = [.06, .09, .13], TYRE = [.07, .07, .075], DARK = [.13, .13, .14];
-// A 4WD wagon. Besides its colour every vertex is told which part of the car it belongs to (0 body, 1 cabin, 2 wheel, 3 trim, 4 lamp),
-// which way its face looks, and where on the car it sits in metres: from that the material paints doors, glass, grille, rims and beach dust.
+// A 4WD wagon, lofted through rounded cross-sections so it has no flat slabs: a body shell (bonnet, raked windscreen, cabin), four
+// wheels with rounded tyres, a bull bar and roof rack of tube, lamps, a swag on the roof and the spare on the back. Every vertex
+// carries its part number (0 body, 2 wheel, 3 trim, 4 lamp, 5 canvas) and its place on the car in metres; the material paints glass,
+// door seams, grille, plates, rims and beach dust from that.
 export function fourWD(col) {
-  const g = new GB(), M = new THREE.Matrix4(); let from = 0;
-  const mark = (part, xy) => {
-    for (let i = from; i < g.p.length / 3; i++) {
-      const nx = g.n[i * 3], ny = g.n[i * 3 + 1], nz = g.n[i * 3 + 2], face = Math.abs(nz) > 0.7 ? 0 : nx > 0.7 ? 1 : ny > 0.7 ? 2 : nx < -0.7 ? 4 : ny < -0.7 ? 5 : 3;
-      g.f[i * 3] = part * 8 + face + 1; g.f[i * 3 + 1] = xy || face === 0 || face === 2 || face === 5 ? g.p[i * 3] : g.p[i * 3 + 2]; g.f[i * 3 + 2] = g.p[i * 3 + 1];
-    }
-    from = g.p.length / 3;
+  const pos = [], colr = [], fx = [], idx = [], PI = Math.PI;
+  const V = (p, part, c) => { pos.push(p[0], p[1], p[2]); colr.push(c[0], c[1], c[2]); fx.push(part + 0.5 + p[2] * 0.2, p[0], p[1]); return pos.length / 3 - 1; };
+  // a curved sheet of nu by nv quads; its triangles are wound so they face away from the given centre
+  const grid = (nu, nv, f, part, c, centre) => {
+    const id = [], i0 = idx.length; for (let i = 0; i <= nu; i++) { id.push([]); for (let j = 0; j <= nv; j++) id[i].push(V(f(i / nu, j / nv), part, c)); }
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) idx.push(id[i][j], id[i + 1][j], id[i][j + 1], id[i][j + 1], id[i + 1][j], id[i + 1][j + 1]);
+    let out = 0; for (let k = i0; k < idx.length; k += 3) { const A = idx[k] * 3, B = idx[k + 1] * 3, C = idx[k + 2] * 3, ux = pos[B] - pos[A], uy = pos[B + 1] - pos[A + 1], uz = pos[B + 2] - pos[A + 2], vx = pos[C] - pos[A], vy = pos[C + 1] - pos[A + 1], vz = pos[C + 2] - pos[A + 2];
+      out += (uy * vz - uz * vy) * (pos[A] - centre[0]) + (uz * vx - ux * vz) * (pos[A + 1] - centre[1]) + (ux * vy - uy * vx) * (pos[A + 2] - centre[2]); }
+    if (out < 0) for (let k = i0; k < idx.length; k += 3) { const t = idx[k + 1]; idx[k + 1] = idx[k + 2]; idx[k + 2] = t; }
   };
-  g.box(0, 0.42, 0, 4.7, 0.72, 1.86, col); mark(0);                           // body
-  const zc = 0.88, y0 = 1.14, y1 = 1.87, xb = -2.3, xf0 = 0.95, xf1 = 0.55;    // cabin, with a raked windscreen
-  for (const sg of [1, -1]) g.quad([xb, y0, zc * sg], [xf0, y0, zc * sg], [xf1, y1, zc * sg], [xb, y1, zc * sg], col);
-  g.quad([xf0, y0, zc], [xf0, y0, -zc], [xf1, y1, -zc], [xf1, y1, zc], col); g.quad([xb, y0, -zc], [xb, y0, zc], [xb, y1, zc], [xb, y1, -zc], col);
-  g.quad([xb, y1, zc], [xf1, y1, zc], [xf1, y1, -zc], [xb, y1, -zc], col); mark(1);
-  g.box(-0.75, 1.9, 0, 2.3, 0.06, 1.5, DARK); g.box(2.42, 0.36, 0, 0.12, 0.16, 1.82, DARK);                 // roof rack; bull bar: a bumper, two uprights and a top rail
-  for (const z of [-0.46, 0.46]) g.box(2.46, 0.52, z, 0.06, 0.62, 0.06, DARK);
-  g.box(2.46, 1.12, 0, 0.06, 0.06, 0.98, DARK); mark(3);
-  g.box(-1.1, 1.96, 0, 1.3, 0.28, 1.2, [.25, .33, .42]); from = g.p.length / 3;                             // a swag on the rack
-  g.box(2.36, 0.82, 0.62, 0.05, 0.16, 0.3, [.95, .93, .8]); g.box(2.36, 0.82, -0.62, 0.05, 0.16, 0.3, [.95, .93, .8]);
-  g.box(-2.36, 0.85, 0.7, 0.05, 0.2, 0.25, [.7, .08, .06]); g.box(-2.36, 0.85, -0.7, 0.05, 0.2, 0.25, [.7, .08, .06]); mark(4);
-  for (const x of [1.5, -1.55]) for (const sg of [1, -1]) {                    // wheels: a ring of tread and a disc on the outside
-    const S = 14, r = 0.45, zo = 1.0 * sg, zi = 0.72 * sg, P = (i, z, rr = r) => [x + Math.cos(i / S * 6.2832) * rr, 0.44 + Math.sin(i / S * 6.2832) * rr, z];
-    for (let i = 0; i < S; i++) { g.quad(P(i, zi), P(i + 1, zi), P(i + 1, zo), P(i, zo), TYRE); g.tri([x, 0.44, zo], P(i, zo), P(i + 1, zo), TYRE); }
-  }
-  mark(2, true);
-  g.at(M.clone().makeRotationZ(Math.PI / 2).setPosition(-2.4, 1.0, 0)); g.cyl(0, 0, 0, 0.42, 0.42, 0.24, 12, TYRE, TYRE); g.at(null); mark(3);     // spare wheel on the back
-  return g.build();
+  const sp = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
+  // body: stations from nose to tail, each [x, sill height, top height, half width]; the section is a rounded box that leans in above the belt line
+  const ST = [[2.37, 0.62, 0.9, 0.5], [2.34, 0.46, 1.02, 0.86], [2.2, 0.42, 1.1, 0.92], [1.6, 0.42, 1.15, 0.93], [0.98, 0.42, 1.17, 0.93], [0.55, 0.42, 1.86, 0.93], [0.1, 0.42, 1.9, 0.93], [-1.2, 0.42, 1.9, 0.93], [-2.12, 0.42, 1.87, 0.93], [-2.3, 0.44, 1.78, 0.91], [-2.37, 0.6, 1.5, 0.6]];
+  const NS = ST.length - 1, sect = (st, v) => { const an = v * PI * 2, yc = (st[1] + st[2]) / 2, hh = (st[2] - st[1]) / 2, y = yc + hh * sp(Math.sin(an), 0.34), lean = 1 - 0.11 * Math.min(1, Math.max(0, (y - 1.17) / 0.7)); return [st[0], y, st[3] * lean * sp(Math.cos(an), 0.34)]; };
+  grid(NS * 3, 28, (u, v) => { const f = u * NS, k = Math.min(NS - 1, Math.floor(f)), t = f - k, a = sect(ST[k], v), b = sect(ST[k + 1], v), e = t * t * (3 - 2 * t), te = k === 4 ? t : e;       // the windscreen is a straight rake; elsewhere the stations blend smoothly
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * te, a[2] + (b[2] - a[2]) * te]; }, 0, col, [0, 1.1, 0]);
+  for (const k of [0, NS]) grid(2, 28, (u, v) => { const p = sect(ST[k], v), c = [ST[k][0] + (k ? -0.02 : 0.02), (ST[k][1] + ST[k][2]) / 2, 0]; return [p[0] + (c[0] - p[0]) * u, p[1] + (c[1] - p[1]) * u, p[2] * (1 - u)]; }, 0, col, [0, 1.1, 0]);      // the nose and the tail closed off, gently domed
+  // a wheel turned about the given axis (2: across the car, 0: along it): rim dish, rounded shoulder, tread, inner shoulder
+  const PROF = [[0.0, 0.001], [0.035, 0.1], [0.03, 0.26], [0.0, 0.3], [-0.015, 0.395], [0.03, 0.44], [0.07, 0.452], [0.2, 0.452], [0.24, 0.44], [0.27, 0.39], [0.275, 0.2], [0.275, 0.001]];
+  const wheel = (cx, cy, cz, sg, axis, part) => grid(PROF.length - 1, 18, (u, v) => { const q = PROF[Math.round(u * (PROF.length - 1))], an = v * PI * 2, o = -q[0] * sg, r = q[1] * (axis === 0 ? 0.93 : 1);
+    return axis === 2 ? [cx + Math.cos(an) * r, cy + Math.sin(an) * r, cz + o] : [cx + o, cy + Math.sin(an) * r, cz + Math.cos(an) * r]; }, part, TYRE, [cx + (axis === 0 ? -sg * 0.14 : 0), cy, cz + (axis === 2 ? sg * -0.14 : 0)]);
+  for (const x of [1.5, -1.55]) for (const sg of [1, -1]) wheel(x, 0.44, 1.0 * sg, sg, 2, 2);
+  wheel(-2.64, 1.02, 0, -1, 0, 3);                                                   // the spare, on the tail door
+  // round bar along a path: bull bar, roof rack
+  const bar = (path, r, part, c) => grid(path.length - 1, 8, (u, v) => { const k = u * (path.length - 1), i = Math.min(path.length - 2, Math.floor(k)), t = k - i, p = path[i], q = path[i + 1], d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], l = Math.hypot(...d) || 1;
+    const ref = Math.abs(d[1]) / l > 0.9 ? [1, 0, 0] : [0, 1, 0], s1 = [d[1] * ref[2] - d[2] * ref[1], d[2] * ref[0] - d[0] * ref[2], d[0] * ref[1] - d[1] * ref[0]], sl = Math.hypot(...s1) || 1, s2 = [(d[1] * s1[2] - d[2] * s1[1]) / l / sl, (d[2] * s1[0] - d[0] * s1[2]) / l / sl, (d[0] * s1[1] - d[1] * s1[0]) / l / sl], an = v * PI * 2;
+    return [0, 1, 2].map(m => p[m] + d[m] * t + (s1[m] / sl * Math.cos(an) + s2[m] * Math.sin(an)) * r); }, part, c, path[0].map((v, m) => (v + path[path.length - 1][m]) / 2));
+  bar([[2.47, 0.46, -0.93], [2.5, 0.46, -0.5], [2.52, 0.46, 0], [2.5, 0.46, 0.5], [2.47, 0.46, 0.93]], 0.075, 3, DARK);                              // bumper bar, bowed
+  bar([[2.5, 0.5, -0.5], [2.5, 0.95, -0.5], [2.47, 1.12, -0.42], [2.47, 1.15, 0], [2.47, 1.12, 0.42], [2.5, 0.95, 0.5], [2.5, 0.5, 0.5]], 0.032, 3, DARK);   // the hoop above it
+  for (const z of [-0.72, 0.72]) bar([[0.3, 1.9, z], [0.3, 1.98, z], [-1.9, 1.98, z], [-1.9, 1.9, z]], 0.025, 3, DARK);                                // roof rack rails
+  for (const x of [0.2, -0.5, -1.2, -1.8]) bar([[x, 1.98, -0.72], [x, 1.98, 0.72]], 0.02, 3, DARK);
+  // rounded lumps: lamps, and the rolled swag strapped to the rack
+  const lump = (c, r, part, colr2) => grid(6, 10, (u, v) => { const a = u * PI, b = v * PI * 2; return [c[0] + r[0] * Math.sin(a) * Math.cos(b), c[1] + r[1] * Math.cos(a), c[2] + r[2] * Math.sin(a) * Math.sin(b)]; }, part, colr2, c);
+  for (const z of [-0.62, 0.62]) { lump([2.345, 0.9, z], [0.05, 0.085, 0.13], 4, [.95, .93, .8]); lump([-2.345, 0.9, z * 1.16], [0.04, 0.12, 0.09], 4, [.7, .08, .06]); }
+  lump([-1.0, 2.14, 0], [0.24, 0.17, 0.66], 5, [.33, .38, .30]); lump([-0.35, 2.12, 0.1], [0.3, 0.14, 0.42], 5, [.2, .28, .40]);
+  // smooth normals, shared by vertices that sit at the same point
+  const n = pos.length / 3, nr = new Float32Array(n * 3), key = new Map();
+  for (let k = 0; k < idx.length; k += 3) { const A = idx[k] * 3, B = idx[k + 1] * 3, C = idx[k + 2] * 3, ux = pos[B] - pos[A], uy = pos[B + 1] - pos[A + 1], uz = pos[B + 2] - pos[A + 2], vx = pos[C] - pos[A], vy = pos[C + 1] - pos[A + 1], vz = pos[C + 2] - pos[A + 2], nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    for (const q of [A, B, C]) { nr[q] += nx; nr[q + 1] += ny; nr[q + 2] += nz; } }
+  for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] * 1000) + ',' + Math.round(pos[i * 3 + 1] * 1000) + ',' + Math.round(pos[i * 3 + 2] * 1000) + ',' + Math.floor(fx[i * 3]), o = key.get(k) || [0, 0, 0, []]; o[0] += nr[i * 3]; o[1] += nr[i * 3 + 1]; o[2] += nr[i * 3 + 2]; o[3].push(i); key.set(k, o); }
+  for (const o of key.values()) { const l = Math.hypot(o[0], o[1], o[2]) || 1; for (const i of o[3]) { nr[i * 3] = o[0] / l; nr[i * 3 + 1] = o[1] / l; nr[i * 3 + 2] = o[2] / l; } }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nr, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3)); g.setAttribute('aFx', new THREE.Float32BufferAttribute(fx, 3)); g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
 }
 function buildCars(scene, F, lights) {
   const routes = (F.beach || []).filter(r => r.p.length > 30);
