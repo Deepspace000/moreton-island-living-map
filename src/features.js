@@ -293,9 +293,9 @@ function speciesTree(K, B) {
     for (let k = 0; k <= rings; k++) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2; pos.push(Math.cos(a), k / rings, Math.sin(a)); nrm.push(Math.cos(a), 0, Math.sin(a)); part.push(kind); blob.push(which); }
     for (let k = 0; k < rings; k++) for (let i = 0; i < S; i++) { const j = (i + 1) % S, q = base + k * S; idx.push(q + i, q + S + i, q + j, q + j, q + S + i, q + S + j); }
   };
-  tube(3, 5, 1, 0);
-  for (let i = 0; i < B; i++) tube(2, 4, 2, i);
-  for (let k = B; k < K; k++) tube(2, 3, 3, k);          // a twig out to every clump that does not sit on a limb end
+  tube(7, 4, 1, 0);                                       // many short sections, so every bend reads as a curve
+  for (let i = 0; i < B; i++) tube(5, 3, 2, i);
+  for (let k = B; k < K; k++) tube(3, 3, 3, k);          // a twig out to every clump that does not sit on a limb end
   return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), blob: new THREE.Float32BufferAttribute(blob, 1), idx, K, B };
 }
 // Grass trees (Xanthorrhoea): a black trunk, a ball of long thin leaves, green above with a skirt of dead brown ones
@@ -303,8 +303,8 @@ function speciesTree(K, B) {
 // sets its height, lean and whether it carries a spike.
 function buildGrassTrees(scene) {
   const pos = [], col = [], pt = [], idx = [], R = rng(606);
-  for (let k = 0; k <= 1; k++) for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, r = k ? 0.11 : 0.15; pos.push(Math.cos(a) * r, k, Math.sin(a) * r); col.push(0.035, 0.033, 0.035); pt.push(0, k); }
-  for (let i = 0; i < 5; i++) { const j = (i + 1) % 5; idx.push(i, 5 + i, j, j, 5 + i, 5 + j); }
+  for (let k = 0; k <= 4; k++) for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, r = 0.15 - 0.04 * k / 4; pos.push(Math.cos(a) * r, k / 4, Math.sin(a) * r); col.push(0.035, 0.033, 0.035); pt.push(0, k / 4); }
+  for (let k = 0; k < 4; k++) for (let i = 0; i < 5; i++) { const j = (i + 1) % 5, q = k * 5; idx.push(q + i, q + 5 + i, q + j, q + j, q + 5 + i, q + 5 + j); }
   const NB = 26;
   for (let i = 0; i < NB; i++) {
     const az = i * 2.39996, el = 1.4 - 2.6 * (i / (NB - 1)), L = 0.9 + 0.35 * R(), dead = el < -0.15, base = pos.length / 3;
@@ -377,7 +377,7 @@ function buildTrees(F, scene) {
         vec3 limbAt(vec3 P, vec3 E, float u, float arch, float kink){
           vec3 d = E - P; float len = length(d);
           vec3 side = normalize(vec3(-d.z, 0.0, d.x) + vec3(0.001, 0.0, 0.0));
-          return P + d * u + vec3(0.0, sin(3.1416 * u) * arch * len, 0.0) + side * sin(6.2832 * u) * kink * len;
+          return P + d * u + vec3(0.0, (sin(3.1416 * u) * arch + sin(9.4 * u + len * 40.0) * kink * 0.35 * u * (1.0 - u) * 4.0) * len, 0.0) + side * (sin(6.2832 * u) * kink + sin(13.2 * u + len * 23.0) * kink * 0.4 * (1.0 - u)) * len;
         }
         #endif
         void main(){
@@ -444,12 +444,13 @@ function buildTrees(F, scene) {
             else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
+            wig = max(wig * 1.35, 0.085) * (0.7 + 0.6 * h4); kink = max(kink * 1.25, 0.09);          // no tree grows straight: every trunk and limb wanders
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
             vec2 ld = (swept > 0.5 ? normalize(vec2(-0.8, -0.6) + (vec2(h2, h1) - 0.5) * 0.7) : vec2(cos(h2 * 6.2832), sin(h2 * 6.2832))) * lean * (0.4 + 0.6 * h3);
             float wph = h1 * 6.2832;
             // centre of the trunk at fraction t of the way up to the fork: it leans and wanders
-            #define TRUNK(t) vec3(ld.x * (t) * (t) * fork + sin((t) * 4.7 + wph) * wig * (t), (t) * fork, ld.y * (t) * (t) * fork + cos((t) * 3.9 + wph) * wig * (t))
+            #define TRUNK(t) vec3(ld.x * (t) * (t) * fork + (sin((t) * 4.7 + wph) + 0.45 * sin((t) * 10.3 + wph * 1.7)) * wig * (t), (t) * fork, ld.y * (t) * (t) * fork + (cos((t) * 3.9 + wph) + 0.45 * cos((t) * 8.7 + wph * 2.3)) * wig * (t))
             vec3 P = TRUNK(1.0);
             float li = (aPart > 1.5 && aPart < 2.5) ? aBlob : mod(aBlob, NLIMB);          // the limb this vertex belongs to, or the limb its clump and twig grow from
             float hb = hash12(cell + li * 13.7), hb2 = hash12(cell * 1.3 + li * 5.1 + 2.0), la = 6.2832 * (li / NLIMB + 0.3 * hb + h1), reach = spread * (0.55 + 0.6 * hb);
@@ -465,7 +466,7 @@ function buildTrees(F, scene) {
             float burnt = max(smoothstep(0.5, 0.62, texture2D(uNoise, xz / 900.0).b), wetland * 0.8) * step(sp, 3.5), deadTree = step(hash12(cell * 0.31 + 2.0), 0.3 * wetland), mott = (sp < 0.5 && hs2 < 0.45) || (sp > 2.5 && sp < 3.5) ? 1.0 : 0.3;
             if(aPart > 2.5){                 // twig
               float u = position.y;
-              vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.14 * length(tw), 0.0), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
+              vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.16 * length(tw), 0.0) + normalize(vec3(-tw.z, 0.0, tw.x) + 0.0001) * sin(6.2832 * u + hk * 6.0) * 0.13 * length(tw), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
               vec3 ax = normalize(cross(dir, vec3(0.31, 0.0, 0.95))), ay = cross(dir, ax), ring = ax * position.x + ay * position.z;
               lp = (c0 + ring * tr * mix(0.22, 0.07, u)) * H * s; nrm = ring;
               c = bark * (0.7 + 0.5 * h2); ao = 0.7; vBark = vec2(mott, burnt * 0.1);
@@ -543,7 +544,7 @@ function buildTrees(F, scene) {
     mat.alphaToCoverage = !!leafy;
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
   };
-  const n = +(Q.get('trees') || (LOW ? 120 : 180));
+  const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 8, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
   ring(n, 30, 7, 13, 0.7, 15000, n * 11 * 0.42, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.7]]), false, 1);   // canopy clumps beyond them
   ring(LOW ? 90 : 160, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(0, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
