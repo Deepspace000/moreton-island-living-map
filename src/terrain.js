@@ -245,7 +245,7 @@ export function buildTerrain(scene) {
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
           col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.07, sand);            // fine, clean sand: almost no blotches
           col = mix(col, col * vec3(0.72, 0.9, 0.5), smoothstep(0.5, 0.78, nF.g) * 0.6 * close * (1.0 - sand));        // grass tufts and leaf litter
-          col *= 1.0 - 0.05 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + nE.r * 7.0) * 0.5 + 0.5);      // wind ripples in the sand
+          col *= 1.0 - 0.05 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + 2.2 * sin(dot(vW.xz, vec2(-0.5, 0.9))) + 1.4 * sin(dot(vW.xz, vec2(0.21, 0.13)) + nE.r * 2.0)) * 0.5 + 0.5);      // wind ripples in the sand, wandering and forking
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
           col = mix(col, vec3(0.10, 0.19, 0.055) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long green grass
@@ -324,7 +324,7 @@ export function buildTerrain(scene) {
           bed *= 1.0 - 0.10 * rp * near;
           { vec2 q = vW.xz; float fineK = (1.0 - smoothstep(2.0, 14.0, dist)) * (1.0 - smoothstep(0.6, 1.6, fwidth(dot(q, vec2(11.0, 6.0)))));                       // close to: ripple marks a hand-span apart, branching and joining, and grit in the troughs
             float r2 = sin(dot(q, vec2(11.0, 6.0)) + 1.7 * sin(dot(q, vec2(-1.3, 2.1))) + 1.2 * sin(dot(q, vec2(0.37, 0.23)) + bB.g * 3.0));
-            bed *= 1.0 - fineK * (0.07 * smoothstep(-0.2, 0.9, r2) + 0.06 * step(0.8, hash12(floor(q * 23.0))) * smoothstep(0.3, -0.6, r2)); }
+            bed *= 1.0 - fineK * 0.07 * smoothstep(-0.2, 0.9, r2); }
           float grass = smoothstep(0.46, 0.8, bA.g * 0.5 + bB.g * 0.36 + texture2D(uNoise, p / 17.0).b * 0.24) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
           bed = mix(bed, vec3(0.07, 0.13, 0.07), grass * 0.7);
           bed = mix(col * 0.8, bed, smoothstep(0.0, 0.9, depth));

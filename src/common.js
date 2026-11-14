@@ -141,7 +141,7 @@ export function objectMat(opts = {}) {
           float wl = (vW.y - uSeaM * uVex) / uVex;       // metres above the sea
           { float eat = texture2D(uNoise, vec2(vW.x + vW.z * 0.7, vW.y * 0.8) / 11.0).r + 0.2 * texture2D(uNoise, vec2(vW.x - vW.z, vW.y) / 2.7).b;     // holes rusted through the plating above the water, ragged at the edge
             if(eat > 0.8 - 0.08 * smoothstep(0.5, 4.0, wl) && wl > 0.4) discard;
-            if(vFx.z > 0.5 && vFx.z > 1.0 - 0.34 * texture2D(uNoise, vec2(vFx.y * 0.035, 0.37)).r * texture2D(uNoise, vec2(vFx.y * 0.11, 0.71)).g * 2.0) discard;      // the top edge of the plating, eaten away unevenly
+            if(vFx.z > 0.5 && vFx.z > 1.0 - 0.3 * (0.5 + 0.5 * sin(vFx.y * 0.55 + 1.6 * sin(vFx.y * 0.19))) * (0.55 + 0.45 * sin(vFx.y * 1.7 + 2.0 * sin(vFx.y * 0.6))) - 0.05 * texture2D(uNoise, vec2(vFx.y * 0.4, 0.37)).r) discard;      // the top edge of the plating, eaten away unevenly
             float fl = texture2D(uNoise, vec2(vW.x + vW.z, vW.y * 1.3) / 0.9).g;                                                                    // flaking scale
             float grit = texture2D(uNoise, vec2(vW.x - vW.z * 0.6, vW.y * 1.1) / 0.23).r;                                                            // fine pitting
             alb = vec3(0.034, 0.021, 0.015) * (0.5 + 1.2 * r1 * r1 + 0.4 * streak); alb = mix(alb, vec3(0.012, 0.009, 0.008), smoothstep(0.4, 0.75, r2) * 0.85); alb = mix(alb, vec3(0.11, 0.045, 0.016), smoothstep(0.62, 0.85, r1) * (0.3 + 0.5 * fl));
@@ -215,7 +215,7 @@ export function objectMat(opts = {}) {
             alb *= 0.93 + 0.07 * rib + 0.14 * (texture2D(uNoise, vec2(vFx.y * 0.11, vW.y * 0.02 + vW.x * 0.004)).r - 0.5);
             alb *= 1.0 - 0.10 * smoothstep(0.035, 0.0, abs(fract(vFx.z / 0.9 + 0.5) - 0.5)) * (1.0 - smoothstep(0.02, 0.12, fwidth(vFx.z)));
             float rusty = smoothstep(0.55, 0.82, texture2D(uNoise, vW.xz / 95.0).g), rn = texture2D(uNoise, vec2(vFx.y * 0.31, vFx.z * 0.47 + vW.x * 0.013)).r;
-            alb = mix(alb, vec3(0.22, 0.10, 0.04) * (0.7 + 0.6 * rn), rusty * smoothstep(0.56, 0.8, rn) * 0.6);
+            alb = mix(alb, vec3(0.13, 0.06, 0.028) * (0.7 + 0.6 * rn), rusty * smoothstep(0.62, 0.82, rn) * 0.75);
           }
         #endif
         #ifdef CAR
@@ -244,13 +244,13 @@ export function objectMat(opts = {}) {
               alb *= 1.0 - 0.3 * topK * smoothstep(0.016, 0.006, abs(abs(Lp.z) - 0.68)) * step(1.05, Lp.x) * step(Lp.x, 2.2);                                 // bonnet shut lines
               float dust = smoothstep(1.2, 0.45, Lp.y) * (0.2 + 0.8 * dn) * (1.0 - topK);                                                                     // sand and salt thrown up from the beach
               alb = mix(alb, vec3(0.40, 0.34, 0.23), dust * 0.8); shine *= 1.0 - dust;
-              if(glass > 0.5){ alb = mix(vec3(0.008, 0.012, 0.016), vec3(0.03, 0.055, 0.08), smoothstep(1.25, 1.75, Lp.y)) + 0.02 * dn; shine = 1.9; }       // glass: dark below, the sky in its upper half
+              if(glass > 0.5){ alb = mix(vec3(0.008, 0.012, 0.016), vec3(0.03, 0.055, 0.08), smoothstep(1.25, 1.75, Lp.y)) + 0.02 * dn; shine = 1.2; }       // glass: dark below, the sky in its upper half
             } else if(part > 1.5 && part < 2.5){ // wheels: tread blocks, a dusty sidewall, a steel rim with six holes
               float a = atan(Lp.y - wc.y, Lp.x - wc.x);
               alb = vec3(0.014) * (0.6 + 0.8 * step(0.5, fract(a * 4.8 + Lp.z * 6.0)) * step(0.43, dW));
               alb = mix(alb, vec3(0.30, 0.26, 0.18), 0.35 * dn);
-              vec3 rim = vec3(0.42, 0.43, 0.44) * (0.35 + 0.65 * smoothstep(0.03, 0.05, length(vec2(dW - 0.18, sin(a * 3.0) * 0.12))));
-              alb = mix(alb, rim, smoothstep(0.30, 0.28, dW)); alb = mix(alb, vec3(0.05), smoothstep(0.065, 0.05, dW)); shine = 0.3 * smoothstep(0.30, 0.28, dW);
+              vec3 rim = vec3(0.16, 0.165, 0.17) * (0.3 + 0.7 * smoothstep(0.03, 0.05, length(vec2(dW - 0.16, sin(a * 3.0) * 0.11))));
+              alb = mix(alb, rim, smoothstep(0.27, 0.25, dW)); alb = mix(alb, vec3(0.05), smoothstep(0.065, 0.05, dW)); shine = 0.3 * smoothstep(0.30, 0.28, dW);
             } else if(part < 3.5) shine = 0.15;  // bull bar, roof rack, spare wheel cover
             else if(part < 4.5){ em = alb * uNight * 1.5; shine = 0.9; }       // lamps
             else alb *= 0.7 + 0.6 * dn;          // canvas swag

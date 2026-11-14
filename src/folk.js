@@ -220,7 +220,11 @@ function buildCamps(scene, F, people, R) {
   }
   const mesh = new THREE.Mesh(g.build(), objectMat({ side: THREE.DoubleSide })); mesh.name = 'camps'; mesh.frustumCulled = false; scene.add(mesh);
   const carMat = objectMat({ side: THREE.DoubleSide, defines: { CAR: 1 } }), COLS = [[.9, .9, .88], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40]], geos = COLS.map(fourWD);
-  for (const [x, z, a] of cars) { const m = new THREE.Mesh(geos[(R() * geos.length) | 0], carMat); m.position.set(x, meshY(x, z), z); m.rotation.y = a; m.scale.setScalar(1.45); m.frustumCulled = false; scene.add(m); }
+  for (const [x, z, a] of cars) {             // parked on its four wheels: it takes the slope of the ground it stands on
+    const m = new THREE.Mesh(geos[(R() * geos.length) | 0], carMat), S = 1.45, fx = Math.cos(a), fz = -Math.sin(a), Y = (f, s) => meshY(x + (fx * f * 1.5 + -fz * s * 0.9) * S, z + (fz * f * 1.5 + fx * s * 0.9) * S);
+    const yFL = Y(1, -1), yFR = Y(1, 1), yBL = Y(-1, -1), yBR = Y(-1, 1), pitch = Math.atan2((yFL + yFR - yBL - yBR) / 2, 3 * S), roll = -Math.atan2((yFR + yBR - yFL - yBL) / 2, 1.8 * S);
+    m.rotation.order = 'YZX'; m.position.set(x, (yFL + yFR + yBL + yBR) / 4 + 0.02, z); m.rotation.set(roll, a, pitch); m.scale.setScalar(S); m.frustumCulled = false; scene.add(m);
+  }
   scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
   return spots;
 }

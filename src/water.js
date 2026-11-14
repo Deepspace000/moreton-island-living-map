@@ -81,7 +81,7 @@ export function buildWater(scene) {
           float s = fract(depth / 0.9 + uTime / 7.0 - 0.25);
           float prof = s < 0.86 ? pow(1.0 - s / 0.86, 2.4) : pow((s - 0.86) / 0.14, 1.6);
           float dprof = s < 0.86 ? -2.79 * pow(1.0 - s / 0.86, 1.4) : 11.4 * pow((s - 0.86) / 0.14, 0.6);
-          float env = smoothstep(db * 1.5, db * 0.6, depth) * smoothstep(0.03, db * 0.22, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz)));
+          float env = smoothstep(db * 1.5, db * 0.6, depth) * smoothstep(0.03, db * 0.22, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz))) * (0.55 + 0.9 * texture2D(uNoise, wp.xz / 140.0 + uTime * 0.004).r);
           float amp = 0.8 * sv * env;
           y += amp * prof;
           vec2 uvh = clamp(worldUV(wp.xz), 0.0, 1.0), e2 = uHTex * 2.0;
@@ -179,7 +179,7 @@ export function buildWater(scene) {
           float web = 1.0 - smoothstep(0.0, 0.025 + 0.09 * band, min(abs(ff - 0.5), abs(fg - 0.47)));            // foam left behind a broken wave: a net of streaks that thins as it ages
           float lace = max(smoothstep(0.42, 0.8, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6), web * smoothstep(0.0, 0.25, band) * 0.9);
           float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));
-          float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
+          float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z) * (0.15 + 0.85 * oexp);       // a calm bay shore has hardly any
           foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + 0.75 * oexp), 0.0, 1.0);
           foam = max(foam, smoothstep(0.55, 0.9, vBreak / max(0.8 * surf, 0.05)) * (0.6 + 0.4 * ff));        // the crest itself: tumbling white water where the wave stands highest
           foam *= smoothstep(-0.25, 0.02, depth);
@@ -190,11 +190,11 @@ export function buildWater(scene) {
         wc += uWhitecap * 0.07 * calm * (0.4 + 0.6 * expo) * smoothstep(2200.0, 8000.0, dist) * (0.6 + 0.8 * fbig);   // far away: just a paler, wind-whitened sea
         foam = clamp(foam + wc * step(0.01, uWhitecap), 0.0, 1.0);
         foam *= 1.0 - smoothstep(14000.0, 40000.0, dist) * 0.6;
-        vec3 foamCol = vec3(0.95, 0.96, 0.95) * (uLightCol * (0.2 + 0.26 * max(uLightDir.y, 0.0)) * cs + uAmbSky * 0.7) * (0.82 + 0.3 * ff);
+        vec3 foamCol = vec3(0.95, 0.96, 0.95) * (uLightCol * (0.2 + 0.26 * max(uLightDir.y, 0.0)) * cs + mix(uAmbSky, vec3(dot(uAmbSky, vec3(0.3333))), 0.75) * 0.75) * (0.82 + 0.3 * ff);      // white, not tinted by the blue of the sky
 
         float a = F + (1.0 - F) * foam * 0.92;
         vec3 rgb = refl * F + spec + foamCol * foam * 0.92 * (1.0 - F);
-        rgb += vec3(0.02, 0.16, 0.13) * (uLightCol * 0.25 + uAmbSky * 0.5) * smoothstep(0.15, 0.6, vBreak) * (1.0 - foam);          // green light through the thin wall of a rising wave
+        rgb += vec3(0.01, 0.10, 0.08) * (uLightCol * 0.12 + uAmbSky * 0.3) * smoothstep(0.45, 0.8, vBreak) * (1.0 - smoothstep(0.85, 1.0, vBreak)) * (1.0 - foam);          // green light through the thin wall of a rising wave
         rgb += vec3(uFlash) * 0.2 * F;
         float fg2 = fogAmount(vW);
         rgb = rgb * (1.0 - fg2) + fogColor(-V) * fg2 * a;

@@ -510,7 +510,7 @@ function buildTrees(F, scene) {
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
             if(uMode > 0.5 && uMode < 1.5) c = mix(c, alb * 1.55, 0.8) * (0.9 + 0.3 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
-            if(uMode > 2.5){ float inLeaf = step(0.5, h2 + (lum - 0.1) * 2.0); c = mix(vec3(0.30, 0.25, 0.20), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
+            if(uMode > 2.5){ float inLeaf = step(0.28, h2 + (lum - 0.1) * 2.0); c = mix(mix(vec3(0.30, 0.25, 0.20), alb * 1.3, 0.55), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
             ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : mix(0.42, 0.72, step(0.5, uMode) * step(uMode, 1.5)) + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5) * mix(1.0, 0.5, step(0.5, uMode) * step(uMode, 1.5));
             vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0;
@@ -562,11 +562,11 @@ function buildTrees(F, scene) {
               alpha = mix(clump, la, nearL);
               col *= mix(1.0, (0.72 + 0.6 * lf.y) * (1.0 + 0.18 * smoothstep(0.12, 0.0, abs(lf.z))), nearL * la);        // every leaf its own shade of green, a paler midrib
             }
-            alpha *= smoothstep(0.5, 1.7, length(vWp - cameraPosition));          // leaves right in front of the eye fade out rather than fill the view
-            if(alpha < 0.03) discard;
+            if(alpha < 0.03 || length(vWp - cameraPosition) < 1.1) discard;       // leaves right in front of the eye are not drawn, rather than fill the view
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
             if(!gl_FrontFacing) col *= 0.8;                                  // the shaded inside of the crown seen through the gaps
             col += vCol * 0.7 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
+            col = max(col, vec3(0.035, 0.06, 0.022) * (uLightCol * 0.12 + uAmbSky));        // a leaf in the shade is dark green, never black
           }
           #endif
           #ifdef SPECIES
