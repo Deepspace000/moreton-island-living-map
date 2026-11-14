@@ -1,5 +1,7 @@
 // Terrain: real elevation mesh, satellite colour, procedural detail, dune shadows,
 // and the see-through water column over the estimated seabed.
+// The ground is one smooth surface (groundH: a cubic B-spline through the height grid). A coarse mesh
+// covers the whole island; finer grids follow the view and blend into it, so dunes stay rounded up close.
 import * as THREE from 'three';
 import { U, VEX, MOBILE, LOW, Q, makeMat, LOGV, LOGF, getBlob } from './common.js';
 
@@ -33,8 +35,9 @@ export async function loadTerrainData(F, progress) {
   const half = new Uint16Array(W * H * 2);
   for (let i = 0; i < W * H; i++) {
     const h = (hp.data[i * 4] * 256 + hp.data[i * 4 + 1]) / 65535 * F.hrange + F.hmin;
-    hgt[i] = h; expo[i] = hp.data[i * 4 + 2];
+    expo[i] = hp.data[i * 4 + 2];
     half[i * 2] = THREE.DataUtils.toHalfFloat(h); half[i * 2 + 1] = THREE.DataUtils.toHalfFloat(expo[i] / 255);
+    hgt[i] = THREE.DataUtils.fromHalfFloat(half[i * 2]);      // exactly what the shaders read
   }
   T.mask = mp.data; T.alb = ap.data; T.albW = ap.w; T.albH = ap.h;
   const ht = new THREE.DataTexture(half, W, H, THREE.RGFormat, THREE.HalfFloatType);
@@ -58,17 +61,17 @@ export function heightAt(x, z) {            // true surface height in metres (bi
   const x0 = fx | 0, z0 = fz | 0, tx = fx - x0, tz = fz - z0, i = z0 * T.W + x0, h = T.hgt;
   return (h[i] * (1 - tx) + h[i + 1] * tx) * (1 - tz) + (h[i + T.W] * (1 - tx) + h[i + T.W + 1] * tx) * tz;
 }
-export function meshY(x, z) {               // world y of the drawn surface (matches the mesh triangles)
-  const s = T.step, W = T.W, h = T.hgt;
-  let gx = (x / T.sx + 0.5) * (T.W - 1) / s, gz = (z / T.sz + 0.5) * (T.H - 1) / s;
-  const nx = Math.floor((T.W - 1) / s), nz = Math.floor((T.H - 1) / s);
-  gx = Math.min(nx - 0.001, Math.max(0, gx)); gz = Math.min(nz - 0.001, Math.max(0, gz));
-  const x0 = gx | 0, z0 = gz | 0, tx = gx - x0, tz = gz - z0;
-  const a = h[z0 * s * W + x0 * s], b = h[z0 * s * W + (x0 + 1) * s], c = h[(z0 + 1) * s * W + x0 * s], d = h[(z0 + 1) * s * W + (x0 + 1) * s];
-  // triangles a-c-b and b-c-d
-  const A = shoreY(a), B = shoreY(b), C = shoreY(c), D = shoreY(d);
-  return tx + tz < 1 ? A + (B - A) * tx + (C - A) * tz : D + (C - D) * (1 - tx) + (B - D) * (1 - tz);
+export function groundH(x, z) {            // the smooth ground in metres (same cubic B-spline as groundH in the shaders)
+  const W = T.W, H = T.H, h = T.hgt;
+  const fx = Math.min(1, Math.max(0, x / T.sx + 0.5)) * W - 0.5, fz = Math.min(1, Math.max(0, z / T.sz + 0.5)) * H - 0.5;
+  const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
+  const tx2 = tx * tx, tx3 = tx2 * tx, a0 = (1 - 3 * tx + 3 * tx2 - tx3) / 6, a1 = (4 - 6 * tx2 + 3 * tx3) / 6, a3 = tx3 / 6, a2 = 1 - a0 - a1 - a3;
+  const tz2 = tz * tz, tz3 = tz2 * tz, b0 = (1 - 3 * tz + 3 * tz2 - tz3) / 6, b1 = (4 - 6 * tz2 + 3 * tz3) / 6, b3 = tz3 / 6, b2 = 1 - b0 - b1 - b3;
+  const x0 = ix < 1 ? 0 : ix - 1, x1 = ix < 0 ? 0 : ix, x2 = ix + 1 > W - 1 ? W - 1 : ix + 1, x3 = ix + 2 > W - 1 ? W - 1 : ix + 2;
+  const row = (j) => { const r = (j < 0 ? 0 : j > H - 1 ? H - 1 : j) * W; return h[r + x0] * a0 + h[r + x1] * a1 + h[r + x2] * a2 + h[r + x3] * a3; };
+  return row(iz - 1) * b0 + row(iz) * b1 + row(iz + 1) * b2 + row(iz + 2) * b3;
 }
+export function meshY(x, z) { return shoreY(groundH(x, z)); }      // world y of the drawn ground
 export function maskAt(x, z) {              // {land, sand, shore(m), expo}
   const xi = Math.min(T.W - 1, Math.max(0, Math.round(px(x)))), zi = Math.min(T.H - 1, Math.max(0, Math.round(pz(z))));
   const i = (zi * T.W + xi) * 4, m = T.mask;
@@ -82,14 +85,18 @@ export function albedoAt(x, z, out) {
 // the mesh dips slightly at the waterline so the smooth per-pixel shoreline (not the coarse triangles) decides where water shows
 const shoreY = (h) => (h - 0.75 * Math.max(0, 1 - Math.abs(h) / 1.7)) * VEX;
 
+let follow = () => {};
+export const followTerrain = (x, z) => follow(x, z);      // keep the fine grids centred on what is being looked at
+
 export function buildTerrain(scene) {
   const s = T.step, nx = Math.floor((T.W - 1) / s), nz = Math.floor((T.H - 1) / s);
   const pos = new Float32Array((nx + 1) * (nz + 1) * 3);
   let k = 0;
   for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
     pos[k++] = (i * s / (T.W - 1) - 0.5) * T.sx;
-    pos[k++] = shoreY(T.hgt[j * s * T.W + i * s]);
-    pos[k++] = (j * s / (T.H - 1) - 0.5) * T.sz;
+    const z = (j * s / (T.H - 1) - 0.5) * T.sz;
+    pos[k++] = meshY(pos[k - 2], z);
+    pos[k++] = z;
   }
   const idx = new Uint32Array(nx * nz * 6); k = 0;
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
@@ -101,12 +108,34 @@ export function buildTerrain(scene) {
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 60000);
 
-  const mat = makeMat({
+  const terrainMat = (uniforms, defines = {}) => makeMat({
+    uniforms, defines,
     vs: /* glsl */`
       varying vec3 vW;
-      void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
+      #ifdef CLIP
+      uniform vec4 uGrid;                 // xy: world position of grid point (0, 0), zw: grid spacing
+      uniform float uHalf;                // grid points from the centre to the edge
+      #endif
+      void main(){
+        #ifdef CLIP
+          vec2 ij = position.xz, xz = uGrid.xy + ij * uGrid.zw;
+          float y = groundY(xz);
+          // toward the edge, the in-between points slide onto the triangles of the next coarser grid, so the two meet without a gap
+          float m = smoothstep(0.78, 0.92, max(abs(ij.x), abs(ij.y)) / uHalf);
+          vec2 odd = mod(ij, 2.0);
+          if(m > 0.0 && odd.x + odd.y > 0.5){
+            vec2 o = vec2(odd.x, -odd.y) * uGrid.zw;
+            y = mix(y, 0.5 * (groundY(xz + o) + groundY(xz - o)), m);
+          }
+          vec4 wp = vec4(xz.x, y, xz.y, 1.0);
+        #else
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+        #endif
+        vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV}
+      }`,
     fs: /* glsl */`
       varying vec3 vW;
+      uniform vec4 uHole;                   // xy: centre, zw: half size of the finer grid drawn on top of this one
       uniform vec3 uWaterDeep; uniform float uTurb, uRain; uniform vec2 uWindDir;
       float hAt(vec2 uv){ return texture2D(uHeight, clamp(uv, 0.0, 1.0)).r; }
       float duneShadow(vec3 p, vec3 L){
@@ -123,6 +152,11 @@ export function buildTerrain(scene) {
         return smoothstep(0.0, 1.0, res);
       }
       void main(){
+        bool inMap = abs(vW.x) < uWorld.z * 0.5 && abs(vW.z) < uWorld.w * 0.5;
+        if(inMap && abs(vW.x - uHole.x) < uHole.z && abs(vW.z - uHole.y) < uHole.w) discard;
+        #ifdef CLIP
+        if(!inMap) discard;
+        #endif
         ${LOGF}
         vec2 uv = worldUV(vW.xz), cuv = clamp(uv, 0.0005, 0.9995);
         float h = hAt(cuv);
@@ -204,7 +238,7 @@ export function buildTerrain(scene) {
         vec3 L = uLightDir;
         float depth = uSeaM - h;                       // metres of water above this point
         float sh = 1.0;
-        if(mk.b > 0.33 && L.y > 0.0) sh = duneShadow(vec3(vW.x, max(vW.y, uSeaM * uVex), vW.z) + vec3(0.0, 1.5, 0.0), L);
+        if(mk.b > 0.33 && L.y > 0.0) sh = duneShadow(vec3(vW.x, max(max(vW.y, h * uVex), uSeaM * uVex), vW.z) + vec3(0.0, 1.5, 0.0), L);
         float cs = cloudShadow(vW);
         float vis = sh * cs;
         float nl = max(dot(Nn, L), 0.0);
@@ -263,8 +297,39 @@ export function buildTerrain(scene) {
         gl_FragColor = vec4(applyFog(lit, vW), 1.0);
       }`,
   });
+  const hole = () => ({ value: new THREE.Vector4(0, 0, 0, 0) });
+  const mat = terrainMat({ uHole: hole() });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.matrixAutoUpdate = false;
   scene.add(mesh);
+
+  // finer grids that follow the view: each has half the spacing of the one before, down to about 3 to 4 m
+  const D = [s * T.sx / (T.W - 1), s * T.sz / (T.H - 1)];              // spacing of the island mesh
+  const K = +(Q.get('lod') ?? Math.max(1, Math.round(Math.log2(D[0] / 3.5)))), n = MOBILE || LOW ? 192 : 256, hn = n / 2;
+  const gp = new Float32Array((n + 1) * (n + 1) * 3), gi = new Uint32Array(n * n * 6); k = 0;
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) { gp[k++] = i - hn; gp[k++] = 0; gp[k++] = j - hn; }
+  k = 0;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
+    gi[k++] = a; gi[k++] = c; gi[k++] = b; gi[k++] = b; gi[k++] = c; gi[k++] = d;
+  }
+  const grid = new THREE.BufferGeometry();
+  grid.setAttribute('position', new THREE.BufferAttribute(gp, 3)); grid.setIndex(new THREE.BufferAttribute(gi, 1));
+  grid.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+  const mats = [mat];
+  for (let l = 1; l <= K; l++) {
+    const m = terrainMat({ uHole: hole(), uGrid: { value: new THREE.Vector4() }, uHalf: { value: hn } }, { CLIP: 1 });
+    const g = new THREE.Mesh(grid, m); g.frustumCulled = false; g.matrixAutoUpdate = false; scene.add(g); mats.push(m);
+  }
+  follow = (x, z) => {
+    for (let l = 1; l <= K; l++) {
+      const dx = D[0] / 2 ** l, dz = D[1] / 2 ** l;
+      // grid point (0, 0) sits on a point of the next coarser grid
+      const ox = Math.round((x + T.sx / 2) / (2 * dx)) * 2 * dx - T.sx / 2, oz = Math.round((z + T.sz / 2) / (2 * dz)) * 2 * dz - T.sz / 2;
+      mats[l].uniforms.uGrid.value.set(ox, oz, dx, dz);
+      mats[l - 1].uniforms.uHole.value.set(ox, oz, hn * dx * 0.955, hn * dz * 0.955);
+    }
+  };
+  follow(0, 0);
 
   // deep sea floor skirt out to the horizon (same shader, flat at -20 m)
   const R = 260000, y = -47 * VEX - 0.5, hx = T.sx / 2 - 60, hz = T.sz / 2 - 60;

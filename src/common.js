@@ -40,6 +40,17 @@ uniform vec4 uWorld, uCloudRect;
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }
 float sat(float x){ return clamp(x, 0.0, 1.0); }
+// The ground everything stands on: a smooth (cubic B-spline) reading of the height texture, in metres.
+// terrain.js has the same function in JS (groundH / meshY), so the mesh, the trees and the walker agree.
+float groundH(vec2 xz){
+  vec2 st = clamp(worldUV(xz), 0.0, 1.0) / uHTex - 0.5, i = floor(st), f = st - i, f2 = f * f, f3 = f2 * f;
+  vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0, w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0, w3 = f3 / 6.0, w2 = 1.0 - w0 - w1 - w3;
+  vec2 g0 = w0 + w1, g1 = w2 + w3, a = (i - 0.5 + w1 / g0) * uHTex, b = (i + 1.5 + w3 / g1) * uHTex;
+  return g0.y * (g0.x * texture2D(uHeight, a).r + g1.x * texture2D(uHeight, vec2(b.x, a.y)).r)
+       + g1.y * (g0.x * texture2D(uHeight, vec2(a.x, b.y)).r + g1.x * texture2D(uHeight, b).r);
+}
+// world y of the drawn ground (dips slightly at the waterline so the per-pixel shoreline decides where water shows)
+float groundY(vec2 xz){ float h = groundH(xz); return (h - 0.75 * max(0.0, 1.0 - abs(h) / 1.7)) * uVex; }
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float cloudAt(vec2 p){
   vec2 uv = (p - uCloudRect.xy) * uCloudRect.zw + 0.5;

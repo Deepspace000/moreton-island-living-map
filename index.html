@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }</script>
 </head>
 <body>
@@ -20,12 +20,13 @@
 
 <div id="loading"><div class="ld-box"><div class="ld-title">Moreton Island</div><div class="ld-sub">Mulgumpin · Queensland</div><div class="ld-bar"><i id="ldbar"></i></div><div class="ld-pct" id="ldpct">0%</div><div class="ld-msg" id="ldmsg">Loading the island</div></div></div>
 
-<header id="title" class="glass">
+<header id="title" class="glass win" data-win="Moreton Island">
   <h1>Moreton Island</h1>
   <p>Mulgumpin · living map</p>
+  <button id="btSave" class="pill" title="Save the whole map as one HTML file (about 40 MB) that opens on its own, even offline">Download</button>
 </header>
 
-<aside id="wx" class="glass">
+<aside id="wx" class="glass win" data-win="Weather">
   <div class="wx-top"><span id="wxTemp">--°</span><div><b id="wxDesc">Loading weather</b><small id="wxSrc">live</small></div></div>
   <div class="wx-grid">
     <div><svg id="wxArrow" viewBox="0 0 24 24"><path d="M12 2l5 14-5-3-5 3z"/></svg><span><b id="wxWind">--</b><small>wind km/h</small></span></div>
@@ -53,9 +54,11 @@
   </div>
 </aside>
 
-<nav id="places" class="glass"></nav>
+<nav id="places" class="glass win" data-win="Places"></nav>
 
-<footer id="bar" class="glass">
+<div id="dock">
+<div id="walkHint" class="win" data-win="Walking help"><b>Walking</b> <span class="kb">W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br></span><small>Touch: hold a finger down to walk · slide it sideways to steer, up to run, down to stop or back up · a second finger looks around<br>Gamepad: sticks, A jump, RT run, B map</small></div>
+<footer id="bar" class="glass win" data-win="Controls">
   <button id="btLive" class="pill on" title="Follow the real time on the island">● Live</button>
   <button id="btPlay" class="pill" title="Run a day in a few minutes">▶ Day cycle</button>
   <span id="clock">--:--</span>
@@ -68,13 +71,13 @@
   <button id="btSpin" class="pill">Orbit</button>
   <button id="btNorth" class="pill" title="Face north"><svg viewBox="0 0 24 24" id="compass"><path d="M12 3l4 9h-8z" fill="#ff6a5a"/><path d="M12 21l-4-9h8z" fill="#cfd8dc"/></svg></button>
 </footer>
+</div>
 
 <div id="hint">Drag to move · right-drag or twist two fingers to turn · scroll or pinch to zoom · double-click to walk there</div>
-<div id="walkHint"><b>Walking</b> <span class="kb">W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br></span><small>Touch: hold a finger down to walk · slide it sideways to steer, up to run, down to stop or back up · a second finger looks around<br>Gamepad: sticks, A jump, RT run, B map</small></div>
 <div id="dot"></div>
 <div id="stick"><i></i></div>
 <div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=5"></script>
+<script type="module" src="src/main.js?v=6"></script>
 </body>
 </html>

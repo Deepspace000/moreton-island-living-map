@@ -217,7 +217,7 @@ function buildTrees(F, scene) {
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float tall = step(0.84, h2);                                   // slender she-oaks and pines among the round crowns
           float r = mix(uRad.x, uRad.y, h4 * h4) * (0.7 + 0.6 * smoothstep(0.12, 0.03, lum)) * (1.0 - 0.3 * tall);
-          vec3 base = vec3(xz.x, hgt * uVex, xz.y);
+          vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float dc = length(base - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc));
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));

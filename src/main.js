@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp, expect, getBlob } from './common.js';
-import { loadTerrainData, buildTerrain, meshY, T } from './terrain.js';
+import { loadTerrainData, buildTerrain, followTerrain, meshY, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
 import { wx, live, fetchWeather, stepWeather, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
@@ -144,6 +144,32 @@ $('btLabels').onclick = (e) => { showLabels = !showLabels; e.currentTarget.class
 $('btClouds').onclick = (e) => { showClouds = !showClouds; e.currentTarget.classList.toggle('on', showClouds); };
 $('btSpin').onclick = (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); };
 $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.position.distanceTo(controls.target), 0, null);
+// ---------- windows: each one can be shrunk to a small named chip and opened again (remembered between visits) ----------
+for (const w of document.querySelectorAll('.win')) {
+  const b = document.createElement('button'), key = 'min:' + w.id, name = w.dataset.win;
+  b.className = 'win-min'; b.innerHTML = `<span>${name}</span><i></i>`;
+  const set = (m) => { w.classList.toggle('min', m); b.title = (m ? 'Show ' : 'Minimise ') + name; b.setAttribute('aria-expanded', String(!m)); };
+  let saved = null; try { saved = localStorage.getItem(key); } catch (e) { /* storage can be blocked */ }
+  set(saved === '1');
+  b.onclick = () => { const m = !w.classList.contains('min'); set(m); try { localStorage.setItem(key, m ? '1' : '0'); } catch (e) { /* not remembered then */ } };
+  w.append(b);
+}
+// ---------- download: the whole app as one HTML file (also started by ?download in the address) ----------
+const btSave = $('btSave');
+if (window.PACKED) btSave.remove();          // this already is the one-file copy
+else {
+  let busy = false;
+  btSave.onclick = async () => {
+    if (busy) return; busy = true;
+    try {
+      const { downloadApp } = await import('./pack.js');
+      await downloadApp((p) => { btSave.textContent = 'Packing ' + Math.round(p * 100) + '%'; });
+      btSave.textContent = 'Saved';
+    } catch (e) { console.error(e); btSave.textContent = 'Download failed'; }
+    setTimeout(() => { btSave.textContent = 'Download'; busy = false; }, 5000);
+  };
+  if (Q.has('download')) btSave.click();
+}
 let twist = null;
 const twistAngle = (e) => Math.atan2(e.touches[1].clientY - e.touches[0].clientY, e.touches[1].clientX - e.touches[0].clientX);
 canvas.addEventListener('touchstart', (e) => { twist = e.touches.length === 2 && !walk.active ? twistAngle(e) : null; }, { passive: true });
@@ -250,6 +276,7 @@ function frame() {
   camera.updateMatrixWorld();
   }
   water.position.set(t.x, 0, t.z);
+  followTerrain(t.x, t.z);
 
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
   boats.update(dt, acc, camera);
