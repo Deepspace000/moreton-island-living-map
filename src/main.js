@@ -9,10 +9,12 @@ import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp } from './common.js';
 import { loadTerrainData, buildTerrain, meshY, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
-import { wx, live, fetchWeather, stepWeather, setMode, current, describe, compass, mode } from './weather.js';
+import { wx, live, fetchWeather, stepWeather, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
+import { makeWalk, pickGround } from './walk.js';
 import { buildFeatures } from './features.js';
 import { buildBoats } from './boats.js';
 import { buildClouds } from './clouds.js';
+import { buildDetail } from './detail.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { $('ldmsg').textContent = t; };
@@ -50,10 +52,11 @@ composer.addPass(new ShaderPass({
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.55, 1.15);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+const walk = makeWalk(camera, canvas);
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
-  camera.aspect = w / h; camera.fov = w < h ? 50 : 38; camera.updateProjectionMatrix();
+  camera.aspect = w / h; camera.fov = walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
 
@@ -76,7 +79,7 @@ function refreshWeatherUI() {
   const c = current();
   $('wxTemp').textContent = `${Math.round(c.temp)}°`;
   $('wxDesc').textContent = describe(c.code);
-  $('wxSrc').textContent = mode === 'live' ? (live.ok ? `Live · feels ${Math.round(c.feels)}°` : 'Typical day (offline)') : 'Preview weather';
+  $('wxSrc').textContent = mode === 'live' ? (live.ok ? `Live · feels ${Math.round(c.feels)}°` : 'Typical day (offline)') : mode === 'custom' ? 'Your weather' : 'Preset weather';
   $('wxWind').textContent = `${Math.round(c.wind)} ${compass(c.windDir)}`;
   $('wxArrow').style.transform = `rotate(${c.windDir + 180}deg)`;
   $('wxWave').textContent = c.wave.toFixed(1);
@@ -93,7 +96,41 @@ function refreshClock() {
   const upNext = sunT.rise != null && (m < sunT.rise || m > sunT.set);
   $('wxSun').textContent = fmt(upNext ? sunT.rise : sunT.set); $('wxSunL').textContent = upNext ? 'sunrise' : 'sunset';
 }
-$('wxMode').addEventListener('click', (e) => { const m = e.target.dataset.m; if (!m) return; setMode(m); [...$('wxMode').children].forEach(b => b.classList.toggle('on', b === e.target)); refreshWeatherUI(); });
+// ---------- weather sliders ----------
+const SL = { sun: 'Sun', cloud: 'Cloud', wind: 'Wind', windDir: 'Dir', rain: 'Rain', fog: 'Fog', swell: 'Swell', tide: 'Tide' };
+const FMT = { sun: v => v + '%', cloud: v => v + '%', wind: v => v + ' km/h', windDir: v => `${compass(+v)} ${v}°`, rain: v => v + '%', fog: v => v + '%', swell: v => (+v).toFixed(1) + ' m', tide: v => (v >= 0 ? '+' : '') + (+v).toFixed(1) + ' m' };
+for (const [k, t] of Object.entries(TYPES)) { const o = document.createElement('option'); o.value = k; o.textContent = t.label; $('sType').appendChild(o); }
+function syncWeatherUI() {
+  seedCustom();
+  for (const k in SL) { $('s' + SL[k]).value = custom[k]; $('o' + SL[k]).textContent = FMT[k](custom[k]); }
+  $('sType').value = custom.ctype; $('sStorm').checked = !!custom.storm;
+  [...$('wxMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+  refreshWeatherUI();
+}
+for (const k in SL) $('s' + SL[k]).addEventListener('input', (e) => { setCustom(k, +e.target.value); syncWeatherUI(); });
+$('sType').addEventListener('change', (e) => { setCustom('ctype', e.target.value); syncWeatherUI(); });
+$('sStorm').addEventListener('change', (e) => { setCustom('storm', e.target.checked ? 1 : 0); syncWeatherUI(); });
+$('wxSet').onclick = () => { const p = $('wxPanel'); p.hidden = !p.hidden; $('wxSet').classList.toggle('on', !p.hidden); syncWeatherUI(); };
+$('wxMode').addEventListener('click', (e) => { const m = e.target.dataset.m; if (!m) return; setMode(m); syncWeatherUI(); });
+$('btDepth').onclick = (e) => { U.uContour.value = U.uContour.value ? 0 : 1; e.currentTarget.classList.toggle('on', !!U.uContour.value); };
+
+// ---------- walking ----------
+function enterWalk(x, z) {
+  const d = new THREE.Vector3(); camera.getWorldDirection(d);
+  fly = null; controls.enabled = false; controls.autoRotate = false; $('btSpin').classList.remove('on');
+  walk.enter(x, z, Math.atan2(d.x, -d.z)); document.body.classList.add('walking'); $('btWalk').classList.add('on'); $('btWalk').textContent = 'Back to map';
+}
+function exitWalk() {
+  if (!walk.active) return;
+  walk.exit(); controls.enabled = true; document.body.classList.remove('walking'); $('btWalk').classList.remove('on'); $('btWalk').textContent = 'Walk';
+  controls.target.set(walk.pos.x, Math.max(meshY(walk.pos.x, walk.pos.z), 0), walk.pos.z);
+  camera.position.set(walk.pos.x - Math.sin(walk.yaw) * 650, controls.target.y + 420, walk.pos.z + Math.cos(walk.yaw) * 650);
+  resize();
+}
+walk.onExit = exitWalk;
+$('btWalk').onclick = () => { if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
+canvas.addEventListener('dblclick', (e) => { if (walk.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
+addEventListener('keydown', (e) => { if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
 $('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); syncButtons(); });
 $('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); syncButtons(); };
 $('btPlay').onclick = () => { st.play = !st.play; st.live = false; syncButtons(); };
@@ -130,7 +167,7 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water;
+let features, boats, clouds, water, detail;
 const clock = new THREE.Clock();
 async function boot() {
   const F = await (await fetch('assets/features.json')).json();
@@ -143,19 +180,24 @@ async function boot() {
   features = buildFeatures(scene, F, flyTo);
   boats = buildBoats(scene, F);
   clouds = buildClouds(scene, renderer);
+  detail = buildDetail(F);
   // quick-jump list
   const P = features.places;
   for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => flyTo(p.x, p.z, p.d, p.az, p.pol); $('places').appendChild(b); }
   if (Q.has('cam')) { const c = Q.get('cam').split(',').map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); }
   if (Q.has('go')) { const p = P.find(p => p.n.toLowerCase().startsWith(Q.get('go').toLowerCase())); if (p) flyTo(p.x, p.z, p.d, p.az, p.pol, 0.01); }
-  fetchWeather().then(refreshWeatherUI); setInterval(() => fetchWeather().then(refreshWeatherUI), 15 * 60e3);
+  fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, wx, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
+  syncWeatherUI();
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
-    if (o.cam) { camera.position.set(o.cam[0], o.cam[1], o.cam[2]); controls.target.set(o.cam[3], o.cam[4], o.cam[5]); }
+    if (!o.walk && walk.active) exitWalk();
+    if (o.cam && !o.walk) { camera.position.set(o.cam[0], o.cam[1], o.cam[2]); controls.target.set(o.cam[3], o.cam[4], o.cam[5]); }
     if (o.min != null) { st.live = false; st.play = false; setMinutes(o.min); }
     if (o.wx) setMode(o.wx);
+    if (o.custom) for (const k in o.custom) setCustom(k, o.custom[k]);
+    if (o.walk) { if (!walk.active) enterWalk(o.walk[0], o.walk[1]); walk.pos.x = o.walk[0]; walk.pos.z = o.walk[1]; walk.yaw = o.walk[2] || 0; walk.pitch = o.walk[3] || 0; }
     fly = null; forceDt = 1.2; for (let i = 0; i < 14; i++) frame(); forceDt = 0.016; for (let i = 0; i < 3; i++) frame(); forceDt = 0;
     const r = await fetch('http://127.0.0.1:8765/' + name, { method: 'POST', body: canvas.toDataURL('image/jpeg', 0.93) });
     return name + ' ' + r.status;
@@ -175,10 +217,11 @@ function frame() {
   if (wx.storm > 0.5 && sky.day < 2) { flashT -= dt; if (flashT < 0) { flashT = 2 + Math.random() * 9; U.uFlash.value = 1; } }
   U.uFlash.value *= Math.exp(-dt * 9); if (U.uFlash.value < 0.003) U.uFlash.value = 0;
 
+  const t = walk.active ? walk.pos : controls.target;
+  if (walk.active) walk.update(dt); else {
   stepFly(dt);
   if (!fly) controls.update();
   // keep the pivot on the ground and the camera above it
-  const t = controls.target;
   t.x = clamp(t.x, -T.sx / 2 - 6000, T.sx / 2 + 6000); t.z = clamp(t.z, -T.sz / 2 - 6000, T.sz / 2 + 6000);
   const gy = Math.max(meshY(t.x, t.z), U.uSeaM.value * VEX);
   if (!fly) t.y = lerp(t.y, gy, 0.2);
@@ -186,16 +229,18 @@ function frame() {
   if (camera.position.y < cy) camera.position.y = cy;
   camera.lookAt(t);
   camera.updateMatrixWorld();
+  }
   water.position.set(t.x, 0, t.z);
 
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
   boats.update(dt, acc, camera);
   clouds.update(dt, acc, camera, showClouds);
+  detail.update(t, walk.active ? 0 : camera.position.distanceTo(t), acc, dt);
   const e = sky.sunEl;
   { const k = clamp((e + 10) / 16, 0, 1); renderer.toneMappingExposure = lerp(1.7, EXPO, k * k * (3 - 2 * k)); }
   bloom.strength = lerp(0.5, 0.2, sky.day);
   composer.render();
 
-  uiT -= dt; if (uiT < 0) { uiT = 0.25; refreshClock(); const az = Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
+  uiT -= dt; if (uiT < 0) { uiT = 0.25; refreshClock(); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
 }
 boot().catch((e) => { console.error(e); msg('Could not load the map: ' + e.message); });

@@ -39,7 +39,7 @@ export function buildClouds(scene, renderer) {
 
   const puffTex = new THREE.TextureLoader().load('assets/puff.png');
   puffTex.colorSpace = THREE.NoColorSpace; puffTex.flipY = false;
-  const uni = { uPuff: { value: puffTex }, uCamR: { value: new THREE.Vector3() }, uCamU: { value: new THREE.Vector3() } };
+  const uni = { uDark: { value: 0 }, uPuff: { value: puffTex }, uCamR: { value: new THREE.Vector3() }, uCamU: { value: new THREE.Vector3() } };
   const vsHead = /* glsl */`
     attribute vec4 iPos, iPar; attribute vec3 iNrm; uniform vec3 uCamR, uCamU;
     varying vec2 vUv; varying vec4 vPar; varying vec3 vNrm, vW;
@@ -56,7 +56,7 @@ export function buildClouds(scene, renderer) {
         ${LOGV}
       }`,
     fs: /* glsl */`
-      uniform sampler2D uPuff; varying vec2 vUv; varying vec4 vPar; varying vec3 vNrm, vW;
+      uniform sampler2D uPuff; uniform float uDark; varying vec2 vUv; varying vec4 vPar; varying vec3 vNrm, vW;
       void main(){
         ${LOGF}
         vec3 t = texture2D(uPuff, vUv).rgb;
@@ -74,6 +74,7 @@ export function buildClouds(scene, renderer) {
         col = mix(col, col * vec3(0.40, 0.43, 0.50), uOvercast * (1.0 - up * 0.55)) * (1.0 - 0.45 * uOvercast);    // heavy rain cloud
         vec3 V = normalize(vW - cameraPosition);
         col += uLightCol * 0.30 * pow(max(dot(V, L), 0.0), 5.0) * (1.0 - smoothstep(0.1, 0.7, dens));   // silver lining
+        col *= mix(vec3(1.0), vec3(0.42, 0.45, 0.52) * (0.55 + 0.6 * up), uDark);
         col += vec3(uFlash) * (0.8 + up);
         gl_FragColor = vec4(applyFog(col, vW), a);
       }`,
@@ -134,7 +135,7 @@ export function buildClouds(scene, renderer) {
       vis += ((show ? 1 : 0) - vis) * Math.min(1, dt * 3);
       const wd = U.uWindDir.value, sp = (22 + wx.wind * 2.0) * dt;
       // overcast never fully closes the view from above: cap the visible share
-      const frac = clamp(0.03 + wx.cloud * 0.8, 0, 0.82);
+      const frac = clamp((0.03 + wx.cloud * 0.8) * wx.low, 0, 0.9);
       for (const c of clouds) {
         c.x += wd.x * sp * c.sp; c.z += wd.y * sp * c.sp;
         if (c.x > DX / 2) c.x -= DX; else if (c.x < -DX / 2) c.x += DX;
@@ -146,20 +147,20 @@ export function buildClouds(scene, renderer) {
       const cp = camera.position; let n = 0;
       for (let i = 0; i < N; i++) {
         const p = puffs[i]; if (p.c.e < 0.01) continue;
-        const dx = p.c.x + p.ox - cp.x, dy = p.c.y + p.oy - cp.y, dz = p.c.z + p.oz - cp.z;
+        const dx = p.c.x + p.ox - cp.x, dy = p.c.y + wx.calt + p.oy * wx.cy - cp.y, dz = p.c.z + p.oz - cp.z;
         p.d = dx * dx + dy * dy + dz * dz; order[n++] = i;
       }
       const ord = order.subarray(0, n); ord.sort((a, b) => puffs[b].d - puffs[a].d);
       const P = aPos.array, A = aPar.array, Nn = aNrm.array;
       for (let k = 0; k < n; k++) {
         const p = puffs[ord[k]], c = p.c;
-        P[k * 4] = c.x + p.ox; P[k * 4 + 1] = c.y + p.oy; P[k * 4 + 2] = c.z + p.oz; P[k * 4 + 3] = p.ps * (1 + wx.overcast * 0.3);
+        P[k * 4] = c.x + p.ox * (0.6 + 0.4 * wx.cs); P[k * 4 + 1] = c.y + wx.calt + p.oy * wx.cy; P[k * 4 + 2] = c.z + p.oz * (0.6 + 0.4 * wx.cs); P[k * 4 + 3] = p.ps * wx.cs * (1 + wx.overcast * 0.2);
         A[k * 4] = p.at; A[k * 4 + 1] = p.rot; A[k * 4 + 2] = p.up; A[k * 4 + 3] = c.e;
         Nn[k * 3] = p.nx; Nn[k * 3 + 1] = p.ny; Nn[k * 3 + 2] = p.nz;
       }
       aPos.needsUpdate = aPar.needsUpdate = aNrm.needsUpdate = true; geo.instanceCount = n;
       mesh.visible = n > 0;
-      U.uCloudStr.value = 0.72 * (1 - wx.overcast * 0.45);
+      U.uCloudStr.value = 0.72 * (1 - wx.overcast * 0.45); uni.uDark.value = wx.dark; U.uCloudAlt.value = BASE + 300 + wx.calt;
       // shadow map
       const old = renderer.getRenderTarget(), oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha();
       renderer.setRenderTarget(srt); renderer.setClearColor(0x000000, 1); renderer.clear();

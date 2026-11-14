@@ -19,6 +19,12 @@ export async function run(prefix, only) {
     storm: { cam: [-17000, 9000, 20000, 1200, 0, 300], min: 840, wx: 'storm' },
     stormlow: { cam: [b.x - 900, 70, b.z + 300, b.x, 5, b.z], min: 840, wx: 'storm' },
     cloudy: { cam: [-9000, 5200, -24000, 2500, 0, -8000], min: 930, wx: 'cloudy' },
+    walkbeach: { walk: [w.x + 150, w.z + 40, -1.75, -0.02], min: 930, wx: 'clear' },
+    walkforest: { walk: [t.x + 420, t.z - 250, 0.6, 0.05], min: 660, wx: 'clear' },
+    walkdesert: { walk: [d.x + 60, d.z + 30, 1.2, -0.03], min: 990, wx: 'clear' },
+    walkresort: { walk: [t.x + 60, t.z + 40, 0.3, 0.02], min: 600, wx: 'cloudy' },
+    stratus: { cam: [w.x - 1500, 320, w.z + 900, w.x + 400, 40, w.z], min: 720, custom: { sun: 35, cloud: 90, ctype: 'stratus', wind: 25, rain: 0, fog: 20, swell: 1.2 } },
+    fog: { cam: [t.x - 700, 200, t.z + 250, t.x + 100, 10, t.z], min: 420, custom: { sun: 70, cloud: 20, ctype: 'cirrus', wind: 4, rain: 0, fog: 70, swell: 0.4 } },
     sail: null,
   };
   const out = [];

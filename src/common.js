@@ -6,6 +6,11 @@ export const LAT = -27.18, LON = 153.40;
 export const TZ_HOURS = 10;             // Brisbane, no daylight saving
 export const MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
 export const Q = new URLSearchParams(location.search);
+// lighter geometry on phones, tablets and built-in graphics (override with ?q=high or ?q=low)
+function weakGPU() {
+  try { const g = document.createElement('canvas').getContext('webgl2'), e = g.getExtension('WEBGL_debug_renderer_info'); const r = e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : ''; g.getExtension('WEBGL_lose_context')?.loseContext(); return /Intel|UHD|Iris|Mali|Adreno|PowerVR|Apple|SwiftShader|llvmpipe/i.test(r) && !/Arc|RTX|GTX|Radeon RX/i.test(r); } catch (e) { return false; }
+}
+export const LOW = Q.get('q') === 'low' || (Q.get('q') !== 'high' && (MOBILE || weakGPU()));
 
 const v3 = (x = 0, y = 0, z = 0) => ({ value: new THREE.Vector3(x, y, z) });
 const f = (x = 0) => ({ value: x });
@@ -16,6 +21,7 @@ export const U = {
   uFogCol: v3(.6, .7, .85), uFogSun: v3(.9, .8, .7), uFogDens: f(0.000012),
   uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0),
   uMoonLit: f(1), uStarRot: f(0),
+  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(1), uCirrus: f(0.6), uWalk: f(0),
   uHeight: { value: null }, uOver: { value: null }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
   uSeaM: f(0), uVex: f(VEX),
@@ -28,7 +34,8 @@ export const U = {
 export const GLSL_COMMON = /* glsl */`
 uniform float uTime, uFogDens, uNight, uOvercast, uSeaM, uVex, uCloudAlt, uCloudStr, uMpp, uFlash;
 uniform vec3 uSunDir, uMoonDir, uLightDir, uLightCol, uSunCol, uAmbSky, uAmbGnd, uFogCol, uFogSun, uZenith, uHorizon, uSunGlow;
-uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver;
+uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, uDetail;
+uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
 uniform vec4 uWorld, uCloudRect;
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }
@@ -130,6 +137,7 @@ export function objectMat(opts = {}) {
           }
         #endif
         alb *= 0.72 + 0.28 * smoothstep(-0.3, 3.5, (vW.y - uSeaM * uVex) / uVex + step(1.0, vFx.x) * 9.0);   // grime toward the waterline
+        if(vFx.x > 0.5) alb *= 0.62 + 0.38 * smoothstep(-0.2, 2.6, vFx.z);          // walls darken toward the ground
         float cs = cloudShadow(vW);
         float nl = max(dot(N, uLightDir), 0.0);
         vec3 skyA = mix(uAmbSky, vec3(dot(uAmbSky, vec3(0.3333))), 0.5);

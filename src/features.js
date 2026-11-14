@@ -1,7 +1,7 @@
 // Everything that sits on the island: buildings, tracks and walking paths, trees,
 // the wrecks, lighthouses, jetty, navigation marks, lakes and the name labels.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
+import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
 import { T, meshY, heightAt, maskAt, albedoAt } from './terrain.js';
 import { GB, makeLights } from './geo.js';
 
@@ -102,6 +102,7 @@ function buildRoads(F, scene, occ) {
         float d = length(position - cameraPosition);
         float w = max(aPar.z, d * 0.0007);
         vec3 wp = position + vec3(-aDir.y, 0.0, aDir.x) * aPar.x * w;
+        wp.y -= 1.45 * (1.0 - smoothstep(40.0, 320.0, d));
         vW = wp; vP = aPar; vD = d;
         gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
@@ -124,7 +125,7 @@ function buildRoads(F, scene, occ) {
         } else {                  // village street
           col = vec3(0.66, 0.62, 0.53) * (0.9 + 0.15 * n); a = 0.9 * edge;
         }
-        a *= on * mix(1.0, 0.38, smoothstep(6000.0, 35000.0, vD));
+        a *= on * mix(1.0, 0.38, smoothstep(6000.0, 35000.0, vD)) * mix(1.0, smoothstep(50.0, 450.0, vD), uDetRect.w);   // up close the photo itself shows the track
         float cs = cloudShadow(vW);
         col *= uLightCol * max(uLightDir.y, 0.0) * 0.85 * cs + uAmbSky * 1.1;
         gl_FragColor = vec4(applyFog(col, vW), a);
@@ -172,29 +173,34 @@ function buildOverlay(F) {
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
   U.uOver.value = t;
 }
-function crown(detail, blobs) {
-  const ico = new THREE.IcosahedronGeometry(1, detail), P = ico.attributes.position, pos = [], nrm = [], idx = [];
+function crown(detail, blobs, trunk) {
+  const ico = new THREE.IcosahedronGeometry(1, detail), P = ico.attributes.position, pos = [], nrm = [], idx = [], part = [];
   const ix = ico.index ? Array.from(ico.index.array) : Array.from({ length: P.count }, (_, i) => i);
   blobs.forEach((b) => {
     const base = pos.length / 3;
-    for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i); pos.push(b[0] + x * b[3], b[1] + y * b[3], b[2] + z * b[3]); nrm.push(x, y, z); }
+    for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i); pos.push(b[0] + x * b[3], b[1] + y * b[3], b[2] + z * b[3]); nrm.push(x, y, z); part.push(0); }
     for (const i of ix) idx.push(base + i);
   });
-  return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), idx };
+  if (trunk) {                                   // a tapering stem from the ground (y = 0) up into the crown (y = 1)
+    const base = pos.length / 3, S = 6;
+    for (let k = 0; k <= 1; k++) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2, r = k ? 0.05 : 0.11; pos.push(Math.cos(a) * r, k, Math.sin(a) * r); nrm.push(Math.cos(a), 0, Math.sin(a)); part.push(1); }
+    for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(base + i, base + S + i, base + j, base + j, base + S + i, base + S + j); }
+  }
+  return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), idx };
 }
 function buildTrees(F, scene) {
   const rings = [];
-  const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy) => {
+  const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy, mode = 0) => {
     const cells = new Float32Array(n * n * 2); let k = 0;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm);
+    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part);
     geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); geo.instanceCount = n * n; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
-    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner } };
+    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 } };
     const mat = makeMat({
-      uniforms: uni, defines: leafy ? { LEAFY: 1 } : {},
+      uniforms: uni, defines: leafy ? { LEAFY: 1 } : {}, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
-        attribute vec2 iCell; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner; uniform vec3 uRad;
-        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog;
+        attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
+        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk;
         void main(){
           vec2 cell = uCentre + iCell;
           float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
@@ -205,7 +211,9 @@ function buildTrees(F, scene) {
           vec3 alb = texture2D(uAlbedo, uv).rgb;
           vec2 ov = texture2D(uOver, uv).rg;
           float lum = dot(alb, vec3(0.3, 0.55, 0.15));
-          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.4, hgt) * (1.0 - smoothstep(0.06, 0.3, max(ov.r, ov.g))) * smoothstep(0.2, 0.06, lum);
+          float sandm = smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45), clr = 1.0 - smoothstep(0.06, 0.3, max(ov.r, ov.g));
+          float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
+                                   : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.24, 0.07, lum);
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float tall = step(0.84, h2);                                   // slender she-oaks and pines among the round crowns
           float r = mix(uRad.x, uRad.y, h4 * h4) * (0.7 + 0.6 * smoothstep(0.12, 0.03, lum)) * (1.0 - 0.3 * tall);
@@ -218,44 +226,54 @@ function buildTrees(F, scene) {
           vec3 q = vec3(position.x * ca - position.z * sa, position.y, position.x * sa + position.z * ca);
           vec3 nrm = normalize(vec3(normal.x * ca - normal.z * sa, normal.y, normal.x * sa + normal.z * ca));
           float sq = uRad.z * (0.8 + 0.5 * h1) * (1.0 + 0.9 * tall);
-          vec3 lp = q * vec3(1.0, sq, 1.0) * r * s;
-          vec3 wp = base + lp + vec3(0.0, r * sq * 0.6 * s, 0.0);
-          vec3 c = alb * 1.45 + vec3(0.003, 0.009, 0.0);
-          c = mix(c, vec3(lum * 1.2, lum * 2.0, lum * 0.75), 0.4) * (0.66 + 0.6 * h2);
-          c = mix(c, c * vec3(1.3, 1.12, 0.66), step(0.8, h3) * 0.6);
-          c = mix(c, c * vec3(0.75, 0.9, 0.85), tall * 0.6);
+          float stem = uMode < 0.5 ? r * sq * (0.75 + 0.9 * h3) : 0.0;                  // bare trunk under the crown
+          vec3 lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : q * vec3(1.0, sq, 1.0) * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
+          vec3 wp = base + lp;
+          vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
+          c = mix(c, vec3(lum * 1.15, lum * 1.8, lum * 0.75), 0.28) * (0.9 + 0.5 * h2);
+          c = mix(c, c * vec3(1.25, 1.1, 0.7), step(0.8, h3) * 0.5);
+          c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
+          if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
+          if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
           float cs = cloudShadow(wp);
           float nl = max(dot(nrm, uLightDir), 0.0);
-          float ao = 0.3 + 0.7 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5);
+          float ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5);
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
-          vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0; vWp = wp;
+          vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
-      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog;
+      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk; uniform float uPorous;
         void main(){
           ${LOGF}
-          vec3 col = vCol;
+          vec3 col = vCol; float alpha = 1.0;
           #ifdef LEAFY
-            float n = texture2D(uNoise, vObj.xz * 0.19 + vObj.yy * 0.13).g, n2 = texture2D(uNoise, vObj.xy * 0.61 + 0.3).b;
+          if(vTrunk < 0.5){
+            float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             float rim = 1.0 - abs(dot(normalize(vN), -vDir));
-            if(rim > 0.48 + n * 0.6) discard;                            // ragged, leafy outline instead of a smooth ball
-            col *= 0.66 + 0.6 * n + 0.3 * (n2 - 0.5);
+            alpha = smoothstep(uPorous - 0.07, uPorous + 0.07, n - rim * 0.3 + (n2 - 0.5) * 0.3);   // clusters of leaves with gaps, thinner toward the outline
+            if(alpha < 0.03) discard;
+            col *= 0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5);
+            if(!gl_FrontFacing) col *= 0.4;                                   // the shaded inside of the crown seen through the gaps
+            col += vCol * 0.7 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
+          }
           #endif
-          gl_FragColor = vec4(mix(col, fogColor(vDir), vFog), 1.0);
+          gl_FragColor = vec4(mix(col, fogColor(vDir), vFog), alpha);
         }`,
     });
-    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs });
+    mat.alphaToCoverage = !!leafy;
+    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
   };
-  const n = +(Q.get('trees') || (MOBILE ? 120 : 216));
-  const trio = crown(MOBILE ? 0 : 1, [[0, 0, 0, 1], [0.62, 0.22, 0.28, 0.68], [-0.42, 0.3, -0.52, 0.74], [0.05, 0.62, 0.1, 0.6]].slice(0, MOBILE ? 3 : 4));
+  const n = +(Q.get('trees') || (LOW ? 120 : 200));
+  const trio = crown(0, [[0, 0, 0, 1], [0.62, 0.22, 0.28, 0.68], [-0.42, 0.3, -0.52, 0.74], [0.05, 0.62, 0.1, 0.6]].slice(0, LOW ? 3 : 4), true);
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, trio, true);                               // single trees close to the view
-  ring(n, 30, 7, 13, 0.7, 15000, n * 11 * 0.42, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.7]]), false);   // canopy clumps beyond them
-  return (target) => { for (const r of rings) r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); };
+  ring(n, 30, 7, 13, 0.7, 15000, n * 11 * 0.42, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.7]]), false, 1);   // canopy clumps beyond them
+  ring(LOW ? 90 : 160, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(0, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
+  return (target, camDist) => { for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; } };
 }
 
 // ---------------------------------------------------------------- wrecks
-const RUST = [[.50, .26, .13], [.44, .22, .12], [.56, .31, .15], [.38, .20, .13], [.47, .29, .19]];
+const RUST = [[.42, .24, .14], [.37, .21, .13], [.46, .28, .16], [.33, .20, .14], [.40, .27, .20]];
 function buildWrecks(F, g) {
   const R = rng(2024), list = [];
   F.wrecks.forEach((w) => {
@@ -324,11 +342,11 @@ function buildStructures(F, g, lights, scene, casters) {
     if (big) { g.box(x + 14, y, z + 6, 12, 4.2 * VEX, 8, W, [.6, .2, .15]); g.box(x - 13, y, z - 9, 10, 4 * VEX, 7, W, [.6, .2, .15]); }
   }
   // sweeping lighthouse beams
-  const cone = new THREE.CylinderGeometry(70, 2.5, 4200, 24, 1, true); cone.rotateZ(-Math.PI / 2); cone.translate(2100, 0, 0);     // narrow at the lamp, widening outward
+  const cone = new THREE.CylinderGeometry(42, 2.5, 2600, 24, 1, true); cone.rotateZ(-Math.PI / 2); cone.translate(1300, 0, 0);     // narrow at the lamp, widening outward
   const bm = makeMat({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide,
-    vs: /* glsl */`varying float vL; varying vec3 vW, vNb; void main(){ vL = position.x / 4200.0; vNb = normalize(mat3(modelMatrix) * vec3(0.0, position.y, position.z)); vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
-    fs: /* glsl */`varying float vL; varying vec3 vW, vNb; void main(){ ${LOGF} float core = pow(abs(dot(normalize(vNb), normalize(cameraPosition - vW))), 2.5); float a = pow(max(1.0 - vL, 0.0), 1.8) * 0.06 * core * uNight; gl_FragColor = vec4(vec3(1.0, 0.92, 0.7) * a, 1.0); }`,
+    vs: /* glsl */`varying float vL; varying vec3 vW, vNb; void main(){ vL = position.x / 2600.0; vNb = normalize(mat3(modelMatrix) * vec3(0.0, position.y, position.z)); vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
+    fs: /* glsl */`varying float vL; varying vec3 vW, vNb; void main(){ ${LOGF} float core = pow(abs(dot(normalize(vNb), normalize(cameraPosition - vW))), 2.5); float a = pow(max(1.0 - vL, 0.0), 2.4) * 0.045 * core * uNight; gl_FragColor = vec4(vec3(1.0, 0.92, 0.7) * a, 1.0); }`,
   });
   const beamGroups = beams.map((b) => { const grp = new THREE.Group(); grp.position.set(b.x, b.y, b.z); const a = new THREE.Mesh(cone, bm), c = new THREE.Mesh(cone, bm); c.rotation.y = Math.PI; grp.add(a, c); grp.renderOrder = 45; a.renderOrder = c.renderOrder = 45; a.frustumCulled = c.frustumCulled = false; scene.add(grp); return grp; });
 
@@ -515,7 +533,7 @@ export function buildFeatures(scene, F, flyTo) {
       const sy = seaY();
       fl.mesh.position.y = sy;
       fl.floaters.forEach((f, i) => lights.move(fl.idx[i], f.x, sy + 4.6 * fl.S, f.z));
-      trees(target);
+      trees(target, camera.position.distanceTo(target));
       labels(camera, showLabels);
     },
   };

@@ -1,7 +1,7 @@
-# Turns raw/ (tiles + OSM) into the assets the map loads:
-#   assets/height.png   16-bit height in R,G  (metres = v/65535*340-40), land + estimated seabed
-#   assets/albedo.jpg   satellite colour on land, beach colour bled out under the water
-#   assets/mask.png     R land (antialiased)  G sand  B shore distance (0..255 = -1.5km..+1.5km)
+# Turns raw/ (Queensland Government elevation + aerial photos, Sentinel-2, OSM) into the assets the map loads:
+#   assets/height.png   16-bit height in R,G (metres = v/65535*HRANGE+HMIN): LiDAR bare ground + surveyed seabed; B = ocean exposure
+#   assets/albedo.jpg   aerial photo colour on land, beach colour bled out under the water
+#   assets/mask.png     R land (antialiased)  G sand  B shore distance (0..255 = -1.5km..+1.5km)  A relief shading
 #   assets/features.json  buildings, tracks, wrecks, peaks, places ... in world metres
 import os, json, math
 import numpy as np
@@ -10,25 +10,30 @@ from scipy import ndimage as ndi
 Image.MAX_IMAGE_PIXELS = None
 R = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 X0, Y0, Z = 7584, 4734, 13
-W, H = 1280, 2640                      # crop of the z13 pixel grid (stops north of Stradbroke)
+SC = 1.5                               # map grid = z13 pixel grid x 1.5 (about 11.3 m per cell)
+W, H = 1920, 3960                      # stops north of Stradbroke
 LAT0 = -27.19
-MPP = 156543.03392 * math.cos(math.radians(LAT0)) / 2 ** Z
-HMIN, HRANGE = -40.0, 340.0
+MPP13 = 156543.03392 * math.cos(math.radians(LAT0)) / 2 ** Z
+MPP = MPP13 / SC
+HMIN, HRANGE = -45.0, 345.0
+SAND_LO = 0.62
 
 def ll2px(lat, lon):
     n = 2 ** Z
     x = (lon + 180) / 360 * n
     y = (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n
-    return (x - X0) * 256, (y - Y0) * 256
+    return (x - X0) * 256 * SC, (y - Y0) * 256 * SC
 def px2w(px, py):
     return round((px - W / 2) * MPP, 1), round((py - H / 2) * MPP, 1)
 def ll2w(lat, lon):
     return px2w(*ll2px(lat, lon))
+def sm(a, b, x):
+    t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
 
 osm = json.load(open(f'{R}/raw/osm.json', encoding='utf8'))['elements']
 
-# ---------- land mask from the OSM coastline (supersampled x4) ----------
-SS = 4
+# ---------- land mask from the OSM coastline (supersampled) ----------
+SS = 2
 ways = [e for e in osm if e['type'] == 'way' and e.get('tags', {}).get('natural') == 'coastline']
 chains = [(w['nodes'][:], [(g['lat'], g['lon']) for g in w['geometry']]) for w in ways]
 merged = True
@@ -45,12 +50,9 @@ dr = ImageDraw.Draw(mimg)
 for ids, pts in chains:
     pp = [ll2px(a, b) for a, b in pts]
     cy = sum(p[1] for p in pp) / len(pp)
-    closed = ids[0] == ids[-1]
-    print('coast ring', len(pp), 'closed' if closed else 'open', 'centre y', round(cy))
-    if not closed and cy > H: continue           # Stradbroke
+    if ids[0] != ids[-1] and cy > H: continue           # Stradbroke
     dr.polygon([(x * SS, y * SS) for x, y in pp], fill=255)
 land_hi = np.asarray(mimg, np.float32) / 255
-# keep only blobs that touch the crop and are not Stradbroke (bottom edge)
 lab, n = ndi.label(land_hi > 0.5)
 for k in range(1, n + 1):
     ys = np.where(lab == k)[0]
@@ -58,95 +60,90 @@ for k in range(1, n + 1):
 land = land_hi.reshape(H, SS, W, SS).mean((1, 3))
 landb = land > 0.5
 print('land frac', landb.mean())
-
-# signed distance to the shore in metres (+ on land)
 din = ndi.distance_transform_edt(land_hi > 0.5) / SS * MPP
 dout = ndi.distance_transform_edt(land_hi <= 0.5) / SS * MPP
-sd_hi = din - dout
-sd = sd_hi.reshape(H, SS, W, SS).mean((1, 3))
+sd = (din - dout).reshape(H, SS, W, SS).mean((1, 3))      # signed distance to the shore in metres (+ on land)
+del din, dout, land_hi
 
-# ---------- satellite ----------
-sat = Image.open(f'{R}/raw/sat.png').crop((0, 0, W * 2, H * 2))
-sat_s = np.asarray(sat.resize((W, H), Image.LANCZOS), np.float32) / 255
+# ---------- imagery ----------
+aer = Image.open(f'{R}/raw/qimg.png').resize((W * 2, H * 2), Image.LANCZOS)          # aerial photos (land colour)
+aer_s = np.asarray(aer.resize((W, H), Image.LANCZOS), np.float32) / 255
+s2 = np.asarray(Image.open(f'{R}/raw/sat.png').crop((0, 0, 2560, 5280)).resize((W, H), Image.LANCZOS), np.float32) / 255   # Sentinel-2 (water colour)
+qdem = np.load(f'{R}/raw/qdem.npy').astype(np.float32)
 
-# ---------- seabed depth estimated from water colour ----------
-g = ndi.gaussian_filter(sat_s[..., 1], 1.2)
-b = ndi.gaussian_filter(sat_s[..., 2], 1.2)
-r = ndi.gaussian_filter(sat_s[..., 0], 1.2)
+# ---------- seabed: surveyed bathymetry, with fine sandbank detail from water colour ----------
+g = ndi.gaussian_filter(s2[..., 1], 1.8); b = ndi.gaussian_filter(s2[..., 2], 1.8); r = ndi.gaussian_filter(s2[..., 0], 1.8)
 wat = sd < -60
-sig = g * 0.75 + r * 0.6 + b * 0.1               # green+red carry the bottom signal
-# wrecks, jetties and moored boats show dark in the imagery and would read as deep holes: patch them from their surroundings
+sig = g * 0.75 + r * 0.6 + b * 0.1
 wm = Image.new('L', (W, H), 0); wd = ImageDraw.Draw(wm)
 for e_ in osm:
     t_ = e_.get('tags', {})
     if t_.get('historic') == 'wreck' or t_.get('seamark:type') == 'wreck' or t_.get('man_made') == 'pier':
-        if e_['type'] == 'node': x_, y_ = ll2px(e_['lat'], e_['lon']); wd.ellipse((x_ - 3, y_ - 3, x_ + 3, y_ + 3), fill=255)
-        elif 'geometry' in e_: wd.line([ll2px(g_['lat'], g_['lon']) for g_ in e_['geometry']], fill=255, width=7)
-wmk = ndi.binary_dilation(np.asarray(wm) > 0, iterations=2)
+        if e_['type'] == 'node': x_, y_ = ll2px(e_['lat'], e_['lon']); wd.ellipse((x_ - 5, y_ - 5, x_ + 5, y_ + 5), fill=255)
+        elif 'geometry' in e_: wd.line([ll2px(g_['lat'], g_['lon']) for g_ in e_['geometry']], fill=255, width=11)
+wmk = ndi.binary_dilation(np.asarray(wm) > 0, iterations=3)
 ix = ndi.distance_transform_edt(wmk, return_distances=False, return_indices=True)
-sig = np.where(wmk, ndi.gaussian_filter(sig, 3)[ix[0], ix[1]], sig)
+sig = np.where(wmk, ndi.gaussian_filter(sig, 4.5)[ix[0], ix[1]], sig)
 lo, hi = np.percentile(sig[wat], 3), np.percentile(sig[wat], 99.7)
 s = np.clip((sig - lo) / (hi - lo), 0.004, 1)
-depth = -np.log(s) * 4.6                         # metres, 0 = bank at the surface
-depth = np.clip(depth, 0.25, 32)
-depth = ndi.gaussian_filter(depth, 1.0)
-big = ndi.gaussian_filter(depth, 9.0)             # deep water: keep only the broad shape (no speckle)
-wdeep = np.clip((ndi.gaussian_filter(depth, 4.0) - 5.0) / 7.0, 0, 1)
-depth = depth * (1 - wdeep) + big * wdeep
-depth = 24 * (1 - np.exp(-depth / 24)) * 1.25      # soft knee
-dk = np.clip((ndi.gaussian_filter(depth, 5.0) - 6.0) / 9.0, 0, 1); dk = dk * dk * (3 - 2 * dk)
-depth = depth * (1 - dk) + 26.0 * dk               # beyond ~12 m the bottom is out of sight: one even deep floor (hides imagery tile seams)
-# open ocean far from any bank keeps getting deeper
+d_est = np.clip(-np.log(s) * 4.6, 0.25, 30)
+d_est = ndi.gaussian_filter(d_est, 1.5)
+d_real = ndi.gaussian_filter(np.clip(-qdem, 0, 60), 1.2)
+# LiDAR water surfaces read ~0 close inshore: there, and wherever the survey is empty, fall back to the colour estimate
+trust = sm(0.6, 2.5, ndi.gaussian_filter(d_real, 2))
+fine = (d_est - ndi.gaussian_filter(d_est, 14)) * sm(14, 5, d_real) * sm(12, 4, d_est)      # sandbank ripples and edges
+depth = trust * np.clip(d_real + 0.7 * fine, 0.3, 60) + (1 - trust) * np.minimum(d_est, 7)
+depth = ndi.gaussian_filter(depth, 1.3)
+depth = 42 * (1 - np.exp(-depth / 42)) * 1.12                                            # soft knee: nothing shows below ~35 m
 shore = np.clip(-sd, 0, None)
-depth = np.minimum(depth, 0.12 + shore * 0.045)   # beach slope near the land
-print('depth pct', np.percentile(depth[wat], [5, 25, 50, 75, 95]))
+depth = np.minimum(depth, 0.12 + shore * 0.045)                                          # beach slope near the land
+print('depth pct', np.percentile(depth[wat], [5, 25, 50, 75, 95]), 'trust', trust[wat].mean())
 
-# ---------- land height ----------
-el = np.load(f'{R}/raw/el.npy')[:H, :W]
-el = ndi.gaussian_filter(np.clip(el, 0, None), 0.7)
+# ---------- land height: bare-ground LiDAR ----------
+el = ndi.gaussian_filter(np.clip(qdem, 0, None), 0.5)
 dl = np.clip(sd, 0, None)
 hl = np.maximum(el, np.minimum(0.5 + dl * 0.03, 2.5))
 hl = np.minimum(hl, 0.35 + dl * 0.8)
-t = np.clip(sd / 12 + 0.5, 0, 1)                 # blend across the shoreline
+t = np.clip(sd / 12 + 0.5, 0, 1)
 h = hl * t - depth * (1 - t)
-# fade the seabed to an even -20 m at the edges of the data so it meets the open sea cleanly
 yy, xx = np.mgrid[0:H, 0:W]
-edge = np.minimum(np.minimum(xx, W - 1 - xx), np.minimum(yy, H - 1 - yy)) / 90.0
+edge = np.minimum(np.minimum(xx, W - 1 - xx), np.minimum(yy, H - 1 - yy)) / 270.0
 ef = np.clip(edge, 0, 1); ef = ef * ef * (3 - 2 * ef)
-h = np.where(sd < 0, h * ef + (-26.0) * (1 - ef), h)
+h = np.where(sd < 0, h * ef + np.minimum(h, -34.0) * (1 - ef), h)
 h = np.clip(h, HMIN + 0.1, HMIN + HRANGE - 0.1)
 print('height', h.min(), h.max())
-# ---------- albedo: land colour bled outward under the water ----------
-sat_f = np.asarray(sat, np.float32) / 255
-m2 = np.asarray(Image.fromarray((np.clip(sd / 20 + 0.2, 0, 1) * 255).astype(np.uint8)).resize((W * 2, H * 2), Image.BILINEAR), np.float32) / 255
-solid = m2 > 0.9
-idx = ndi.distance_transform_edt(~solid, return_distances=False, return_indices=True)
-bled = sat_f[idx[0], idx[1]]
-bled = ndi.gaussian_filter(bled, (3, 3, 0))
-alb = sat_f * m2[..., None] + bled * (1 - m2[..., None])
+
+# ---------- albedo: aerial colour on land, bled outward under the water ----------
+af = np.asarray(aer, np.float32) / 255
+m2 = np.asarray(Image.fromarray((np.clip((sd + 260) / 120, 0, 1) * 255).astype(np.uint8)).resize((W * 2, H * 2), Image.BILINEAR), np.float32) / 255      # keep the real photo out to ~200 m offshore
+idx = ndi.distance_transform_edt(~(m2 > 0.9), return_distances=False, return_indices=True)
+bled = ndi.gaussian_filter(af[idx[0], idx[1]], (4, 4, 0))
+alb = af * m2[..., None] + bled * (1 - m2[..., None])
+del af, bled, idx
 TW, TH = 1984, 4096
 Image.fromarray((alb * 255).astype(np.uint8)).resize((TW, TH), Image.LANCZOS).save(f'{R}/assets/albedo.jpg', quality=90)
+del alb
 
-# ---------- sand mask ----------
-lum = sat_s @ np.array([0.3, 0.55, 0.15], np.float32)
-sat_c = sat_s.max(-1) - sat_s.min(-1)
-sand = np.clip((lum - 0.56) / 0.2, 0, 1) * np.clip(1.5 - sat_c * 4, 0, 1)
-sand = np.maximum(sand, np.clip(1 - dl / 45, 0, 1) * (sd > 0))    # beaches ring the island
-sand = ndi.gaussian_filter(sand, 0.6) * (land > 0.02)
+# ---------- sand mask (bright, colourless ground in the aerial photos) ----------
+lum = aer_s @ np.array([0.3, 0.55, 0.15], np.float32)
+sat_c = aer_s.max(-1) - aer_s.min(-1)
+sand = np.clip((lum - SAND_LO) / 0.18, 0, 1) * np.clip(1.6 - sat_c * 4, 0, 1)
+sand = np.maximum(sand, np.clip(1 - dl / 45, 0, 1) * (sd > 0))
+sand = ndi.gaussian_filter(sand, 0.8) * (land > 0.02)
 # ocean exposure: 1 on the open Pacific side, low inside Moreton Bay
 xc = np.full(H, np.nan)
 for y in range(H):
     xs = np.where(landb[y])[0]
-    if len(xs) > 8: xc[y] = xs.max() - 6
+    if len(xs) > 12: xc[y] = xs.max() - 9
 top = np.where(~np.isnan(xc))[0].min(); bot = np.where(~np.isnan(xc))[0].max()
 for y in range(top - 1, -1, -1): xc[y] = xc[y + 1] - 1.6
 for y in range(bot + 1, H): xc[y] = xc[y - 1] - 0.4
-expo = 1 / (1 + np.exp(-(xx - xc[:, None]) / 10.0))
-expo = ndi.gaussian_filter(0.22 + 0.78 * expo, 6)
-far = np.clip((-sd - 250) / 2500, 0, 1)[..., None] if False else np.clip((-sd - 250) / 2500, 0, 1)
-expo = expo * (1 - far) + ndi.gaussian_filter(expo, 70) * far
+expo = 1 / (1 + np.exp(-(xx - xc[:, None]) / 15.0))
+expo = ndi.gaussian_filter(0.22 + 0.78 * expo, 9)
+far = np.clip((-sd - 250) / 2500, 0, 1)
+expo = expo * (1 - far) + ndi.gaussian_filter(expo, 100) * far
 hv = np.clip(h, 0, None) * 1.7
-relief = sum(k_ * (ndi.gaussian_filter(hv, s_) - hv) for s_, k_ in ((1.5, 0.07), (4, 0.035), (11, 0.016), (28, 0.007)))
+relief = sum(k_ * (ndi.gaussian_filter(hv, s_) - hv) for s_, k_ in ((2.2, 0.07), (6, 0.035), (16, 0.016), (42, 0.007)))
 ao = np.clip(1 - relief, 0.35, 1.6) * (land > 0.3) + (land <= 0.3)
 mk = np.zeros((H, W, 4), np.uint8)
 mk[..., 3] = np.clip(ao * 128, 40, 255)
@@ -157,11 +154,11 @@ v = np.round((h - HMIN) / HRANGE * 65535).astype(np.uint32)
 out = np.zeros((H, W, 3), np.uint8)
 out[..., 0] = v >> 8; out[..., 1] = v & 255; out[..., 2] = np.clip(expo * 255, 1, 255)
 Image.fromarray(out).save(f'{R}/assets/height.png', optimize=True)
-
 Image.fromarray(mk).save(f'{R}/assets/mask.png', optimize=True)
-Image.fromarray(mk[..., [3, 1, 3]]).resize((W // 2, H // 2)).save(f'{R}/raw/mask_prev.png')
-dp = np.clip(-h / 25, 0, 1)
-Image.fromarray((np.stack([np.clip(h / 250, 0, 1), 1 - dp, 1 - dp * 0.5], -1) * 255).astype(np.uint8)).resize((W // 2, H // 2)).save(f'{R}/raw/h_prev.png')
+Image.fromarray(mk[..., [3, 1, 3]]).resize((W // 4, H // 4)).save(f'{R}/raw/mask_prev.png')
+dp = np.clip(-h / 30, 0, 1)
+Image.fromarray((np.stack([np.clip(h / 250, 0, 1), 1 - dp, 1 - dp * 0.5], -1) * 255).astype(np.uint8)).resize((W // 4, H // 4)).save(f'{R}/raw/h_prev.png')
+print('sand frac of land', (sand[landb] > 0.5).mean(), 'lum pct', np.percentile(lum[landb], [5, 50, 90, 98, 99.5]))
 
 # ---------- features ----------
 def inside(px, py, pad=0): return -pad <= px < W + pad and -pad <= py < H + pad
@@ -173,7 +170,8 @@ def geom(e):
 def wpts(pp): return [list(px2w(x, y)) for x, y in pp]
 def cen(pp): return sum(p[0] for p in pp) / len(pp), sum(p[1] for p in pp) / len(pp)
 
-F = dict(mpp=MPP, w=W, h=H, hmin=HMIN, hrange=HRANGE, buildings=[], roads=[], wrecks=[], peaks=[], places=[], camps=[],
+tl = json.load(open(f'{R}/raw/tilelist.json')) if os.path.exists(f'{R}/raw/tilelist.json') else []
+F = dict(mpp=MPP, w=W, h=H, hmin=HMIN, hrange=HRANGE, tiles=tl, tile0=[X0 * 4, Y0 * 4], tsize=64 * MPP13, tx0=-W / 2 * MPP, tz0=-H / 2 * MPP, buildings=[], roads=[], wrecks=[], peaks=[], places=[], camps=[],
          views=[], lakes=[], seanames=[], sandnames=[], lights=[], piers=[], ferries=[], marks=[], anchor=[], helipads=[],
          runways=[], streams=[], pools=[], misc=[])
 names_seen = set()
@@ -236,7 +234,7 @@ for e in osm:
     elif t.get('leisure') == 'swimming_pool' and on_island(cx, cy): F['pools'].append(dict(p=wpts(pp)))
     elif t.get('natural') == 'water' and inside(cx, cy) and on_island(cx, cy) and sd[int(cy), int(cx)] > 0:
         F['lakes'].append(dict(p=wpts(pp), n=name, c=list(px2w(cx, cy))))
-    elif t.get('natural') in ('strait', 'sand', 'beach', 'bay') and name and inside(cx, cy, -40):
+    elif t.get('natural') in ('strait', 'sand', 'beach', 'bay') and name and inside(cx, cy, -60):
         key = (name, round(cx / 200), round(cy / 200))
         if name in names_seen: continue
         names_seen.add(name)

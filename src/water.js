@@ -92,7 +92,7 @@ export function buildWater(scene) {
         n += (texture2D(uWaterTex, (vW.xz * mat2(0.8, 0.6, -0.6, 0.8)) / 1730.0 + wd * t * 0.006).rg - 0.5) * 0.3 * f2 * (1.0 - 0.85 * uWhitecap);
         float calm = smoothstep(0.0, 1.6, depth);
         float gust = texture2D(uNoise, vW.xz / 6100.0 + wd * t * 0.0016).r;           // cat's paws: patches of ruffled and glassy water
-        float chop = min(uChop, mix(1.2, 0.34, smoothstep(1200.0, 10000.0, dist))) * mix(0.5, 1.0, expo) * (0.35 + 0.65 * calm) * (0.7 + 0.6 * gust);
+        float chop = min(uChop, mix(1.2, mix(0.34, 0.1, uWhitecap), smoothstep(1200.0, 10000.0, dist))) * mix(0.5, 1.0, expo) * (0.35 + 0.65 * calm) * (0.7 + 0.6 * gust);
         if(uRain > 0.01) n += (texture2D(uWaterTex, vW.xz / 3.1 + t * vec2(0.3, -0.2)).rg - 0.5) * uRain * 1.6 * f0;
         vec3 N = normalize(vec3(-vSlope.x - n.x * chop, 1.0, -vSlope.y - n.y * chop));
         float ndv = max(dot(N, V), 0.0);

@@ -99,7 +99,7 @@ export function buildSky(scene) {
           vec2 cu = d.xz / (d.y + 0.25);
           float ci = texture2D(uNoise, cu * vec2(0.03, 0.10) + uWindDir * uTime * 0.0004).r;
           ci = smoothstep(0.5, 0.86, ci) * (0.4 + 0.9 * texture2D(uNoise, cu * 0.37).b);
-          c += (uSunCol * 0.07 + uSunGlow * 0.12 + uAmbSky * 0.3) * ci * smoothstep(0.02, 0.3, d.y) * (1.0 - uOvercast) * (1.0 - uNight * 0.8);
+          c += (uSunCol * 0.07 + uSunGlow * 0.12 + uAmbSky * 0.3) * ci * smoothstep(0.02, 0.3, d.y) * uCirrus * (1.0 - uNight * 0.8);
         }
         // below the horizon: sea haze
         c = mix(c, fogColor(d), smoothstep(0.0, -0.06, d.y));

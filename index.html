@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }</script>
 </head>
 <body>
@@ -38,6 +38,19 @@
   <div class="seg" id="wxMode">
     <button data-m="live" class="on">Live</button><button data-m="clear">Clear</button><button data-m="cloudy">Cloudy</button><button data-m="storm">Storm</button>
   </div>
+  <button id="wxSet" class="pill wide">Set the weather</button>
+  <div id="wxPanel" hidden>
+    <label><span>Sunshine</span><output id="oSun"></output><input type="range" id="sSun" min="0" max="100" step="1"></label>
+    <label><span>Cloud cover</span><output id="oCloud"></output><input type="range" id="sCloud" min="0" max="100" step="1"></label>
+    <label><span>Cloud type</span><select id="sType"></select></label>
+    <label><span>Wind</span><output id="oWind"></output><input type="range" id="sWind" min="0" max="90" step="1"></label>
+    <label><span>Wind from</span><output id="oDir"></output><input type="range" id="sDir" min="0" max="359" step="1"></label>
+    <label><span>Rain</span><output id="oRain"></output><input type="range" id="sRain" min="0" max="100" step="1"></label>
+    <label><span>Fog and haze</span><output id="oFog"></output><input type="range" id="sFog" min="0" max="100" step="1"></label>
+    <label><span>Swell</span><output id="oSwell"></output><input type="range" id="sSwell" min="0" max="5" step="0.1"></label>
+    <label><span>Tide</span><output id="oTide"></output><input type="range" id="sTide" min="-1.2" max="1.2" step="0.1"></label>
+    <label class="chk"><input type="checkbox" id="sStorm"><span>Lightning</span></label>
+  </div>
 </aside>
 
 <nav id="places" class="glass"></nav>
@@ -48,15 +61,19 @@
   <span id="clock">--:--</span>
   <input id="time" type="range" min="0" max="1439" step="1" value="720" aria-label="Time of day">
   <span class="sep"></span>
+  <button id="btWalk" class="pill" title="Walk on the island from the centre of the view (or double-click a spot)">Walk</button>
   <button id="btLabels" class="pill on">Names</button>
+  <button id="btDepth" class="pill on" title="Seabed depth lines">Depths</button>
   <button id="btClouds" class="pill on">Clouds</button>
   <button id="btSpin" class="pill">Orbit</button>
   <button id="btNorth" class="pill" title="Face north"><svg viewBox="0 0 24 24" id="compass"><path d="M12 3l4 9h-8z" fill="#ff6a5a"/><path d="M12 21l-4-9h8z" fill="#cfd8dc"/></svg></button>
 </footer>
 
-<div id="hint">Drag to move · right-drag or two fingers to turn · scroll or pinch to zoom</div>
-<div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Elevation: SRTM via AWS Terrain Tiles · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
+<div id="hint">Drag to move · right-drag or two fingers to turn · scroll or pinch to zoom · double-click to walk there</div>
+<div id="walkHint"><b>Walking</b> W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br><small>Touch: left side moves, right side looks · Gamepad: sticks, A jump, RT run, B map</small></div>
+<div id="dot"></div>
+<div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=2"></script>
+<script type="module" src="src/main.js?v=3"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // Terrain: real elevation mesh, satellite colour, procedural detail, dune shadows,
 // and the see-through water column over the estimated seabed.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, Q, makeMat, LOGV, LOGF } from './common.js';
+import { U, VEX, MOBILE, LOW, Q, makeMat, LOGV, LOGF } from './common.js';
 
 export const T = { W: 0, H: 0, mpp: 17, sx: 0, sz: 0, hgt: null, expo: null, mask: null, step: 2, alb: null, albW: 0, albH: 0 };
 
@@ -47,7 +47,7 @@ export async function loadTerrainData(F, progress) {
   U.uWaterTex.value = tex(wp.bmp, false, true);
   U.uWorld.value.set(1 / T.sx, 1 / T.sz, T.sx, T.sz);
   U.uHTex.value.set(1 / W, 1 / H); U.uMpp.value = F.mpp;
-  T.step = +(Q.get('step') || (MOBILE ? 4 : 2));
+  T.step = +(Q.get('step') || (MOBILE ? 6 : LOW ? 4 : 2));
 }
 
 // --- sampling helpers (world metres, x east, z south) ---
@@ -136,6 +136,12 @@ export function buildTerrain(scene) {
         vec3 alb = texture2D(uAlbedo, cuv).rgb;
         float dist = length(vW - cameraPosition);
         float near = 1.0 - smoothstep(1500.0, 9000.0, dist);
+        // sharp aerial photography near the view
+        vec2 duv = (vW.xz - uDetRect.xy) * uDetRect.z;
+        vec4 dtx = texture2D(uDetail, clamp(duv, 0.0, 1.0));
+        vec2 de = smoothstep(vec2(0.0), vec2(0.06), duv) * smoothstep(vec2(0.0), vec2(0.06), 1.0 - duv);
+        float dW = dtx.a * de.x * de.y * uDetRect.w;
+        alb = mix(alb, dtx.rgb / max(dtx.a, 0.01), dW);
 
         // detail noise at three scales
         vec3 nA = texture2D(uNoise, vW.xz / 2300.0).rgb;
@@ -149,21 +155,21 @@ export function buildTerrain(scene) {
         // ---- vegetation: lift the satellite colour, add canopy clumps ----
         float lum = dot(alb, vec3(0.3, 0.55, 0.15));
         vec3 veg = alb * 1.45 + vec3(0.003, 0.009, 0.0);
-        veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), 0.4);
+        veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), mix(0.4, 0.22, dW));
         veg *= 0.72 + 0.5 * nA.r;
         veg = mix(veg, veg * vec3(1.22, 1.08, 0.66), smoothstep(1.02, 1.32, relief) * 0.55);      // drier, paler ridge tops
         veg = mix(veg, veg * vec3(0.72, 0.92, 0.86), smoothstep(0.95, 0.62, relief) * 0.6);       // lush, dark gullies
         veg = mix(veg, veg * vec3(0.86, 1.0, 1.12), smoothstep(0.45, 0.75, texture2D(uNoise, vW.xz / 760.0 + 0.37).b) * 0.35);
         float can1 = nB.g, can2 = nC.g;
         float canopy = mix(can1, can2, 0.55 * near);
-        veg *= 0.55 + 0.85 * canopy;
+        veg *= mix(0.55 + 0.85 * canopy, 0.9 + 0.2 * can2, dW * 0.85);          // the photo already shows the crowns
         veg = mix(veg, veg * vec3(1.25, 1.12, 0.6), smoothstep(0.55, 0.9, nA.b) * 0.5);    // drier heath patches
         vec2 cg = vec2(texture2D(uNoise, vW.xz / 47.0 + vec2(0.012, 0.0)).g - can2, texture2D(uNoise, vW.xz / 47.0 + vec2(0.0, 0.012)).g - can2);
         vec2 cg1 = vec2(texture2D(uNoise, vW.xz / 310.0 + vec2(0.006, 0.0)).g - can1, texture2D(uNoise, vW.xz / 310.0 + vec2(0.0, 0.006)).g - can1);
         vec3 Nv = normalize(N + vec3(-(cg.x * near * 2.2 + cg1.x * 1.3), 0.0, -(cg.y * near * 2.2 + cg1.y * 1.3)));
 
         // ---- sand: warm, wind-rippled, sparkling ----
-        vec3 sd = mix(alb * 1.05, vec3(0.90, 0.80, 0.60), 0.45);
+        vec3 sd = mix(alb * 1.05, vec3(0.90, 0.80, 0.60), 0.28);
         sd *= 0.86 + 0.28 * nA.r;
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
         sd *= 1.0 - 0.10 * rip * near - 0.06 * nD.b * near;
@@ -178,8 +184,17 @@ export function buildTerrain(scene) {
         gr *= 0.80 + 0.28 * nB.r + (0.5 * (nC.b - 0.5) + 0.45 * (nD.r - 0.5)) * near;
         gr = mix(gr, gr * vec3(0.70, 0.80, 0.50), smoothstep(0.42, 0.7, nC.g) * 0.45 * near);
         float open = smoothstep(0.07, 0.19, lum) * (1.0 - sand);
-        sd *= 0.56; sd = mix(sd, sd * vec3(1.06, 0.93, 0.74), 0.5);
+        sd *= 0.7; sd = mix(sd, sd * vec3(1.06, 0.95, 0.78), 0.4);
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
+        float close = 1.0 - smoothstep(25.0, 140.0, dist);
+        if(close > 0.0){
+          vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
+          vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
+          col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.55, sand);
+          col = mix(col, col * vec3(0.72, 0.9, 0.5), smoothstep(0.5, 0.78, nF.g) * 0.6 * close * (1.0 - sand));        // grass tufts and leaf litter
+          col *= 1.0 - 0.12 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + nE.r * 7.0) * 0.5 + 0.5);      // wind ripples in the sand
+          N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
+        }
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
@@ -202,7 +217,7 @@ export function buildTerrain(scene) {
         col = mix(col, col * vec3(0.62, 0.6, 0.58), wet * 0.8);
         vec3 lit = col * (uLightCol * nl * vis * mix(1.0, clamp(relief, 0.6, 1.25), 0.5) + amb);
         float sp = pow(max(dot(reflect(-L, Nn), V), 0.0), 60.0);
-        lit += uLightCol * sp * vis * (sand * 0.06 * step(0.985, nD.g + nD.b * 0.5) * near * 14.0 + wet * 0.5);
+        lit += uLightCol * sp * vis * (sand * 0.5 * step(0.975, texture2D(uNoise, vW.xz / 0.41).b) * (1.0 - smoothstep(10.0, 60.0, dist)) + wet * 0.5);
         lit += skyColor(reflect(-V, N)) * wet * 0.12;
 
         // ---- under water: seabed seen through the water column ----
@@ -216,13 +231,15 @@ export function buildTerrain(scene) {
           bed *= 1.0 - 0.10 * rp * near;
           float grass = smoothstep(0.52, 0.7, bA.g * 0.6 + bB.g * 0.5) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
           bed = mix(bed, vec3(0.07, 0.13, 0.07), grass * 0.7);
-          bed = mix(col * 0.8, bed, smoothstep(0.0, 1.6, depth));
+          bed = mix(col * 0.8, bed, smoothstep(0.0, 0.9, depth));
           float c1 = texture2D(uWaterTex, p / 12.0 + uTime * vec2(0.031, 0.019)).b;
           float c2 = texture2D(uWaterTex, p / 8.3 - uTime * vec2(0.027, 0.034)).b;
           float caus = pow(min(c1, c2), 1.4) * 1.5;
           caus *= exp(-depth * 0.22) * smoothstep(0.0, 0.5, depth) * (1.0 - smoothstep(50.0, 260.0, dist)) * (1.0 - uOvercast * 0.8);
           float sun = max(L.y, 0.0);
-          vec3 bl = bed * (uLightCol * sun * vis * (0.72 + caus) + amb * 0.9);
+          vec3 Nb = normalize(vec3(N.x * 7.0, N.y, N.z * 7.0));                 // exaggerated so channels and banks read as relief
+          float bsh = 0.55 + 0.75 * max(dot(Nb, normalize(L + vec3(0.0, 0.6, 0.0))), 0.0);
+          vec3 bl = bed * (uLightCol * sun * vis * (0.72 + caus) * bsh + amb * 0.9);
           float cosr = sqrt(1.0 - (1.0 - V.y * V.y) / 1.77);         // refracted view ray
           float path = depth * (1.0 + 1.0 / max(cosr, 0.3));
           vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * uTurb * path);
@@ -232,6 +249,15 @@ export function buildTerrain(scene) {
           // a touch of turquoise back-scatter over bright sand
           scat += vec3(0.0, 0.05, 0.04) * exp(-depth * 0.2) * (uLightCol * sun * vis + uAmbSky) * 0.22;
           lit = bl * Tm + scat * (1.0 - Tm);
+          if(uContour > 0.0){                                               // chart-style depth contours: every 2 m to 12 m, every 10 m beyond
+            float dch = -h, f2 = dch / 2.0, f10 = dch / 10.0;
+            float w2 = fwidth(f2), w10 = fwidth(f10);
+            float l2 = (1.0 - smoothstep(0.7, 1.5, abs(fract(f2 - 0.5) - 0.5) / max(w2, 1e-5))) * smoothstep(13.0, 10.0, dch) * (1.0 - smoothstep(0.2, 0.5, w2)) * 0.5;
+            float l10 = (1.0 - smoothstep(0.8, 1.8, abs(fract(f10 - 0.5) - 0.5) / max(w10, 1e-5))) * (1.0 - smoothstep(0.25, 0.6, w10)) * step(5.0, dch);
+            vec2 ce = smoothstep(vec2(0.02), vec2(0.14), uv) * smoothstep(vec2(0.02), vec2(0.14), 1.0 - uv);
+            float ln = max(l2, l10) * step(0.4, dch) * uContour * ce.x * ce.y * (1.0 - smoothstep(30000.0, 70000.0, dist));
+            lit = mix(lit, lit * 1.35 + vec3(0.03, 0.09, 0.10) * (uLightCol * 0.3 + uAmbSky), ln * 0.55);
+          }
         }
         lit += vec3(uFlash) * 0.25 * col;
         gl_FragColor = vec4(applyFog(lit, vW), 1.0);
@@ -241,7 +267,7 @@ export function buildTerrain(scene) {
   scene.add(mesh);
 
   // deep sea floor skirt out to the horizon (same shader, flat at -20 m)
-  const R = 260000, y = -26 * VEX - 0.5, hx = T.sx / 2 - 60, hz = T.sz / 2 - 60;
+  const R = 260000, y = -47 * VEX - 0.5, hx = T.sx / 2 - 60, hz = T.sz / 2 - 60;
   const sp = [], si = [];
   const quad = (x0, z0, x1, z1) => { const b = sp.length / 3; sp.push(x0, y, z0, x1, y, z0, x0, y, z1, x1, y, z1); si.push(b, b + 2, b + 1, b + 1, b + 2, b + 3); };
   quad(-R, -R, R, -hz); quad(-R, hz, R, R); quad(-R, -hz, -hx, hz); quad(hx, -hz, R, hz);
