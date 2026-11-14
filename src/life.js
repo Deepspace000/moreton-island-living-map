@@ -35,7 +35,7 @@ function scatter(scene, n, cs, build, body, range) {
         vec2 cell = uCentre + iCell;
         float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
         vec2 xz = (cell + vec2(h1, h2)) * uCS, uv = worldUV(xz);
-        vec3 mk = texture2D(uMask, uv).rgb; float hgt = texture2D(uHeight, uv).r;
+        vec3 mk = texture2D(uMask, uv).rgb, ov = texture2D(uOver, uv).rgb; float hgt = texture2D(uHeight, uv).r;
         float sandy = step(0.9, mk.r) * smoothstep(0.3, 0.65, mk.g) * step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
         float fade = 1.0 - smoothstep(uRange * 0.7, uRange * 0.95, length(xz - (uCentre + 0.5) * uCS));
         float ca = cos(h4 * 6.2832), sa = sin(h4 * 6.2832);
@@ -130,7 +130,22 @@ function buildBeachLife(scene) {
         lp = position + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK;
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(vec3(0.20, 0.32, 0.11), vec3(0.52, 0.50, 0.24), step(0.6, h2)) * (0.55 + 0.6 * aK) * (0.8 + 0.4 * h4);`, 200);
-  return [shells, wood, sticks, litter, tufts];
+  // ferns: on the low wet flats they cover the ground knee to waist high, each a ring of arching fronds
+  const ferns = scatter(scene, LOW ? 70 : 104, 1.0, (g) => {
+    const pos = [], k = [], idx = [];
+    for (let f = 0; f < 10; f++) {
+      const a = f * 0.628 + (f % 2) * 0.25, ca = Math.cos(a), sa = Math.sin(a), q = pos.length / 3, len = 0.8 + 0.3 * ((f * 5) % 4) / 3;
+      for (const [out, up, w, u] of [[0.03, 0.03, 0.02, 0], [0.5, 0.56, 0.085, 0.55], [1.0, 0.3, 0.012, 1]]) for (const sd of [-1, 1]) { pos.push(ca * out * len - sa * w * sd, up * len, sa * out * len + ca * w * sd); k.push(u); }
+      idx.push(q, q + 1, q + 2, q + 2, q + 1, q + 3, q + 2, q + 3, q + 4, q + 4, q + 3, q + 5);
+    }
+    attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
+  }, /* glsl */`
+        float wet = (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0) * step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * (1.0 - smoothstep(0.05, 0.13, max(ov.r, max(ov.g, ov.b))));
+        s = (0.5 + 0.55 * h1) * step(h3, 0.9) * wet;
+        lp = position + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);
+        nrm = vec3(0.0, 1.0, 0.0);
+        c = mix(mix(vec3(0.035, 0.13, 0.02), vec3(0.11, 0.25, 0.045), h2), vec3(0.17, 0.11, 0.05), step(0.93, fract(h1 * 7.0))) * (0.45 + 0.75 * aK);`, 260);
+  return [shells, wood, sticks, litter, tufts, ferns];
 }
 
 // ---------------------------------------------------------------- 4WDs on the beach

@@ -253,6 +253,9 @@ function buildOverlay(F) {
   const X = (x) => (x / T.sx + .5) * cw, Z = (z) => (z / T.sz + .5) * ch;
   c.strokeStyle = '#00ff00';
   for (const r of F.roads) { c.lineWidth = r.c === 2 ? 0.9 : 1.5; c.beginPath(); r.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.stroke(); }
+  c.globalCompositeOperation = 'lighten'; c.fillStyle = '#240000';             // a faint red halo round every building: the yards of a settlement
+  for (const b of F.buildings) { if (b.k === 'ship') continue; c.beginPath(); c.arc(X(b.p[0][0]), Z(b.p[0][1]), 5, 0, 6.2832); c.fill(); }
+  c.globalCompositeOperation = 'lighter';
   c.filter = 'blur(1.2px)'; c.fillStyle = c.strokeStyle = '#ff0000'; c.lineWidth = 2.4;
   for (const b of F.buildings) { c.beginPath(); b.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); c.stroke(); }
   c.filter = 'none'; c.fillStyle = '#0000ff';                    // blue: open fresh water, where no tree stands
@@ -394,7 +397,9 @@ function buildTrees(F, scene) {
           // which tree grows here (0 eucalypt, 1 she-oak, 2 banksia, 3 paperbark, 4 mangrove), from how far inland and how high the spot is
           float shoreD = (mk.b - 0.5) * 3000.0, hs = hash12(cell * 2.3 + 40.0), hs2 = hash12(cell * 0.71 + 7.7);
           float sp = hs < 0.6 ? 0.0 : hs < 0.82 ? 2.0 : 1.0;                         // dune forest: scribbly gum and bloodwood, banksia, forest she-oak
-          if(hgt < 5.5 && shoreD > 260.0) sp = hs < 0.6 ? 3.0 : hs < 0.8 ? 1.0 : 0.0;     // swampy flats: paperbark
+          // low wet flats: paperbarks and swamp gums over a carpet of fern; fire goes through often, so trunks are dark and many trees stand dead
+          float wetland = (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, shoreD) * (1.0 - smoothstep(0.05, 0.13, ov.r));
+          if(wetland > 0.5) sp = hs < 0.55 ? 3.0 : hs < 0.8 ? 0.0 : 1.0;
           if(shoreD < 170.0 && hgt < 22.0) sp = hs < 0.7 ? 1.0 : 2.0;                     // behind the beach: coastal she-oak and coast banksia
           float swept = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));          // on the cape the wind shapes everything
           if(swept > 0.5){ sp = hs < 0.82 ? 2.0 : 1.0; dens *= 0.55; }
@@ -402,7 +407,7 @@ function buildTrees(F, scene) {
             sp = 4.0; dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - sandm);
           }
           #endif
-          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * 0.82 * step(0.51, mk.b);       // scrub fills the country between the trees
+          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
@@ -438,6 +443,7 @@ function buildTrees(F, scene) {
               fork = 0.1 + 0.3 * form; spread = 0.18; top0 = 0.8; arch = 0.04; kink = 0.05; lean = 0.12; wig = 0.05; }
             else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
+            if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
             vec2 ld = (swept > 0.5 ? normalize(vec2(-0.8, -0.6) + (vec2(h2, h1) - 0.5) * 0.7) : vec2(cos(h2 * 6.2832), sin(h2 * 6.2832))) * lean * (0.4 + 0.6 * h3);
@@ -456,7 +462,7 @@ function buildTrees(F, scene) {
             vec3 tw = normalize(vec3(cos(hk * 6.2832 + la), 0.35 + 1.1 * (hk2 - 0.35), sin(hk * 6.2832 + la))) * twig * (0.6 + 0.8 * hk3);
             vec3 bc = Q + sec * tw;
             // some country has burnt: trunks there are charred black from the ground up
-            float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, xz / 900.0).b) * step(sp, 3.5), mott = (sp < 0.5 && hs2 < 0.45) || (sp > 2.5 && sp < 3.5) ? 1.0 : 0.3;
+            float burnt = max(smoothstep(0.5, 0.62, texture2D(uNoise, xz / 900.0).b), wetland * 0.8) * step(sp, 3.5), deadTree = step(hash12(cell * 0.31 + 2.0), 0.3 * wetland), mott = (sp < 0.5 && hs2 < 0.45) || (sp > 2.5 && sp < 3.5) ? 1.0 : 0.3;
             if(aPart > 2.5){                 // twig
               float u = position.y;
               vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.14 * length(tw), 0.0), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
@@ -474,7 +480,7 @@ function buildTrees(F, scene) {
               lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.66, t) * (1.0 + 0.6 * (1.0 - t) * (1.0 - t))) * H * s;
               c = bark * (0.75 + 0.5 * h2); ao = 0.5 + 0.35 * t; vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));
             } else {                         // clump of leaves
-              float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16));
+              float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16)) * (1.0 - deadTree);
               bc.y += rb * sc.y * hang;
               vec3 ol = bc + q * rb * sc;
               lp = ol * H * s;

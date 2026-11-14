@@ -229,7 +229,9 @@ export function buildTerrain(scene) {
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(vW.xz - uCape.xy));
-        float floorK = (1.0 - sand) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland);
+        // low wet flats away from the shore and the houses are fern country: a bright green carpet, not sand
+        float wetK = (1.0 - smoothstep(7.0, 11.0, h)) * smoothstep(0.54, 0.587, mk.b) * (1.0 - sand) * (1.0 - smoothstep(0.05, 0.13, ov.r)) * (1.0 - headland);
+        float floorK = (1.0 - sand) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK);
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
@@ -239,6 +241,11 @@ export function buildTerrain(scene) {
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
           col = mix(col, vec3(0.10, 0.19, 0.055) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long green grass
+          if(wetK > 0.0){                                                                                                          // ferns: fresh green, patches of dead brown fronds
+            vec3 fern = mix(vec3(0.025, 0.10, 0.018), vec3(0.09, 0.22, 0.04), nE.g) * (0.7 + 0.6 * nF.g);
+            fern = mix(fern, vec3(0.15, 0.10, 0.05), smoothstep(0.72, 0.88, nF.b) * 0.5);
+            col = mix(col, fern, wetK * close * 0.92 * (1.0 - smoothstep(0.4, 0.9, ov.g)));
+          }
           // The floor of the bush is sand, the same pale yellow sand as the beaches, with dark detritus lying on it:
           // drifts of dead leaves, bark and twigs under the trees, a scatter of single pieces between, and almost no grass.
           if(floorK * close > 0.0){
@@ -258,6 +265,7 @@ export function buildTerrain(scene) {
             col = mix(col, lf, floorK * close * 0.97);
           }
         }
+        col = mix(col, vec3(0.05, 0.15, 0.03) * (0.75 + 0.5 * nC.g), wetK * (1.0 - close) * (1.0 - smoothstep(600.0, 3500.0, dist)) * 0.7);
         // farther off the same floor shows between the bushes as sand dulled by its litter
         col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85);
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
