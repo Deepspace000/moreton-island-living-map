@@ -320,14 +320,19 @@ export function buildTerrain(scene) {
           vec2 p = vW.xz + wob;
           vec3 bA = texture2D(uNoise, p / 420.0).rgb, bB = texture2D(uNoise, p / 60.0).rgb;
           vec3 bed = vec3(0.86, 0.80, 0.62) * (0.82 + 0.3 * bA.r);
-          float rp = sin((p.x * 0.55 - p.y * 0.35) * 1.3 + bB.r * 7.0) * 0.5 + 0.5;
+          float rp = sin((p.x * 0.55 - p.y * 0.35) * 1.3 + bB.r * 2.5 + bA.b * 6.0) * 0.5 + 0.5;
           bed *= 1.0 - 0.10 * rp * near;
-          float grass = smoothstep(0.52, 0.7, bA.g * 0.6 + bB.g * 0.5) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
+          { vec2 q = vW.xz; float fineK = (1.0 - smoothstep(4.0, 30.0, dist)) * (1.0 - smoothstep(0.6, 1.6, fwidth(dot(q, vec2(11.0, 6.0)))));                       // close to: ripple marks a hand-span apart, branching and joining, and grit in the troughs
+            float r2 = sin(dot(q, vec2(11.0, 6.0)) + 1.7 * sin(dot(q, vec2(-1.3, 2.1))) + 1.2 * sin(dot(q, vec2(0.37, 0.23)) + bB.g * 3.0));
+            bed *= 1.0 - fineK * (0.11 * smoothstep(-0.2, 0.9, r2) + 0.06 * step(0.8, hash12(floor(q * 23.0))) * smoothstep(0.3, -0.6, r2)); }
+          float grass = smoothstep(0.46, 0.8, bA.g * 0.5 + bB.g * 0.36 + texture2D(uNoise, p / 17.0).b * 0.24) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
           bed = mix(bed, vec3(0.07, 0.13, 0.07), grass * 0.7);
           bed = mix(col * 0.8, bed, smoothstep(0.0, 0.9, depth));
           float c1 = texture2D(uWaterTex, p / 12.0 + uTime * vec2(0.031, 0.019)).b;
           float c2 = texture2D(uWaterTex, p / 8.3 - uTime * vec2(0.027, 0.034)).b;
-          float caus = pow(min(c1, c2), 1.4) * 1.5;
+          float c3 = texture2D(uWaterTex, p / 2.6 + uTime * vec2(0.05, 0.03)).b, c4 = texture2D(uWaterTex, p / 1.9 - uTime * vec2(0.04, 0.055)).b;      // a fine net of light close to
+          float cf = 1.0 - smoothstep(6.0, 45.0, dist);
+          float caus = mix(pow(min(c1, c2), 1.4) * 0.9, pow(1.0 - min(abs(c3 - c4) * 5.0, 1.0), 4.0) * 0.75 + 0.1, cf);          // close to: thin bright threads where the two wave trains agree
           caus *= exp(-depth * 0.22) * smoothstep(0.0, 0.5, depth) * (1.0 - smoothstep(50.0, 260.0, dist)) * (1.0 - uOvercast * 0.8);
           float sun = max(L.y, 0.0);
           vec3 Nb = normalize(vec3(N.x * 7.0, N.y, N.z * 7.0));                 // exaggerated so channels and banks read as relief

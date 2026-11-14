@@ -7,6 +7,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, LOGV, LOGF, rng, clamp } from 
 import { T, meshY, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
+import { swimmers, PAINT, PELICAN, CORMORANT, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const LIT_FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
@@ -153,9 +154,10 @@ function buildBeachLife(scene) {
   // soldier crabs: when the tide is well out they come up on the bared flats in armies, small round sky-blue crabs that
   // walk a little way together and then screw themselves back down into the wet sand
   const crabs = scatter(scene, LOW ? 100 : 140, 0.24, (g) => {
-    const pos = [0, 1, 0, 0, 0.1, 0], k = [0.2, 0], idx = [];
-    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; pos.push(Math.cos(a), 0.5, Math.sin(a)); k.push(0); idx.push(0, 2 + (i + 1) % 6, 2 + i, 1, 2 + i, 2 + (i + 1) % 6); }
-    for (const sd of [-1, 1]) { const q = pos.length / 3; pos.push(0.5, 0.45, 0.8 * sd, -0.5, 0.45, 0.8 * sd, 0, 0, 1.7 * sd); k.push(1, 1, 1); idx.push(q, q + 1, q + 2); }
+    const pos = [0, 1, 0], k = [0], idx = [], S = 8;                       // a rounded shell (two rings and a crown), then four bent legs a side
+    for (const [r, y] of [[0.62, 0.86], [1.0, 0.48], [0.8, 0.16]]) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2; pos.push(Math.cos(a) * r, y, Math.sin(a) * r * 0.9); k.push(0); }
+    for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(0, 1 + j, 1 + i); for (const o of [1, 1 + S]) idx.push(o + i, o + j, o + S + i, o + j, o + S + j, o + S + i); }
+    for (const sd of [-1, 1]) for (let l = 0; l < 4; l++) { const q = pos.length / 3, x = 0.55 - l * 0.36, z = 0.8 * sd; pos.push(x - 0.09, 0.4, z, x + 0.09, 0.4, z, x + 0.05 * (1.5 - l), 0.62, z + 0.55 * sd, x + 0.1 * (1.5 - l), 0, z + 0.95 * sd); k.push(1, 1, 1, 1); idx.push(q, q + 1, q + 2, q + 2, q + 1, q + 3); }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   }, /* glsl */`
         float lowT = smoothstep(-0.2, -0.55, uSeaM);
@@ -166,7 +168,7 @@ function buildBeachLife(scene) {
         s = (0.024 + 0.018 * h1) * lowT * bare * army * smoothstep(0.0, 0.25, sin(go * 3.1416));
         lp = position * vec3(1.0, 0.85, 1.0) + vec3(walk.x * ca + walk.y * sa, 0.0, -walk.x * sa + walk.y * ca) / max(s, 0.0005);
         nrm = normalize(vec3(position.x, 0.7, position.z));
-        c = aK > 0.5 ? vec3(0.70, 0.60, 0.68) : mix(vec3(0.26, 0.44, 0.78), vec3(0.62, 0.78, 0.96), position.y);`, 60);
+        c = aK > 0.5 ? vec3(0.50, 0.38, 0.46) * (0.6 + 0.6 * position.y) : mix(vec3(0.30, 0.20, 0.38), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
   return [shells, wood, sticks, litter, tufts, ferns, crabs];
 }
 
@@ -217,7 +219,27 @@ function buildCars(scene, F, lights) {
       cars.push({ m, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3)] });
     }
   });
+  // fresh tyre marks: each car lays two ribbons of tread behind it, which fade over a couple of minutes and wash out near the water
+  const NT = 110, tp = new Float32Array(cars.length * NT * 4 * 3), td = new Float32Array(cars.length * NT * 4 * 3), ti = [];
+  cars.forEach((c, k) => { c.k = k; c.lx = 1e9; c.lz = 0; c.run = 0; for (let j = 0; j < NT - 1; j++) for (const h of [0, 2]) { const o = (k * NT + j) * 4 + h; ti.push(o, o + 1, o + 4, o + 4, o + 1, o + 5); } });
+  td.fill(-1e6);
+  const tg = new THREE.BufferGeometry(), tpa = new THREE.BufferAttribute(tp, 3).setUsage(THREE.DynamicDrawUsage), tda = new THREE.BufferAttribute(td, 3).setUsage(THREE.DynamicDrawUsage);
+  tg.setAttribute('position', tpa); tg.setAttribute('aD', tda); tg.setIndex(ti); tg.boundingSphere = FAR;
+  const tmesh = new THREE.Mesh(tg, makeMat({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    vs: /* glsl */`attribute vec3 aD; varying vec3 vD, vW; void main(){ vD = aD; vW = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+    fs: /* glsl */`varying vec3 vD, vW;
+      void main(){ ${LOGF}
+        float age = uTime - vD.z, a = clamp(1.0 - age / 150.0, 0.0, 1.0) * step(-1e5, vD.z) * smoothstep(0.15, 0.7, (vW.y - uSeaM * uVex) / uVex);
+        float across = abs(vD.y), blocks = step(0.42, fract(vD.x * 2.6 + across * 0.9 * sign(vD.y))) ;          // chevrons of tread, pressed into the sand
+        float press = mix(0.55, 1.0, blocks) * smoothstep(1.0, 0.8, across) + 0.35 * smoothstep(0.25, 0.0, abs(across - 0.9));    // and a ridge pushed up at each edge
+        float crumble = 0.6 + 0.4 * texture2D(uNoise, vW.xz * 0.9).r;
+        vec3 c = vec3(0.34, 0.28, 0.18) * (uLightCol * (0.2 + 0.5 * max(uLightDir.y, 0.0)) * cloudShadow(vW) + uAmbSky * 0.7);
+        gl_FragColor = vec4(applyFog(c, vW), a * press * crumble * 0.62); }`,
+  }));
+  tmesh.name = 'tyremarks'; tmesh.frustumCulled = false; tmesh.renderOrder = 3; scene.add(tmesh);
   return (dt) => {
+    let laid = false;
     for (const c of cars) {
       c.s += c.sp * c.dir * dt;
       if (c.s > c.len - 40 || c.s < 40) { c.dir *= -1; c.lane *= -1; c.s = clamp(c.s, 40, c.len - 40); }
@@ -233,7 +255,16 @@ function buildCars(scene, F, lights) {
       c.m.rotation.set(0, c.m.rotation.y + clamp(d, -dt * 2.5, dt * 2.5), Math.atan2(yf - yb, 6 * S));
       const fx = x + tx * 3.5 * S, fz = z + tz * 3.5 * S;
       lights.move(c.li[0], fx - tz * 0.9, c.y + 1.2 * S, fz + tx * 0.9); lights.move(c.li[1], fx + tz * 0.9, c.y + 1.2 * S, fz - tx * 0.9);
+      const step = Math.hypot(x - c.lx, z - c.lz);
+      if (step > 1.4) {               // another length of track under the back wheels
+        const o = c.k * NT * 12; tp.copyWithin(o + 12, o, o + (NT - 1) * 12); td.copyWithin(o + 12, o, o + (NT - 1) * 12);
+        const jump = step > 30; c.run += jump ? 0 : step; c.lx = x; c.lz = z;
+        const bx = x - tx * 1.5 * S, bz = z - tz * 1.5 * S, now = jump ? -1e6 : U.uTime.value;
+        [-1, 1].forEach((sd, h) => { const cx = bx - tz * sd * 0.86 * S, cz = bz + tx * sd * 0.86 * S; for (const e of [-1, 1]) { const q = o + (h * 2 + (e + 1) / 2) * 3, px = cx - tz * e * 0.21 * S, pz = cz + tx * e * 0.21 * S; tp[q] = px; tp[q + 1] = meshY(px, pz) + 0.035; tp[q + 2] = pz; td[q] = c.run; td[q + 1] = e * sd; td[q + 2] = now; } });
+        laid = true;
+      }
     }
+    if (laid) { tpa.needsUpdate = true; tda.needsUpdate = true; }
   };
 }
 
@@ -269,81 +300,6 @@ function buildSnorkelers(scene, F) {
 
 // ---------------------------------------------------------------- fish, sharks, rays, turtles and jellyfish
 // Each animal swims a wobbly loop around a home point. list: [cx, cz, radius, depth, phase, speed, size, seed] per animal.
-function swimmers(scene, o, list) {
-  const g = new THREE.InstancedBufferGeometry(), n = list.length / 8, a = new Float32Array(n * 4), b = new Float32Array(n * 4);
-  for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
-  attr(g, 'position', o.pos, 3); attr(g, 'aFlex', o.flex, 1); attr(g, 'aTone', o.tone, 1); g.setIndex(o.idx);
-  g.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 4)); g.instanceCount = n; g.boundingSphere = FAR;
-  const mat = makeMat({
-    side: THREE.DoubleSide,
-    uniforms: { uFlap: { value: new THREE.Vector4(o.vertical ? 1 : 0, o.amp, o.rate, o.bottom ? 1 : 0) }, uColA: { value: new THREE.Vector3(...o.colA) }, uColB: { value: new THREE.Vector3(...o.colB) }, uSee: { value: o.see }, uNeed: { value: new THREE.Vector2(o.min ?? 0.9, o.tidal ? 1 : 0) } },
-    vs: /* glsl */`
-      attribute float aFlex, aTone; attribute vec4 iA, iB; uniform vec4 uFlap; uniform vec3 uColA, uColB; uniform float uSee; uniform vec2 uNeed; varying vec3 vCol, vW;
-      ${WATER_GLSL}
-      void main(){
-        float way = iB.w < 0.5 ? 1.0 : -1.0, ang = iB.x + uTime * iB.y / iA.z * way, wob = ang * 3.0 + iB.w * 9.0;
-        float rr = iA.z * (1.0 + 0.25 * sin(wob));
-        vec2 c = iA.xy + vec2(cos(ang), sin(ang)) * rr;
-        vec2 fwd = normalize(vec2(-sin(ang), cos(ang)) * rr + vec2(cos(ang), sin(ang)) * iA.z * 0.75 * cos(wob)) * way, right = vec2(-fwd.y, fwd.x);
-        float sea = uSeaM * uVex, bed = groundY(c), size = iB.z;
-        float y = uFlap.w > 0.5 ? bed + 0.1 * size : min(max(bed + 0.4 * size, sea - iA.w * uVex), sea - 0.16 * size);
-        // it needs enough water over the sand at this state of the tide; some kinds come into the shallows mostly when the tide is out
-        float ok = step(bed, sea - uNeed.x * uVex) * (1.0 - smoothstep(uSee * 0.7, uSee, length(vec3(c.x, y, c.y) - cameraPosition)));
-        ok *= mix(1.0, step(fract(iB.w * 13.7), mix(0.3, 1.0, smoothstep(0.1, -0.6, uSeaM))), uNeed.y);
-        vec3 lp = position * size;
-        // the swimming beat runs down the body as a wave, so the fish curves from head to tail
-        float beat = sin(uTime * uFlap.z * (0.8 + 0.4 * iB.w) + iB.x * 7.0 + (uFlap.x > 0.5 ? -abs(position.z) * 3.0 : position.x * 5.5)) * aFlex * uFlap.y * size;
-        if(uFlap.x > 0.5) lp.y += beat; else lp.z += beat + position.x * position.x * size * size * 0.45 / rr * way;       // and it bends into its turn
-        vec3 wp = vec3(c.x, y, c.y) + vec3(fwd.x, 0.0, fwd.y) * lp.x + vec3(0.0, 1.0, 0.0) * lp.y + vec3(right.x, 0.0, right.y) * lp.z;
-        vec3 col = mix(uColA, uColB, aTone) * (0.8 + 0.4 * fract(iB.w * 7.3));
-        col *= uLightCol * (0.25 + 0.6 * max(uLightDir.y, 0.0)) * cloudShadow(wp) * (0.55 + 0.45 * smoothstep(-0.1, 0.1, position.y)) + uAmbSky;
-        vCol = throughWater(col, wp); vW = wp;
-        gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
-        ${LOGV}
-      }`,
-    fs: LIT_FS,
-  });
-  const m = new THREE.Mesh(g, mat); m.name = o.name; m.frustumCulled = false; scene.add(m);
-}
-// A fish as a rounded body: rings from nose to tail (each [x, half height, half width]), closed at both ends, with a tail
-// fin, back fins and side fins. x is forward (nose near +0.5), y up, z to the side. flex grows toward the tail (how much
-// a point swings with the swimming beat); tone runs from the dark back (0) to the pale belly (1).
-function fishMesh({ prof, nose = 0.1, tail, dorsal = [], pect, stripes, S = 6 }) {
-  const pos = [], flex = [], tone = [], idx = [], fl = (x) => Math.pow(Math.min(1, Math.max(0, (0.18 - x) / 0.7)), 1.4);
-  const put = (x, y, z, t) => { pos.push(x, y, z); flex.push(fl(x)); tone.push(t); return pos.length / 3 - 1; };
-  const at = (x, k) => { for (let i = 0; i < prof.length - 1; i++) if (x <= prof[i][0] && x >= prof[i + 1][0]) { const f = (prof[i][0] - x) / (prof[i][0] - prof[i + 1][0]); return prof[i][k] + (prof[i + 1][k] - prof[i][k]) * f; } return x > prof[0][0] ? prof[0][k] : prof[prof.length - 1][k]; };
-  const rings = prof.map(([x, hh, hw], r) => { const b = pos.length / 3; for (let i = 0; i < S; i++) { const an = i / S * Math.PI * 2, cy = Math.cos(an); put(x, cy * hh, Math.sin(an) * hw, stripes && r % 2 ? 0.95 : cy > 0.3 ? 0 : cy < -0.3 ? 1 : 0.45); } return b; });
-  for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < S; i++) { const j = (i + 1) % S, p = rings[r], q = rings[r + 1]; idx.push(p + i, q + i, p + j, p + j, q + i, q + j); }
-  const tip = put(prof[0][0] + nose, 0, 0, 0.35), L = prof[prof.length - 1], end = put(L[0] - 0.02, 0, 0, 0.5);
-  for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(tip, rings[0] + i, rings[0] + j, end, rings[rings.length - 1] + j, rings[rings.length - 1] + i); }
-  const tr = put(L[0] + 0.03, 0, 0, 0.4), tu = put(L[0] - tail.len, tail.up, 0, 0.15), tm = put(L[0] - tail.len * 0.42, 0, 0, 0.5), td = put(L[0] - tail.len * (tail.low ?? 1), -tail.down, 0, 0.5);
-  idx.push(tr, tu, tm, tr, tm, td);
-  for (const [x0, x1, h, sw] of dorsal) idx.push(put(x0, at(x0, 1) * 0.9, 0, 0), put(x1, at(x1, 1) * 0.9, 0, 0), put(x1 - sw * 0.3, at(x1, 1) + h, 0, 0.1));
-  if (pect) for (const sd of [-1, 1]) { const [x, y, len, sw, dr] = pect, w = at(x, 2) * 0.9; idx.push(put(x, y, sd * w, 0.3), put(x - 0.1, y, sd * w, 0.3), put(x - sw, y - dr, sd * (w + len), 0.2)); }
-  return { pos, flex, tone, idx };
-}
-const BREAM = fishMesh({ prof: [[0.40, 0.075, 0.045], [0.24, 0.16, 0.07], [0.05, 0.19, 0.08], [-0.14, 0.15, 0.065], [-0.30, 0.075, 0.035], [-0.40, 0.035, 0.016]], tail: { len: 0.2, up: 0.17, down: 0.17 }, dorsal: [[0.15, -0.2, 0.07, 0.08]], pect: [0.2, -0.05, 0.1, 0.1, 0.03] });
-const STRIPED = fishMesh({ prof: [[0.40, 0.075, 0.045], [0.26, 0.16, 0.065], [0.10, 0.2, 0.075], [-0.06, 0.19, 0.07], [-0.20, 0.13, 0.05], [-0.33, 0.06, 0.028], [-0.41, 0.032, 0.015]], tail: { len: 0.19, up: 0.16, down: 0.16 }, dorsal: [[0.18, -0.22, 0.06, 0.06]], pect: [0.2, -0.05, 0.09, 0.09, 0.03], stripes: 1 });
-const SLIM = fishMesh({ prof: [[0.40, 0.04, 0.035], [0.22, 0.085, 0.055], [0.02, 0.1, 0.06], [-0.18, 0.08, 0.045], [-0.33, 0.045, 0.025], [-0.42, 0.022, 0.012]], tail: { len: 0.18, up: 0.13, down: 0.13 }, dorsal: [[0.08, -0.12, 0.05, 0.06]], S: 5 });
-const SHARK = fishMesh({ prof: [[0.40, 0.045, 0.05], [0.25, 0.08, 0.085], [0.06, 0.095, 0.095], [-0.14, 0.07, 0.065], [-0.30, 0.04, 0.035], [-0.42, 0.022, 0.016]], tail: { len: 0.22, up: 0.2, down: 0.08, low: 0.55 }, dorsal: [[0.1, -0.06, 0.13, 0.1], [-0.24, -0.31, 0.045, 0.04]], pect: [0.2, -0.04, 0.2, 0.16, 0.05] });
-const SHOVEL = fishMesh({ prof: [[0.36, 0.02, 0.08], [0.2, 0.035, 0.2], [0.05, 0.05, 0.23], [-0.06, 0.055, 0.1], [-0.2, 0.045, 0.05], [-0.36, 0.03, 0.03], [-0.45, 0.018, 0.014]], nose: 0.14, tail: { len: 0.14, up: 0.1, down: 0.05, low: 0.7 }, dorsal: [[-0.12, -0.2, 0.07, 0.05], [-0.28, -0.35, 0.06, 0.04]] });
-const FLATHEAD = fishMesh({ prof: [[0.38, 0.028, 0.09], [0.22, 0.042, 0.13], [0.05, 0.05, 0.1], [-0.15, 0.045, 0.07], [-0.32, 0.03, 0.04], [-0.43, 0.018, 0.018]], tail: { len: 0.16, up: 0.09, down: 0.09 }, dorsal: [[0.0, -0.25, 0.05, 0.04]], pect: [0.2, 0.0, 0.12, 0.06, 0.0] });
-const TURTLE = (() => {
-  const pos = [0, 0.17, 0, 0, -0.07, 0], flex = [0, 0], tone = [0, 1], idx = [];
-  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; pos.push(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.4); flex.push(0); tone.push(0.25); }
-  for (let i = 0; i < 10; i++) { const j = (i + 1) % 10; idx.push(0, 2 + j, 2 + i, 1, 2 + i, 2 + j); }
-  const tri = (p, f) => { const k = pos.length / 3; pos.push(...p); flex.push(...f); tone.push(0.6, 0.6, 0.6); idx.push(k, k + 1, k + 2); };
-  tri([0.48, 0.02, 0.08, 0.48, 0.02, -0.08, 0.74, 0.04, 0], [0, 0, 0]);                                     // head
-  for (const s of [-1, 1]) { tri([0.36, 0, 0.3 * s, 0.14, 0, 0.36 * s, 0.1, 0, 0.72 * s], [0, 0, 0.6]); tri([0.14, 0, 0.36 * s, -0.05, 0, 1.0 * s, 0.1, 0, 0.72 * s], [0, 1, 0.6]); tri([-0.36, 0, 0.26 * s, -0.46, 0, 0.12 * s, -0.72, 0, 0.36 * s], [0, 0, 0.35]); }   // flippers, curved
-  return { pos, flex, tone, idx };
-})();
-const RAY = (() => {            // a rounded disc with flapping wing tips and a whip tail
-  const pos = [0.05, 0.07, 0], flex = [0], tone = [0], idx = [], N = 12;
-  for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, r = 0.5 + 0.12 * Math.abs(Math.sin(a)); pos.push(Math.cos(a) * 0.5 + 0.05, 0, Math.sin(a) * r); flex.push(Math.pow(Math.abs(Math.sin(a)), 2)); tone.push(0.3 + 0.2 * Math.abs(Math.sin(a))); }
-  for (let i = 0; i < N; i++) idx.push(0, 1 + i, 1 + (i + 1) % N);
-  const k = pos.length / 3; pos.push(-0.4, 0.01, 0.03, -0.4, 0.01, -0.03, -1.3, 0, 0); flex.push(0, 0, 0.15); tone.push(1, 1, 1); idx.push(k, k + 1, k + 2);
-  return { pos, flex, tone, idx };
-})();
 // Blue blubber jellyfish: a pulsing bell with a bunch of short arms under it, drifting in swarms. list: [x, z, depth, phase, size] each.
 function jellyfish(scene, list) {
   const pos = [0, 0.5, 0], pr = [0, 0], idx = [], S = 8, RN = 4;
@@ -417,16 +373,37 @@ function buildSeaLife(scene, F) {
   for (let i = 0; i < 34 * K; i++) { const s = i % 4 === 0 ? spot(tg[0] - 400, tg[1] - 1400, 1200, 1.5, 6) : anywhere(1.2, 5); if (s) sharks.push(s[0], s[1], 18 + R() * 40, 0.35 + R() * 0.9, R() * 6.283, 0.8 + R() * 0.6, 1.1 + R() * 0.7, R()); }
   // jellyfish in swarms on the bay side
   for (let i = 0; i < 30 * K; i++) { const s = anywhere(1.5, 9); if (!s || maskAt(s[0], s[1]).expo > 0.5) continue; for (let j = 0; j < 11; j++) jelly.push(s[0] + (R() - .5) * 40, s[1] + (R() - .5) * 40, 0.3 + R() * 1.1, R(), 0.22 + R() * 0.2); }
-  swimmers(scene, { ...BREAM, name: 'bream', amp: 0.13, rate: 8, colA: [0.50, 0.55, 0.58], colB: [0.88, 0.9, 0.88], see: 420 }, bream);
-  swimmers(scene, { ...SLIM, name: 'blue', amp: 0.15, rate: 13, colA: [0.14, 0.55, 0.74], colB: [0.75, 0.9, 0.55], see: 300, min: 0.5 }, blue);
-  swimmers(scene, { ...STRIPED, name: 'stripey', amp: 0.13, rate: 10, colA: [0.92, 0.78, 0.16], colB: [0.12, 0.13, 0.16], see: 420 }, stripey);
-  swimmers(scene, { ...SLIM, name: 'small', amp: 0.16, rate: 14, colA: [0.48, 0.52, 0.46], colB: [0.90, 0.90, 0.84], see: 260, min: 0.3 }, small);
-  swimmers(scene, { ...SLIM, name: 'whiting', amp: 0.15, rate: 13, colA: [0.74, 0.70, 0.50], colB: [0.96, 0.95, 0.90], see: 240, min: 0.22 }, whiting);
-  swimmers(scene, { ...FLATHEAD, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.50, 0.42, 0.28], colB: [0.80, 0.74, 0.60], see: 500, min: 0.25 }, flathead);
-  swimmers(scene, { ...TURTLE, name: 'turtles', vertical: 1, amp: 0.22, rate: 1.8, colA: [0.30, 0.27, 0.16], colB: [0.62, 0.58, 0.42], see: 1100 }, turtles);
-  swimmers(scene, { ...RAY, name: 'rays', vertical: 1, bottom: 1, tidal: 1, amp: 0.13, rate: 2.2, colA: [0.36, 0.31, 0.24], colB: [0.22, 0.19, 0.16], see: 900, min: 0.25 }, rays);
-  swimmers(scene, { ...SHOVEL, name: 'shovelnose', bottom: 1, amp: 0.07, rate: 3, colA: [0.50, 0.42, 0.30], colB: [0.80, 0.76, 0.66], see: 900, min: 0.3 }, shovels);
-  swimmers(scene, { ...SHARK, name: 'sharks', amp: 0.1, rate: 3.2, colA: [0.36, 0.38, 0.40], colB: [0.86, 0.87, 0.86], see: 1200, min: 0.7 }, sharks);
+  // damselfish of the Queensland coast, close in round every wreck: neon damsels in a blue cloud, humbugs hanging over the plates
+  const neon = [], humbug = [], dolphins = [], dugongs = [], whales = [];
+  for (const w of F.wrecks) {
+    const d = Math.max(depth(w.c[0], w.c[1]), 2.2); if (depth(w.c[0], w.c[1]) < 0.6) continue;
+    school(neon, w.c[0] + (R() - .5) * 10, w.c[1] + (R() - .5) * 10, d, Math.round(22 * K), 2.5 + R() * 3, 0.42); school(humbug, w.c[0] + (R() - .5) * 14, w.c[1] + (R() - .5) * 14, d, Math.round(12 * K), 2 + R() * 2.5, 0.4);
+  }
+  // bottlenose dolphins: a pod that keeps to the water off the Tangalooma jetty, others ranging the bay side
+  const pod = (out, s, n, size, r0) => { const ph = R() * 6.283, sp = 2.2 + R() * 1.2, way = R() < 0.5 ? 0.2 : 0.8; for (let i = 0; i < n; i++) out.push(s[0] + (R() - .5) * 14, s[1] + (R() - .5) * 14, r0 + R() * 14, 0.9 + R() * 1.2, ph + i * 0.09 + R() * 0.08, sp, size * (0.85 + R() * 0.3), way + R() * 0.15); };
+  { const s = spot(tg[0] - 420, tg[1] - 150, 380, 2.5, 9); if (s) pod(dolphins, s, 6, 3.1, 45); }
+  for (let i = 0; i < 5 * K; i++) { const s = anywhere(3, 12); if (s && maskAt(s[0], s[1]).expo < 0.6) pod(dolphins, s, 3 + ((R() * 4) | 0), 3.1, 60); }
+  // dugongs grazing the seagrass on the sheltered banks west and south of the island
+  for (let i = 0; i < 14 * K; i++) { const s = anywhere(1.8, 4.5); if (s && maskAt(s[0], s[1]).expo < 0.4) for (let j = 0; j < 1 + ((R() * 3) | 0); j++) dugongs.push(s[0] + (R() - .5) * 30, s[1] + (R() - .5) * 30, 14 + R() * 20, 1.2 + R(), R() * 6.283, 0.5 + R() * 0.3, 3.2 * (0.8 + R() * 0.4), R()); }
+  // humpback whales passing Cape Moreton on the open sea side (they migrate past from June to November)
+  const cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p || [7400, -16800];
+  for (let i = 0; i < 5; i++) { const s = spot(cape[0] + 1500, cape[1] + 1500 + i * 900, 2200, 12, 200); if (s) for (let j = 0; j < 1 + (i % 2); j++) whales.push(s[0] + j * 30, s[1] + j * 22, 160 + R() * 120, 3 + R() * 3, R() * 6.283 + j * 0.05, 2.2, 14 * (j ? 0.45 : 1), R() * 0.4); }
+  const SILV = [0.86, 0.89, 0.9];
+  swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'bream', amp: 0.13, rate: 8, colA: [0.34, 0.38, 0.36], colB: SILV, colC: [0.45, 0.47, 0.42], see: 420 }, bream);
+  swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'blue', amp: 0.15, rate: 13, colA: [0.10, 0.42, 0.50], colB: [0.80, 0.92, 0.80], colC: [0.5, 0.7, 0.6], eye: [0.39, 0.012, 0.02], see: 300, min: 0.5 }, blue);
+  swimmers(scene, { ...DAMSEL, paint: PAINT.sergeant, name: 'stripey', amp: 0.13, rate: 10, colA: [0.62, 0.70, 0.72], colB: [0.90, 0.92, 0.90], colC: [0.55, 0.6, 0.55], see: 420 }, stripey);
+  swimmers(scene, { ...DAMSEL, paint: PAINT.neon, name: 'neon', amp: 0.14, rate: 14, colA: [0.02, 0.25, 0.95], colB: [0.1, 0.5, 1.0], colC: [0.04, 0.3, 1.0], see: 260, min: 0.6 }, neon);
+  swimmers(scene, { ...ROUND, paint: PAINT.humbug, name: 'humbug', amp: 0.12, rate: 12, colA: [0.86, 0.87, 0.84], colB: [0.9, 0.9, 0.88], colC: [0.05, 0.05, 0.05], see: 260, min: 0.6 }, humbug);
+  swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'small', amp: 0.16, rate: 14, colA: [0.30, 0.38, 0.30], colB: [0.90, 0.92, 0.88], colC: [0.6, 0.62, 0.55], eye: [0.39, 0.012, 0.02], see: 260, min: 0.3 }, small);
+  swimmers(scene, { ...SLIM, paint: PAINT.whiting, name: 'whiting', amp: 0.15, rate: 13, colA: [0.56, 0.52, 0.36], colB: [0.94, 0.93, 0.88], colC: [0.7, 0.66, 0.4], eye: [0.39, 0.012, 0.02], see: 240, min: 0.22 }, whiting);
+  swimmers(scene, { ...FLATHEAD, paint: PAINT.flathead, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.42, 0.34, 0.2], colB: [0.84, 0.8, 0.68], colC: [0.5, 0.42, 0.26], eye: [0.37, 0.055, 0.016], see: 500, min: 0.25 }, flathead);
+  swimmers(scene, { ...TURTLE, paint: PAINT.turtle, name: 'turtles', vertical: 1, amp: 0.2, rate: 1.7, colA: [0.30, 0.25, 0.12], colB: [0.7, 0.66, 0.44], eye: [0.735, 0.06, 0.015], rise: [0.02, 0.07], see: 1100 }, turtles);
+  swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'rays', vertical: 1, bottom: 1, tidal: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 900, min: 0.25 }, rays);
+  swimmers(scene, { ...SHOVEL, paint: PAINT.shovel, name: 'shovelnose', bottom: 1, amp: 0.07, rate: 3, colA: [0.46, 0.4, 0.26], colB: [0.84, 0.8, 0.7], colC: [0.4, 0.34, 0.22], eye: [0.31, 0.075, 0.014], see: 900, min: 0.3 }, shovels);
+  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'sharks', amp: 0.1, rate: 3.2, colA: [0.20, 0.20, 0.19], colB: [0.86, 0.86, 0.83], colC: [0.2, 0.2, 0.19], eye: [0.43, 0.0, 0.011], see: 1200, min: 0.7 }, sharks);
+  swimmers(scene, { ...DOLPHIN, paint: PAINT.dolphin, name: 'dolphins', vertical: 1, amp: 0.1, rate: 3.4, colA: [0.17, 0.19, 0.22], colB: [0.80, 0.76, 0.74], colC: [0.16, 0.18, 0.2], eye: [0.385, -0.008, 0.011], rise: [0.07, 0.75], see: 2600, min: 1.5 }, dolphins);
+  swimmers(scene, { ...DUGONG, paint: PAINT.dugong, name: 'dugongs', vertical: 1, amp: 0.07, rate: 1.5, colA: [0.36, 0.33, 0.29], colB: [0.62, 0.58, 0.52], colC: [0.33, 0.3, 0.27], eye: [0.4, 0.0, 0.009], rise: [0.03, 0.16], see: 2200, min: 1.3 }, dugongs);
+  swimmers(scene, { ...WHALE, paint: PAINT.whale, name: 'whales', vertical: 1, amp: 0.06, rate: 0.8, colA: [0.045, 0.05, 0.06], colB: [0.86, 0.86, 0.82], colC: [0.5, 0.5, 0.5], eye: [0.3, -0.035, 0.007], rise: [0.045, 0.22], see: 9000, min: 6 }, whales);
   jellyfish(scene, jelly);
 }
 
@@ -531,8 +508,8 @@ function buildBirds(scene, F) {
   const sm = new THREE.Mesh(ig, smat); sm.name = 'shorebirds'; sm.frustumCulled = false; scene.add(sm);
   // pelicans and cormorants sitting on the water, paddling about: most of them by the resort jetty, where they wait for the fish feed
   const wet = (x, z) => U.uSeaM.value - heightAt(x, z) > 0.9;
-  const afloat = (g, spots, per) => {
-    const geo2 = g.build(), fg = new THREE.InstancedBufferGeometry(), ip = [];
+  const afloat = (geo2, spots, per) => {
+    const fg = new THREE.InstancedBufferGeometry(), ip = [];
     fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color);
     for (const [p, n] of spots) for (let i = 0, t = 0; i < n * per && t < 400; t++) { const x = p[0] - 40 - R() * 160, z = p[1] + (R() - .5) * 260; if (wet(x, z)) { ip.push(x, z, 3 + R() * 9, R()); i++; } }
     fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
@@ -545,10 +522,11 @@ function buildBirds(scene, F) {
       void main(){
         float way = iP.w < 0.5 ? 1.0 : -1.0, ang = iP.w * 40.0 + uTime * 0.22 / iP.z * way;
         vec2 c = iP.xy + vec2(cos(ang), sin(ang)) * iP.z, fwd = vec2(-sin(ang), cos(ang)) * way;
-        vec3 lp = position * 1.6;
+        vec3 lp = position * 1.9;
         vec3 wp = vec3(c.x + fwd.x * lp.x - fwd.y * lp.z, uSeaM * uVex + lp.y + sin(uTime * 1.3 + iP.w * 30.0) * 0.06, c.y + fwd.y * lp.x + fwd.x * lp.z);
+        vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
         float ok = step(groundY(c), uSeaM * uVex - 0.5) * (1.0 - smoothstep(900.0, 1200.0, length(wp - cameraPosition)));
-        vCol = color * (uLightCol * (0.25 + 0.6 * max(uLightDir.y, 0.0)) * cloudShadow(wp) * (0.7 + 0.3 * normal.y) + uAmbSky); vW = wp;
+        vCol = color * (uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y)); vW = wp;
         gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`,
@@ -556,13 +534,8 @@ function buildBirds(scene, F) {
   });
   const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wv = F.views.find(v => /Tangalooma Wrecks/.test(v.n || '')), wrk = wv && (wv.c || wv.p), others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
   const spots = [...(tgl ? [[[tgl[0] - 230, tgl[1] + 340], 3]] : []), ...(wrk ? [[[wrk[0] + 60, wrk[1]], 2]] : []), ...others];
-  const pel = new GB(), PINK = [.92, .68, .6];
-  pel.box(0, 0.02, 0, 0.8, 0.34, 0.42, WHITE); pel.box(-0.12, 0.3, 0, 0.5, 0.1, 0.44, BLACK); pel.box(0.34, 0.3, 0, 0.12, 0.42, 0.12, WHITE);      // body low in the water, black along the wings, neck
-  pel.box(0.38, 0.66, 0, 0.2, 0.16, 0.14, WHITE); pel.box(0.7, 0.6, 0, 0.5, 0.06, 0.08, PINK); pel.box(0.66, 0.5, 0, 0.4, 0.1, 0.07, [.95, .8, .62]);         // head, long bill and pouch
-  afloat(pel, spots, 3);
-  const cor = new GB(), CB = [.06, .06, .07];
-  cor.box(0, 0.0, 0, 0.5, 0.14, 0.2, CB); cor.box(0.24, 0.12, 0, 0.07, 0.3, 0.07, CB); cor.box(0.3, 0.4, 0, 0.14, 0.07, 0.07, CB); cor.box(0.42, 0.41, 0, 0.12, 0.03, 0.03, [.8, .65, .2]);
-  afloat(cor, spots, 2);
+  afloat(PELICAN(), spots, 3);
+  afloat(CORMORANT(), spots, 2);
 
   const f = new THREE.Vector3(); let first = true;
   return (dt, target) => {

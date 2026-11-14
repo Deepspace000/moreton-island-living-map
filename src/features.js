@@ -508,6 +508,7 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
+            if(uMode > 0.5 && uMode < 1.5) c = mix(c, alb * 1.3, 0.5) * (0.9 + 0.3 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.5, h2 + (lum - 0.1) * 2.0); c = mix(vec3(0.30, 0.25, 0.20), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
@@ -516,13 +517,23 @@ function buildTrees(F, scene) {
           #endif
           vec3 wp = base + lp;
           float cs = cloudShadow(wp);
-          float nl = max(dot(nrm, uLightDir), 0.0);
+          float wrap = uMode > 0.5 && uMode < 1.5 ? 0.45 : 0.12, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
           vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
       fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; varying vec2 vBark;
+        // one layer of leaves: a leaf in each cell of a grid, each hanging at its own angle, slim and a little sickle-curved.
+        // returns x: how much of the pixel a leaf covers, y: a number that differs from leaf to leaf, z: where across the leaf (the midrib is at 0)
+        vec3 leafLayer(vec2 p, float seed, vec2 slim, float dens){
+          vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7), a = (h - 0.5) * 1.7;
+          f += (vec2(h2, fract(h * 31.1)) - 0.5) * 0.34;
+          vec2 q = vec2(f.x * cos(a) - f.y * sin(a), f.x * sin(a) + f.y * cos(a));
+          q.x += q.y * q.y * (h2 - 0.5) * 2.2;
+          float d = length(q * slim), w = fwidth(d) + 0.02;
+          return vec3((1.0 - smoothstep(0.5 - w, 0.5 + w, d)) * step(fract(h * 5.3), dens), h2, q.x * slim.x);
+        }
         void main(){
           ${LOGF}
           vec3 col = vCol; float alpha = 1.0;
@@ -534,10 +545,26 @@ function buildTrees(F, scene) {
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #endif
             float rim = 1.0 - abs(dot(normalize(vN), -vDir));
-            alpha = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.55 + (n2 - 0.5) * 0.36);   // clusters of leaves with gaps; the outline is eaten ragged, so no straight facet edge shows
+            float clump = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.55 + (n2 - 0.5) * 0.36);   // clusters of leaves with gaps; the outline is eaten ragged, so no straight facet edge shows
+            // near the eye the clusters resolve into single leaves (three layers of them, at different sizes); far away only the clusters are drawn
+            vec3 an = abs(normalize(vN)); vec2 lp = an.y > 0.75 ? vObj.xz : an.x > an.z ? vObj.zy : vObj.xy;
+            #ifdef SPECIES
+            vec2 slim = vec2(4.4, 1.12); float lsc = 3.1;
+            #else
+            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5); float lsc = 4.6;        // bare scrub shows thin twigs, not leaves
+            #endif
+            float lw = fwidth(lp.x * lsc) + fwidth(lp.y * lsc), nearL = 1.0 - smoothstep(0.18, 0.6, lw), dens = clamp(clump * 1.25 + 0.12, 0.0, 1.0);
+            alpha = clump;
+            if(nearL > 0.0){
+              vec3 l1 = leafLayer(lp * lsc, 1.0, slim, dens), l2 = leafLayer(lp * lsc * 1.37 + 3.7, 7.0, slim, dens), l3 = leafLayer(lp * lsc * 0.83 + 9.2, 13.0, slim, dens * 0.8);
+              vec3 lf = l1.x > 0.5 ? l1 : l2.x > 0.5 ? l2 : l3;
+              float la = max(l1.x, max(l2.x, l3.x));
+              alpha = mix(clump, la, nearL);
+              col *= mix(1.0, (0.72 + 0.6 * lf.y) * (1.0 + 0.18 * smoothstep(0.12, 0.0, abs(lf.z))), nearL * la);        // every leaf its own shade of green, a paler midrib
+            }
             if(alpha < 0.03) discard;
-            col *= 0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5);
-            if(!gl_FrontFacing) col *= 0.4;                                   // the shaded inside of the crown seen through the gaps
+            col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
+            if(!gl_FrontFacing) col *= 0.8;                                  // the shaded inside of the crown seen through the gaps
             col += vCol * 0.7 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
           }
           #endif
@@ -770,9 +797,8 @@ function buildWrecks(F, g) {
       if (i % 3 === 1 && i < S - 1) g.quad([x0, yb, -b0], [x0, yb, b0], [x0, t0 * 0.9, b0], [x0, t0 * 0.9, -b0], [col[0] * .7, col[1] * .7, col[2] * .7]);
       if (!sunk && brk[i] > 0.36 && i > 0 && i < S - 1) { const yd = Math.min(t0, t1) - 0.9 * VEX; g.quad([x0, yd, -b0 * .92], [x1, yd, -b1 * .92], [x1, yd, b1 * .92], [x0, yd, b0 * .92], [col[0] * .85, col[1] * .8, col[2] * .8]); }
     }
-    if (!sunk && rs() < 0.75) { const u = 0.22 + rs() * 0.2, x = (u - .5) * L; g.box(x, top(Math.round(u * S)) - 1.2 * VEX, 0, L * 0.11, (2.2 + rs() * 1.5) * VEX, B * 0.5, [col[0] * .9, col[1] * .9, col[2]]); }
     if (!sunk && rs() < 0.5) { const x = (0.3 + rs() * 0.15) * L; g.cyl(x, top(S - 3) - VEX, 0, 0.9, 0.8, (2.5 + rs() * 2) * VEX, 8, [col[0] * .8, col[1] * .8, col[2] * .8]); }
-    if (!sunk && rs() < 0.8) { const x = (rs() - .5) * L * 0.5; g.cyl(x, bed * VEX, 0, 0.32, 0.2, (H - bed + 4 + rs() * 5) * VEX, 6, [.25, .13, .08]); }
+    if (!sunk && rs() < 0.8) { const x = (rs() - .5) * L * 0.5; g.at(m.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler((rs() - .5) * 0.5, 0, (rs() - .5) * 0.4)))); g.cyl(x, bed * VEX, 0, 0.3, 0.14, (H - bed + 3 + rs() * 4) * VEX, 7, [.2, .1, .06]); g.at(m); }      // what is left of a mast, leaning
     g.at(null);
     list.push({ x: cx, z: cz, sunk });
   });
@@ -847,8 +873,6 @@ function buildStructures(F, g, lights, scene, casters) {
       const x = c.p[0] + (R() - .5) * 90, z = c.p[1] + (R() - .5) * 90, m = maskAt(x, z); if (m.land < 0.95 || m.shore < 8) continue;
       const y = meshY(x, z) + 0.2, a = R() * 3.14, cs = Math.cos(a), sn = Math.sin(a), col = TENT[(R() * TENT.length) | 0], l = 2.2, w = 1.6, h = 2.1 * VEX;
       const P = (u, v, yy) => [x + u * cs - v * sn, y + yy, z + u * sn + v * cs];
-      g.quad(P(-l, -w, 0), P(l, -w, 0), P(l, 0, h), P(-l, 0, h), col); g.quad(P(l, w, 0), P(-l, w, 0), P(-l, 0, h), P(l, 0, h), col);
-      g.tri(P(-l, w, 0), P(-l, -w, 0), P(-l, 0, h), col); g.tri(P(l, -w, 0), P(l, w, 0), P(l, 0, h), col);
       fx += x; fz += z; k++;
     }
     if (k) lights.add([fx / k + 3, meshY(fx / k + 3, fz / k) + 1.5, fz / k], [1, .5, .15], -1, 1, R(), 1.6);

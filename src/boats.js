@@ -9,49 +9,75 @@ import { wx } from './weather.js';
 
 const WHITE = [.93, .93, .91], NAVY = [.07, .13, .26], ANTI = [.25, .08, .07], DECK = [.80, .76, .66], GLASS = [.06, .09, .13];
 function hull(g, L, B, D, free, col, deck, zoff = 0, bot = ANTI) {
+  (g.bots ||= []).push(bot); (g.decks ||= []).push(deck);
   const S = 10, st = [];
   for (let i = 0; i <= S; i++) {
     const u = i / S, x = (u - .5) * L;
     const hb = B / 2 * (u < 0.55 ? 0.84 + 0.16 * Math.sin(u / 0.55 * Math.PI / 2) : Math.pow(Math.cos((u - 0.55) / 0.45 * Math.PI / 2), 0.75)) + 0.02;
-    st.push({ x, hb, yd: free * (1 + 0.28 * u * u), yk: -D * (1 - 0.7 * u * u * u) });
+    st.push({ x, xd: x + (u > 0.55 ? Math.pow((u - 0.55) / 0.45, 2.2) * L * 0.06 : 0) - (u < 0.12 ? (0.12 - u) * L * 0.12 : 0), hb, yd: free * (1 + 0.34 * u * u * u), yk: -D * (1 - 0.7 * u * u * u) });      // the stem rakes forward and the transom leans aft
   }
   for (let i = 0; i < S; i++) {
     const a = st[i], b = st[i + 1];
     for (const s of [-1, 1]) {
-      const A = [a.x, a.yd, zoff + a.hb * s], Bq = [b.x, b.yd, zoff + b.hb * s], Aw = [a.x, 0.05, zoff + a.hb * s * 0.96], Bw = [b.x, 0.05, zoff + b.hb * s * 0.96];
+      const A = [a.xd, a.yd, zoff + a.hb * s * 1.04], Bq = [b.xd, b.yd, zoff + b.hb * s * 1.04], Aw = [a.x, 0.05, zoff + a.hb * s * 0.96], Bw = [b.x, 0.05, zoff + b.hb * s * 0.96];
       const Ak = [a.x, a.yk, zoff + a.hb * s * 0.45], Bk = [b.x, b.yk, zoff + b.hb * s * 0.45];
       if (s > 0) { g.quad(Aw, Bw, Bq, A, col); g.quad(Ak, Bk, Bw, Aw, bot); } else { g.quad(Bw, Aw, A, Bq, col); g.quad(Bk, Ak, Aw, Bw, bot); }
     }
-    g.quad([a.x, a.yd, zoff - a.hb], [a.x, a.yd, zoff + a.hb], [b.x, b.yd, zoff + b.hb], [b.x, b.yd, zoff - b.hb], deck);
+    g.quad([a.xd, a.yd, zoff - a.hb * 1.04], [a.xd, a.yd, zoff + a.hb * 1.04], [b.xd, b.yd, zoff + b.hb * 1.04], [b.xd, b.yd, zoff - b.hb * 1.04], deck);
     g.quad([a.x, a.yk, zoff + a.hb * .45], [a.x, a.yk, zoff - a.hb * .45], [b.x, b.yk, zoff - b.hb * .45], [b.x, b.yk, zoff + b.hb * .45], bot);
   }
   const a = st[0];
-  g.quad([a.x, a.yk, zoff + a.hb * .45], [a.x, a.yk, zoff - a.hb * .45], [a.x, a.yd, zoff - a.hb], [a.x, a.yd, zoff + a.hb], col);
+  g.quad([a.x, a.yk, zoff + a.hb * .45], [a.x, a.yk, zoff - a.hb * .45], [a.xd, a.yd, zoff - a.hb * 1.04], [a.xd, a.yd, zoff + a.hb * 1.04], col);
+}
+// A deckhouse: its front rakes back, its rear a little forward, its sides lean in; with a band of glass let in between heights g0 and g1 (as fractions).
+function house(g, cx, y0, cz, sx, sy, sz, col, rake = 0.45, g0 = 0, g1 = 0) {
+  const sec = (f, grow) => { const xf = cx + sx / 2 - rake * sy * f + grow, xb = cx - sx / 2 + rake * 0.35 * sy * f - grow, hz = sz / 2 * (1 - 0.1 * f) + grow, y = y0 + sy * f; return [[xb, y, cz - hz], [xf, y, cz - hz], [xf, y, cz + hz], [xb, y, cz + hz]]; };
+  const band = (f0, f1, c, grow) => { const a = sec(f0, grow), b = sec(f1, grow); for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; g.quad(a[j], a[i], b[i], b[j], c); } return b; };
+  const t = band(0, 1, col, 0); g.quad(t[0], t[1], t[2], t[3], col);
+  if (g1 > g0) band(g0, g1, GLASS, 0.025);
+}
+// A sail between its three corners, bellied out by the wind: cut into a fine grid so the cloth curves (roach: how far the leech bows out).
+function sail(g, tack, head, clew, belly, col, roach) {
+  (g.sails ||= []).push(col);
+  const N = 8, mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const P = (a, b) => { const lu = mix(tack, head, a), le = mix(clew, head, a), p = mix(lu, le, b * (1 + roach * Math.sin(Math.PI * a))); p[2] += belly * Math.sin(Math.PI * Math.pow(b, 0.75)) * Math.pow(1 - a, 0.55) * (0.5 + 0.5 * Math.sin(Math.PI * Math.min(1, a + 0.25))); return p; };
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) g.quad(P(i / N, j / N), P(i / N, (j + 1) / N), P((i + 1) / N, (j + 1) / N), P((i + 1) / N, j / N), col);
+}
+// Finish a boat: every vertex is told what it is part of (0 paint, 1 bottom paint, 2 glass, 3 deck, 4 sail), which way its face
+// looks, and where on the boat it sits, so the material can paint boot stripes, window frames, deck planks, sail seams and weed.
+function finish(g) {
+  const same = (i, c) => Math.abs(g.c[i * 3] - c[0]) + Math.abs(g.c[i * 3 + 1] - c[1]) + Math.abs(g.c[i * 3 + 2] - c[2]) < 0.015, any = (i, l) => (l || []).some(c => same(i, c)), n = g.p.length / 3, key = new Map();
+  for (let i = 0; i < n; i++) {
+    const nx = g.n[i * 3], ny = g.n[i * 3 + 1], y = g.p[i * 3 + 1];
+    const zone = any(i, g.sails) ? 4 : same(i, GLASS) ? 2 : any(i, g.bots) && y < 0.12 ? 1 : any(i, g.decks) && Math.abs(ny) > 0.75 ? 3 : 0, face = zone === 4 ? 0 : Math.abs(ny) > 0.75 ? 2 : Math.abs(nx) > 0.75 ? 1 : 0;
+    g.f[i * 3] = zone * 8 + face + 1; g.f[i * 3 + 1] = face === 1 ? g.p[i * 3 + 2] : g.p[i * 3]; g.f[i * 3 + 2] = face === 2 ? g.p[i * 3 + 2] : y;
+    if (zone === 4) { const k = Math.round(g.p[i * 3] * 500) + ',' + Math.round(y * 500) + ',' + Math.round(g.p[i * 3 + 2] * 500), o = key.get(k) || [0, 0, 0, []]; o[0] += nx; o[1] += ny; o[2] += g.n[i * 3 + 2]; o[3].push(i); key.set(k, o); }
+  }
+  for (const o of key.values()) { const l = Math.hypot(o[0], o[1], o[2]) || 1; for (const i of o[3]) { g.n[i * 3] = o[0] / l; g.n[i * 3 + 1] = o[1] / l; g.n[i * 3 + 2] = o[2] / l; } }      // cloth is smooth: the facets of a sail share their normals
+  return g.build();
 }
 function yacht(sails, hc) {
   const g = new GB();
   hull(g, 11.5, 3.5, 0.8, 1.0, hc, DECK);
-  g.box(0.4, 1.0, 0, 4.2, 0.62, 2.1, WHITE); g.box(0.6, 1.25, 0, 3.0, 0.2, 2.14, GLASS);
+  house(g, 0.4, 1.0, 0, 4.4, 0.62, 2.1, WHITE, 0.9, 0.35, 0.72);
   g.box(-3.6, 1.0, 0, 2.2, 0.3, 2.3, [.7, .66, .58]);
   g.cyl(1.4, 1.0, 0, 0.1, 0.07, 14.5, 6, [.82, .82, .84]);
   g.box(-1.3, 2.25, 0, 5.2, 0.16, 0.16, [.82, .82, .84]);
   if (sails) {
     const S1 = [.97, .96, .92], S2 = [.92, .91, .86];
-    const top = [1.35, 15.2, 0], tack = [1.3, 2.45, 0], clew = [-3.8, 2.45, 0.9], mid = [-1.2, 8.0, 0.75];
-    g.tri(top, tack, mid, S1); g.tri(tack, clew, mid, S2); g.tri(clew, top, mid, S1);
-    const jt = [1.45, 13.4, 0], jb = [5.6, 1.35, 0], jc = [0.9, 1.8, 1.25], jm = [2.9, 6.0, 0.95];
-    g.tri(jt, jm, jb, S1); g.tri(jb, jm, jc, S2); g.tri(jc, jm, jt, S1);
+    sail(g, [1.3, 2.45, 0], [1.35, 15.2, 0], [-3.8, 2.45, 0.9], 0.75, S1, 0.07);        // mainsail, full of wind
+    sail(g, [5.6, 1.35, 0], [1.45, 13.4, 0], [0.9, 1.8, 1.25], 0.9, S2, 0.0);            // jib
   } else g.box(-1.3, 2.33, 0, 4.9, 0.34, 0.36, [.12, .22, .42]);
-  return g.build();
+  return finish(g);
 }
 function cruiser(hc) {
   const g = new GB();
   hull(g, 10.5, 3.6, 0.6, 1.25, hc, DECK);
-  g.box(0.3, 1.3, 0, 5.2, 1.25, 2.9, WHITE); g.box(0.5, 1.75, 0, 4.9, 0.5, 2.94, GLASS);
-  g.box(-0.6, 2.55, 0, 3.0, 0.9, 2.4, WHITE); g.box(-0.2, 3.45, 0, 2.6, 0.08, 2.6, [.85, .85, .85]);
+  house(g, 0.3, 1.3, 0, 5.4, 1.25, 2.9, WHITE, 0.55, 0.36, 0.78);
+  house(g, -0.6, 2.55, 0, 3.0, 0.9, 2.3, WHITE, 0.5, 0.3, 0.8); g.box(-0.2, 3.45, 0, 2.6, 0.08, 2.6, [.85, .85, .85]);
   g.box(-4.0, 1.3, 0, 1.6, 0.25, 2.8, [.6, .5, .4]);
   g.cyl(-0.6, 3.5, 0, 0.04, 0.03, 1.8, 4, [.8, .8, .8]);
-  return g.build();
+  return finish(g);
 }
 function tinny() {
   const g = new GB(), AL = [.66, .69, .70];
@@ -59,18 +85,18 @@ function tinny() {
   g.box(-2.5, 0.25, 0, 0.45, 0.9, 0.4, [.12, .12, .13]);
   g.box(-0.9, 0.5, 0, 0.35, 0.12, 1.6, AL); g.box(0.7, 0.5, 0, 0.35, 0.12, 1.5, AL);
   g.box(-1.4, 0.62, 0.2, 0.4, 0.75, 0.45, [.75, .2, .15]); g.box(-1.4, 1.37, 0.2, 0.3, 0.3, 0.3, [.85, .68, .55]);
-  return g.build();
+  return finish(g);
 }
 function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm up top under a hardtop
   const g = new GB();
   hull(g, 14, 4.4, 0.9, 1.5, hc, DECK);
-  g.box(0.2, 1.5, 0, 7.4, 1.5, 3.7, WHITE); g.box(0.5, 2.0, 0, 7.0, 0.65, 3.76, GLASS);                    // saloon and its windows
-  g.box(3.6, 1.5, 0, 2.6, 0.8, 3.2, WHITE);                                                                // foredeck cabin
+  house(g, 0.2, 1.5, 0, 7.6, 1.5, 3.7, WHITE, 0.6, 0.34, 0.78);                                            // saloon and its windows
+  house(g, 4.0, 1.5, 0, 3.0, 0.8, 3.0, WHITE, 1.3);                                                                // foredeck cabin
   g.box(-0.6, 3.0, 0, 4.6, 0.25, 3.5, WHITE); g.box(0.9, 3.25, 0, 1.2, 0.75, 2.6, WHITE); g.box(1.5, 3.5, 0, 0.1, 0.6, 2.4, GLASS);       // flybridge deck, helm, screen
   for (const [x, z] of [[1.2, 1.5], [1.2, -1.5], [-2.4, 1.5], [-2.4, -1.5]]) g.box(x, 3.25, z, 0.08, 1.7, 0.08, [.82, .82, .84]);
   g.box(-0.6, 4.95, 0, 4.2, 0.1, 3.4, WHITE);                                                              // hardtop
   g.box(-5.2, 1.5, 0, 3.2, 0.12, 3.9, [.6, .5, .4]); g.cyl(-0.6, 5.05, 0, 0.05, 0.03, 2.2, 4, [.8, .8, .8]);  // cockpit sole, aerial
-  return g.build();
+  return finish(g);
 }
 function jetski(col) {       // a jet ski and its rider
   const g = new GB(), SKIN = [.82, .64, .52];
@@ -79,7 +105,7 @@ function jetski(col) {       // a jet ski and its rider
   g.box(0.55, 0.72, 0, 0.12, 0.35, 0.7, [.1, .1, .11]);                                                     // handlebar
   g.box(-0.35, 0.76, 0, 0.36, 0.62, 0.42, [.95, .5, .1]); g.box(-0.2, 1.38, 0, 0.24, 0.26, 0.24, SKIN);     // rider in a life jacket
   g.box(0.1, 1.05, 0.24, 0.55, 0.1, 0.1, SKIN); g.box(0.1, 1.05, -0.24, 0.55, 0.1, 0.1, SKIN); g.box(-0.3, 0.42, 0.3, 0.6, 0.36, 0.16, [.1, .2, .5]); g.box(-0.3, 0.42, -0.3, 0.6, 0.36, 0.16, [.1, .2, .5]);
-  return g.build();
+  return finish(g);
 }
 function flyer() {            // fast passenger catamaran
   const g = new GB();
@@ -89,7 +115,7 @@ function flyer() {            // fast passenger catamaran
   g.box(-1.5, 2.62, 0, 25.1, 0.35, 9.7, [.05, .35, .6]);
   g.box(2.5, 5.2, 0, 13, 2.2, 7.4, WHITE); g.box(3.0, 5.9, 0, 12.6, 0.8, 7.46, GLASS);
   g.box(6.8, 7.4, 0, 3.4, 0.25, 5.5, WHITE); g.cyl(4, 7.4, 0, 0.08, 0.05, 3.2, 5, [.8, .8, .8]);
-  return g.build();
+  return finish(g);
 }
 function barge() {            // vehicle ferry
   const g = new GB(), HB = [.10, .28, .50];
@@ -101,12 +127,12 @@ function barge() {            // vehicle ferry
   g.box(-28.5, 2.6, 0, 3.5, 0.3, 11, [.5, .5, .5]);
   const R = rng(8), CARS = [[.85, .85, .85], [.15, .15, .17], [.6, .1, .08], [.12, .25, .5], [.75, .7, .55], [.3, .35, .3]];
   for (let r = 0; r < 3; r++) for (let c = 0; c < 7; c++) if (R() < 0.8) { const x = -22 + c * 5.6, z = (r - 1) * 4.6; g.box(x, 2.8, z, 4.4, 1.3, 2.0, CARS[(R() * CARS.length) | 0]); g.box(x - 0.3, 4.1, z, 2.4, 0.7, 1.8, GLASS); }
-  return g.build();
+  return finish(g);
 }
 
 export function buildBoats(scene, F) {
   const R = rng(31337), S = 1.55;
-  const mat = objectMat({ side: THREE.DoubleSide });
+  const mat = objectMat({ side: THREE.DoubleSide, defines: { BOAT: 1 } });
   const HC = [WHITE, WHITE, [.12, .18, .32], [.9, .88, .8], [.55, .1, .1], [.1, .3, .28]];
   const geo = {
     sail: [yacht(true, WHITE), yacht(true, HC[2])], moor: HC.map(c => yacht(false, c)),
@@ -287,7 +313,7 @@ export function buildBoats(scene, F) {
         if (b.move) {
           lights.move(b.lg, b.x + sn * 2.4, b.m.position.y + 3, b.z + cs * 2.4); lights.move(b.lr, b.x - sn * 2.4, b.m.position.y + 3, b.z - cs * 2.4);
           if (rec) { b.hist.unshift({ x: b.x - cs * 4 * S, z: b.z + sn * 4 * S, nx: sn, nz: cs, t, sp: b.sp }); if (b.hist.length > NW) b.hist.length = NW; }
-          const w0 = b.big ? 7 : 1.6, life = b.big ? 30 : 16;
+          const w0 = b.big ? 7 : 1.6, life = b.big ? 26 : 9;
           for (let j = 0; j < NW; j++) {
             const h = b.hist[Math.min(j, b.hist.length - 1)] || { x: b.x, z: b.z, nx: sn, nz: cs, t, sp: 0 };
             const age = t - h.t, w = w0 + age * (b.big ? 1.5 : 0.75), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp(h.sp / 5, 0, 1) * (j === 0 ? 0 : 1);

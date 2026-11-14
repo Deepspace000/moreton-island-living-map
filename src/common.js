@@ -19,9 +19,9 @@ export const U = {
   uTime: f(), uSunDir: v3(0.4, 0.8, 0.2), uMoonDir: v3(0, 1, 0), uLightDir: v3(0.4, 0.8, 0.2),
   uLightCol: v3(3, 2.9, 2.7), uSunCol: v3(3, 2.9, 2.7), uAmbSky: v3(.3, .4, .6), uAmbGnd: v3(.2, .2, .15),
   uFogCol: v3(.6, .7, .85), uFogSun: v3(.9, .8, .7), uFogDens: f(0.000012),
-  uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0),
+  uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0), uUnder: f(0),
   uMoonLit: f(1), uStarRot: f(0),
-  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(1), uCirrus: f(0.6), uWalk: f(0),
+  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0),
   uHeight: { value: null }, uOver: { value: null }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
   uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
@@ -32,7 +32,7 @@ export const U = {
 };
 
 export const GLSL_COMMON = /* glsl */`
-uniform float uTime, uFogDens, uNight, uOvercast, uSeaM, uVex, uCloudAlt, uCloudStr, uMpp, uFlash;
+uniform float uTime, uFogDens, uNight, uOvercast, uSeaM, uVex, uCloudAlt, uCloudStr, uMpp, uFlash, uUnder;
 uniform vec3 uSunDir, uMoonDir, uLightDir, uLightCol, uSunCol, uAmbSky, uAmbGnd, uFogCol, uFogSun, uZenith, uHorizon, uSunGlow;
 uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, uDetail;
 uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
@@ -77,11 +77,14 @@ vec3 skyColor(vec3 d){
   return c;
 }
 vec3 fogColor(vec3 dir){
+  // under the water the haze is the water itself: deep blue-green below, brighter toward the light above
+  if(uUnder > 0.5) return mix(vec3(0.004, 0.085, 0.13), vec3(0.05, 0.40, 0.43), smoothstep(-0.6, 0.9, normalize(dir).y)) * (uLightCol * 0.3 + uAmbSky * 0.9);
   vec3 c = skyColor(normalize(vec3(dir.x, 0.035, dir.z)));                      // haze = the sky at the horizon that way
   return mix(c, vec3(dot(c, vec3(0.3333))), 0.1) + vec3(uFlash) * 0.4;
 }
 float fogAmount(vec3 wp){
   float d = length(wp - cameraPosition);
+  if(uUnder > 0.5) return 1.0 - exp(-d * 0.05);
   // thinner with height: integrate an exponential atmosphere along the ray (cheap form)
   float hm = max(0.5 * (wp.y + cameraPosition.y), 0.0);
   return 1.0 - exp(-d * uFogDens * exp(-hm / 2600.0));
@@ -135,10 +138,20 @@ export function objectMat(opts = {}) {
           #ifdef DRYRUST        // hulks rusted right through on a beach: red-brown all over, flaking lighter and darker, no growth
           alb *= 0.6 + 1.0 * r1 * r1 + 0.3 * streak; alb = mix(alb, vec3(0.11, 0.04, 0.02), smoothstep(0.55, 0.85, r2) * 0.4); alb = mix(alb, vec3(0.45, 0.17, 0.05), smoothstep(0.6, 0.9, r1) * 0.5);
           #else
-          alb *= 0.3 + 1.7 * r1 * r1 + 0.5 * streak; alb = mix(alb, vec3(0.03, 0.018, 0.012), smoothstep(0.45, 0.8, r2) * 0.8); alb = mix(alb, vec3(0.30, 0.13, 0.045), smoothstep(0.62, 0.9, r1) * 0.5);
           float wl = (vW.y - uSeaM * uVex) / uVex;       // metres above the sea
+          { float eat = texture2D(uNoise, vec2(vW.x + vW.z * 0.7, vW.y * 0.8) / 11.0).r + 0.2 * texture2D(uNoise, vec2(vW.x - vW.z, vW.y) / 2.7).b;     // holes rusted through the plating above the water, ragged at the edge
+            if(eat > 0.95 - 0.08 * smoothstep(0.5, 4.0, wl) && wl > 0.4) discard;
+            float fl = texture2D(uNoise, vec2(vW.x + vW.z, vW.y * 1.3) / 0.9).g;                                                                    // flaking scale
+            alb = alb * 0.42 * (0.3 + 1.5 * r1 * r1 + 0.4 * streak); alb = mix(alb, vec3(0.022, 0.014, 0.01), smoothstep(0.4, 0.75, r2) * 0.85); alb = mix(alb, vec3(0.34, 0.12, 0.03), smoothstep(0.6, 0.85, r1) * (0.35 + 0.4 * fl));
+            alb *= 0.7 + 0.6 * fl; alb = mix(alb, alb * 0.35, smoothstep(0.82, 0.93, eat)); }
           alb = mix(alb, vec3(0.02, 0.04, 0.018), smoothstep(1.3, -0.2, wl) * 0.75);
-          alb = mix(alb, vec3(0.20, 0.27, 0.16), smoothstep(-0.1, -0.8, wl));       // pale weed and barnacle growth below the surface   // weed and barnacles at the waterline
+          { // below the surface a wreck is a reef: turf algae, pink coralline crust, orange sponge and pale barnacles over the dark rust
+            float g1 = texture2D(uNoise, vW.xz / 2.3 + vW.y * 0.31).r, g2 = texture2D(uNoise, vec2(vW.x + vW.z, vW.y) / 2.6).g, g3 = texture2D(uNoise, vW.xz / 5.5 - vW.y * 0.11).b;
+            vec3 grow = mix(vec3(0.10, 0.065, 0.04), vec3(0.15, 0.25, 0.09), smoothstep(0.35, 0.6, g1));
+            grow = mix(grow, vec3(0.50, 0.24, 0.30), smoothstep(0.6, 0.7, g3));
+            grow = mix(grow, vec3(0.78, 0.42, 0.10), smoothstep(0.34, 0.42, g1 * g3));
+            grow = mix(grow, vec3(0.70, 0.68, 0.55), smoothstep(0.66, 0.8, g2) * 0.4) * (0.7 + 0.6 * g2);
+            alb = mix(alb, grow, smoothstep(-0.05, -0.6, wl)); }
           #endif
         #endif
         vec3 gloss = vec3(0.0);
@@ -244,7 +257,39 @@ export function objectMat(opts = {}) {
             gloss = vec3(shine);
           }
         #endif
-        #ifndef CAR
+        #ifdef BOAT
+          if(vFx.x > 0.5){                       // a boat: every part knows what it is and where on the boat it sits (see finish in boats.js)
+            float code = floor(vFx.x - 0.5), zone = floor(code / 8.0 + 0.01), face = code - zone * 8.0, shine = 0.0; vec2 L = vFx.yz;
+            float bn = texture2D(uNoise, L * 0.11 + zone * 0.37).r, streak = texture2D(uNoise, vec2(L.x * 0.17, L.y * 0.03)).g;
+            if(zone < 0.5){                      // paint and gelcoat: a boot stripe above the water, weeping streaks below the deck edge
+              shine = 0.5;
+              if(face < 0.5){
+                vec3 acc = dot(alb, vec3(0.333)) > 0.35 ? vec3(0.02, 0.05, 0.16) : vec3(0.72, 0.72, 0.68);
+                alb = mix(alb, acc, smoothstep(0.1, 0.13, L.y) * smoothstep(0.29, 0.26, L.y));
+                alb *= 1.0 - 0.07 * smoothstep(0.6, 0.9, streak) * smoothstep(0.1, 0.9, L.y);
+              }
+              alb *= 0.94 + 0.08 * bn;
+            } else if(zone < 1.5){               // bottom paint: scum at the waterline, weed further down
+              alb = mix(alb * (0.75 + 0.5 * bn), vec3(0.06, 0.10, 0.045), smoothstep(-0.6, 0.05, L.y) * (0.25 + 0.55 * bn));
+            } else if(zone < 2.5){               // a band of windows: dark panes with frames between them, some lit at night
+              float pane = step(abs(fract(L.x / 1.3 + 0.5) - 0.5), 0.445), id = floor(L.x / 1.3 + 0.5);
+              alb = mix(vec3(0.55, 0.55, 0.53), vec3(0.012, 0.018, 0.024), pane); shine = mix(0.4, 1.7, pane);
+              em = vec3(1.0, 0.8, 0.5) * pane * uNight * 0.9 * step(0.45, hash12(vec2(id, floor(vW.x * 0.02))));
+            } else if(zone < 3.5){               // a laid deck: planks running fore and aft, dark seams, butt joints
+              float kf = 1.0 - smoothstep(0.3, 1.0, fwidth(L.y) / 0.16), row = floor(L.y / 0.16);
+              alb *= 1.0 - 0.5 * kf * smoothstep(0.12, 0.04, fract(L.y / 0.16));
+              alb *= 1.0 - 0.4 * kf * smoothstep(0.012, 0.004, abs(fract(L.x / 2.4 + row * 0.37) - 0.5));
+              alb *= 0.82 + 0.34 * bn;
+            } else {                             // sailcloth: seams between the panels, and the sun glowing through
+              alb *= 1.0 - 0.16 * smoothstep(0.05, 0.015, abs(fract((L.y + L.x * 0.12) / 0.95) - 0.5));
+              alb *= 0.9 + 0.14 * bn;
+              em = alb * uLightCol * max(dot(-N, uLightDir), 0.0) * 0.32 * cloudShadow(vW);
+            }
+            alb *= 0.78 + 0.22 * smoothstep(-0.2, 1.3, (vW.y - uSeaM * uVex) / uVex);      // grime toward the waterline
+            gloss = vec3(shine);
+          }
+        #endif
+        #if !defined(CAR) && !defined(BOAT)
         alb *= 0.72 + 0.28 * smoothstep(-0.3, 3.5, (vW.y - uSeaM * uVex) / uVex + step(1.0, vFx.x) * 9.0);   // grime toward the waterline
         if(vFx.x > 0.5) alb *= 0.62 + 0.38 * smoothstep(-0.2, 2.6, vFx.z);          // walls darken toward the ground
         #endif

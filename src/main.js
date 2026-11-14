@@ -18,6 +18,7 @@ import { buildDetail } from './detail.js';
 import { buildLife } from './life.js';
 import { buildFolk } from './folk.js';
 import { makeSound } from './sound.js';
+import { makeDive } from './dive.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
@@ -216,6 +217,7 @@ function stepFly(dt) {
 // ---------- boot ----------
 let features, boats, clouds, water, detail, life, folk;
 const sound = makeSound();
+const dive = makeDive();
 const clock = new THREE.Clock();
 async function boot() {
   // downloads fill the bar to 78 %, building the scene takes it to 100 %
@@ -243,7 +245,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -286,12 +288,13 @@ function frame() {
   camera.lookAt(t);
   camera.updateMatrixWorld();
   }
+  { const under = walk.active && walk.under; U.uUnder.value = under ? 1 : 0; dive.update(under, dt); }
   water.position.set(t.x, 0, t.z);
   followTerrain(t.x, t.z);
 
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
   boats.update(dt, acc, camera);
-  clouds.update(dt, acc, camera, showClouds);
+  clouds.update(dt, acc, camera, showClouds && !U.uUnder.value);
   const camDist = walk.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
   life.update(dt, acc, t, camDist);

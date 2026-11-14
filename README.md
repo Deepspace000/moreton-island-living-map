@@ -3,7 +3,7 @@
 A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-drag or two fingers to turn, scroll or pinch to zoom.
 
 - Real relief from the Queensland Government laser survey (bare ground), draped with aerial photography; sharp photo tiles stream in near the view
-- The real surveyed seabed under see-through water, with chart-style depth lines, swell, foam, sun glitter and cloud reflections
+- The real surveyed seabed under see-through water, (chart-style depth lines can be switched on with the Depths button), swell, foam, sun glitter and cloud reflections
 - 550 real building outlines, the 4WD tracks and walking paths, the Tangalooma and Bulwer wrecks, Cape Moreton lighthouse, the resort jetty, beacons and buoys
 - Yachts and cruisers at anchor that swing to the wind, yachts under sail, and the island ferries on their charted routes
 - Drifting clouds with shadows, sun, moon (true phase) and stars for the real time of day
@@ -18,12 +18,16 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - Life: shells, sea stars and driftwood on the sand, 4WDs and their wheel ruts on the beach highways, snorkelers at the wrecks, schools of fish around every wreck, green turtles and stingrays under the water; gulls, crested terns, pelicans and cormorants (afloat by the resort jetty too), whistling and brahminy kites, sea eagles and ospreys, pied oystercatchers; blue tiger, common crow, common brown and grass-blue butterflies, and dragonflies over the low wet country
 - The Bulwer wrecks: three hulks rusted down to red-brown shells and ribs, standing along the hull outlines in the map data (two across the beach, the third along the shore, awash)
 - Tides: the sea rises and falls with the clock (a harmonic model sized for Moreton Bay, shifted to the live sea level when online; the Tide slider overrides it). Low water bares wet, rippled sand: wider beaches and the sandbanks of the south-west. Boats left by the tide sit on the sand
-- Sea life: rounded fish that curve as they swim, schools of small fish all round the island, small sharks, shovelnose rays and stingrays over the sand (more stingrays come into the shallows at low tide), green turtles, swarms of blue blubber jellyfish, and armies of soldier crabs on the flats when the tide is out
+- Sea life: every animal is a smooth, lofted body with curved fins, painted per pixel (countershading, scales, bars and spots, an eye, fin rays, surface light rippling over its back). Damselfish of the Queensland coast crowd the wrecks: Indo-Pacific sergeants, neon damsels and humbugs, with bream circling wider. Round the island there are schools of baitfish and whiting, flathead on the sand, bluespotted rays (more of them in the shallows at low tide), shovelnose rays, small whaler sharks, green turtles, bottlenose dolphins (a pod stays off the Tangalooma jetty), dugongs on the seagrass banks, humpback whales off Cape Moreton, swarms of jellyfish, and soldier crabs on the flats
 - People: walkers on the township streets and beaches, people fishing at the water's edge in front of each town, and small camps dotted behind the beaches (dome tents, a parked 4WD, a campfire that glows at night)
 - Signposts where tracks meet (and nowhere else): one pointed board for each way on, naming the places that way leads to and how far they are along the tracks and beaches. Green boards for vehicle tracks, brown for walking tracks, blue along the beach
 - More on the water: flybridge cruisers at anchor and under way along the west coast, and jet skis carving about off Tangalooma
 - In the bush: clouds of butterflies and midges, wallabies resting and hopping in the scrub, goannas walking the sand and small skinks that sit, then dart
 - Under water: flathead lying on the sand in the lagoons and sheltered shallows, schools of whiting in the shallows, and in deeper water patches of rock grown over with weed and kelp, with sea cucumbers on the sand around them
+- Diving: walk into the sea until you float, then swim forward while looking down to go under (look up to come back; C sinks, Space rises). Under water the view is framed by a diving mask, breaths of bubbles rise past the glass, the water hazes blue-green with distance, and the surface overhead is a rippling window onto the sky
+- Wrecks under water are reefs: turf algae, pink coralline crust, orange sponge and barnacles over the rust
+- Fresh tyre marks: every moving 4WD lays two ribbons of tread behind it that fade over a couple of minutes and wash out near the water
+- Textured boats: raked bows, shaped deckhouses with framed windows, boot stripes, laid decks, bottom paint with weed, and sails that belly in the wind with panel seams and the sun glowing through
 - Surf: on the open beaches the swell stands up into breakers that roll in to the sand, trailing lines and lace of foam
 - Sound (the Sound button): wind and leaves, ocean surf and bay ripples, rain and thunder, cicadas by day, crickets by night, and the calls of local birds, all made in the browser and following where you are, the weather and the hour
 - The ground is one smooth surface: a coarse mesh covers the island and finer grids follow the view, so dunes stay rounded up close and trees stand on the ground

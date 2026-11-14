@@ -7,7 +7,7 @@ import { meshY, T } from './terrain.js';
 
 const EYE = 1.72 * VEX;
 export function makeWalk(camera, canvas) {
-  const W = { active: false, pos: new THREE.Vector3(), yaw: 0, pitch: -0.05, vy: 0, air: false, swim: false, speed: 0, onExit: null };
+  const W = { active: false, pos: new THREE.Vector3(), yaw: 0, pitch: -0.05, vy: 0, air: false, swim: false, dive: 0, under: false, speed: 0, onExit: null };
   const keys = new Set();
   let bob = 0, feet = 0, anchor = null, tf = 0, tfGoal = 0, tTurn = 0, tRun = 0;
   const fingers = new Map();                 // touch id -> last position
@@ -79,17 +79,24 @@ export function makeWalk(camera, canvas) {
     const sea = U.uSeaM.value * VEX, gy = meshY(W.pos.x, W.pos.z);
     W.swim = gy < sea - 1.25 * VEX;
     const sp = W.swim ? 3.2 : 5.2 + 11.8 * Math.max(run ? 1 : 0, tRun);
+    // diving: once afloat, swimming forward while looking down takes you under, looking up brings you back (C and Space also sink and rise)
+    if (W.swim) {
+      const sink = (keys.has('KeyC') || keys.has('ControlLeft') ? 1 : 0) - (jump ? 1 : 0);
+      if (W.dive > 0.05 || W.pitch < -0.3 || sink > 0) W.dive = clamp(W.dive - Math.sin(W.pitch) * f * sp * dt + sink * 2.4 * dt, 0, Math.max(0, sea - gy - 0.75 * VEX));
+      if (W.dive > 0.05) { f *= Math.cos(W.pitch); }
+    } else W.dive = 0;
     const sn = Math.sin(W.yaw), cs = Math.cos(W.yaw);
     W.pos.x = clamp(W.pos.x + (sn * f + cs * s) * sp * dt, -T.sx / 2 + 150, T.sx / 2 - 150);
     W.pos.z = clamp(W.pos.z + (-cs * f + sn * s) * sp * dt, -T.sz / 2 + 150, T.sz / 2 - 150);
     W.speed = Math.min(1, mag) * sp;
-    const floor = W.swim ? sea + 0.35 : Math.max(meshY(W.pos.x, W.pos.z), sea - 1.25 * VEX) + EYE;
+    const floor = W.swim ? sea + 0.35 - W.dive : Math.max(meshY(W.pos.x, W.pos.z), sea - 1.25 * VEX) + EYE;
     if (W.air) { W.vy -= 20 * dt; feet += W.vy * dt; if (feet <= 0) { feet = 0; W.air = false; W.vy = 0; } }
     else if (jump && !W.swim) { W.air = true; W.vy = 7.5; }
     bob += dt * W.speed * (W.swim ? 0.9 : 1.6);
-    const by = W.air ? 0 : Math.sin(bob) * (W.swim ? 0.12 : 0.055) * Math.min(1, W.speed / 5);
+    const by = W.air ? 0 : Math.sin(bob) * (W.dive > 0.4 ? 0.03 : W.swim ? 0.12 : 0.055) * Math.min(1, W.speed / 5);
     W.pos.y += (floor - W.pos.y) * Math.min(1, dt * 14);
     camera.position.set(W.pos.x, W.pos.y + feet + by, W.pos.z);
+    W.under = camera.position.y < sea - 0.05;
     camera.rotation.set(W.pitch, -W.yaw, 0, 'YXZ');
     camera.updateMatrixWorld();
   };

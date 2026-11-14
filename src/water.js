@@ -46,7 +46,7 @@ export function buildWater(scene) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
 
   const mat = makeMat({
-    transparent: true, depthWrite: false,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
     blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     vs: /* glsl */`
@@ -116,6 +116,19 @@ export function buildWater(scene) {
         float chop = min(uChop, mix(1.2, mix(0.34, 0.1, uWhitecap), smoothstep(1200.0, 10000.0, dist))) * mix(0.5, 1.0, expo) * (0.35 + 0.65 * calm) * (0.7 + 0.6 * gust);
         if(uRain > 0.01) n += (texture2D(uWaterTex, vW.xz / 3.1 + t * vec2(0.3, -0.2)).rg - 0.5) * uRain * 1.6 * f0;
         vec3 N = normalize(vec3(-vSlope.x - n.x * chop, 1.0, -vSlope.y - n.y * chop));
+        if(!gl_FrontFacing){
+          // from underneath: straight up there is a bright, rippling window onto the sky; outside about 48 degrees the surface
+          // is a mirror of the deep water. The sun shows through the window as a dancing glare.
+          float rip = 0.55 / (1.0 + dist * 0.06);                                   // ripples blur into a smooth sheet with distance
+          vec3 Nd = -normalize(vec3(-vSlope.x - n.x * rip, 1.0, -vSlope.y - n.y * rip));
+          float ci = max(dot(Nd, V), 0.0), kk = 1.0 - 1.7689 * (1.0 - ci * ci), win = smoothstep(-0.04, 0.3, kk);         // soft edge to the window
+          vec3 up = normalize(-V * 1.33 + Nd * (1.33 * ci - sqrt(max(kk, 0.0))) + vec3(0.0, 0.0001, 0.0));       // the ray bent on its way out into the air
+          vec3 skyl = skyColor(normalize(vec3(up.x, max(up.y, 0.04), up.z))) * 0.85 + uLightCol * (pow(max(dot(up, uLightDir), 0.0), 60.0) * 1.2 + pow(max(dot(up, uLightDir), 0.0), 6.0) * 0.12) * cloudShadow(vW);
+          vec3 Rd = reflect(-V, Nd); vec3 deep = fogColor(vec3(Rd.x, -abs(Rd.y) - 0.15, Rd.z)) * (0.75 + 0.5 * n.x);
+          vec3 c = mix(deep, skyl, win);
+          c = mix(c, fogColor(-V), (1.0 - exp(-dist * 0.05)) * (1.0 - 0.6 * win));
+          gl_FragColor = vec4(c, 1.0); return;
+        }
         float ndv = max(dot(N, V), 0.0);
         float F = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
         // far water: unresolved waves tilt the mirror, lowering the grazing reflectance a little
@@ -153,7 +166,8 @@ export function buildWater(scene) {
           float s = fract(depth / 0.9 + t / 7.0 - 0.25 + (fn - 0.5) * 0.3);         // 0 on a crest, rising seaward behind it
           float zone = smoothstep(db, db * 0.3, depth) * smoothstep(0.0, 0.1, depth);
           float band = smoothstep(0.6, 0.0, s), edge = smoothstep(0.9, 1.0, s);
-          float lace = smoothstep(0.3, 0.72, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6);
+          float web = 1.0 - smoothstep(0.0, 0.07 + 0.22 * band, min(abs(ff - 0.5), abs(fg - 0.47)));            // foam left behind a broken wave: a net of streaks that thins as it ages
+          float lace = max(smoothstep(0.3, 0.72, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6), web * smoothstep(0.0, 0.25, band));
           float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));
           float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
           foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + 0.75 * oexp), 0.0, 1.0);
@@ -165,7 +179,7 @@ export function buildWater(scene) {
         wc += uWhitecap * 0.07 * calm * (0.4 + 0.6 * expo) * smoothstep(2200.0, 8000.0, dist) * (0.6 + 0.8 * fbig);   // far away: just a paler, wind-whitened sea
         foam = clamp(foam + wc * step(0.01, uWhitecap), 0.0, 1.0);
         foam *= 1.0 - smoothstep(14000.0, 40000.0, dist) * 0.6;
-        vec3 foamCol = vec3(0.92, 0.95, 0.96) * (uLightCol * (0.22 + 0.22 * max(uLightDir.y, 0.0)) * cs + uAmbSky * 0.85);
+        vec3 foamCol = vec3(0.95, 0.96, 0.95) * (uLightCol * (0.26 + 0.5 * max(uLightDir.y, 0.0)) * cs + uAmbSky * 0.6);
 
         float a = F + (1.0 - F) * foam * 0.92;
         vec3 rgb = refl * F + spec + foamCol * foam * 0.92 * (1.0 - F);
