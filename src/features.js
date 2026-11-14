@@ -391,8 +391,10 @@ function buildTrees(F, scene) {
           vec3 ov = texture2D(uOver, uv).rgb;
           float lum = dot(alb, vec3(0.3, 0.55, 0.15));
           float sandm = smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
+          // where trees grow: anywhere the photograph is clearly darker than bare sand (forest here photographs olive-brown, never bright)
+          float treeK = smoothstep(0.40, 0.20, lum);
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
-                                   : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.24, 0.07, lum);
+                                   : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * treeK;
           #ifdef SPECIES
           // which tree grows here (0 eucalypt, 1 she-oak, 2 banksia, 3 paperbark, 4 mangrove), from how far inland and how high the spot is
           float shoreD = (mk.b - 0.5) * 3000.0, hs = hash12(cell * 2.3 + 40.0), hs2 = hash12(cell * 0.71 + 7.7);
@@ -400,7 +402,7 @@ function buildTrees(F, scene) {
           // low wet flats: paperbarks and swamp gums over a carpet of fern; fire goes through often, so trunks are dark and many trees stand dead
           float wetland = (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, shoreD) * (1.0 - smoothstep(0.05, 0.13, ov.r));
           if(wetland > 0.5) sp = hs < 0.55 ? 3.0 : hs < 0.8 ? 0.0 : 1.0;
-          if(shoreD < 170.0 && hgt < 22.0) sp = hs < 0.7 ? 1.0 : 2.0;                     // behind the beach: coastal she-oak and coast banksia
+          if(shoreD < 170.0 && hgt < 22.0) sp = hs < 0.45 ? 1.0 : hs < 0.75 ? 2.0 : 0.0;   // behind the beach: coastal she-oak, coast banksia, and the forest coming down to the sand
           float swept = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));          // on the cape the wind shapes everything
           if(swept > 0.5){ sp = hs < 0.82 ? 2.0 : 1.0; dens *= 0.55; }
           if(hgt < 1.7 && shoreD < 130.0){                                               // dark growth at the tide line: mangroves
@@ -412,7 +414,7 @@ function buildTrees(F, scene) {
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
-          if(uInner > 1.0) s *= smoothstep(0.13, 0.07, lum);
+          if(uInner > 1.0) s *= smoothstep(0.34, 0.18, lum);
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
@@ -444,6 +446,8 @@ function buildTrees(F, scene) {
             else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
+            float dense = smoothstep(0.30, 0.12, lum);                                  // closed forest: crowns spread until they meet
+            rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
             wig = max(wig * 1.35, 0.085) * (0.7 + 0.6 * h4); kink = max(kink * 1.25, 0.09);          // no tree grows straight: every trunk and limb wanders
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
@@ -546,7 +550,7 @@ function buildTrees(F, scene) {
   };
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 8, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
-  ring(n, 30, 7, 13, 0.7, 15000, n * 11 * 0.42, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.7]]), false, 1);   // canopy clumps beyond them
+  ring(n, 30, 9, 17, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
   ring(LOW ? 90 : 160, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(0, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
   ring(LOW ? 70 : 110, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(0, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
   const grass = buildGrassTrees(scene);

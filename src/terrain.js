@@ -224,7 +224,7 @@ export function buildTerrain(scene) {
         vec3 gr = mix(vec3(lum), alb, 1.05) * vec3(0.94, 0.93, 0.78) * 0.9;
         gr *= 0.80 + 0.28 * nB.r + (0.5 * (nC.b - 0.5) + 0.45 * (nD.r - 0.5)) * near;
         gr = mix(gr, gr * vec3(0.70, 0.80, 0.50), smoothstep(0.42, 0.7, nC.g) * 0.45 * near);
-        float open = smoothstep(0.07, 0.19, lum) * (1.0 - sand);
+        float open = smoothstep(0.2, 0.36, lum) * (1.0 - sand);
         sd *= 0.66;
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
@@ -267,7 +267,10 @@ export function buildTerrain(scene) {
         }
         col = mix(col, vec3(0.05, 0.15, 0.03) * (0.75 + 0.5 * nC.g), wetK * (1.0 - close) * (1.0 - smoothstep(600.0, 3500.0, dist)) * 0.7);
         // farther off the same floor shows between the bushes as sand dulled by its litter
-        col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85);
+        // (but where the photograph is dark with forest the canopy is closed: from outside you see leaves, not the floor)
+        col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));
+        // seen from a distance, forest is its canopy: dark green, mottled with crowns
+        col = mix(col, vec3(0.030, 0.062, 0.022) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), (1.0 - sand) * smoothstep(0.40, 0.20, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.62 * (1.0 - smoothstep(0.4, 0.9, ov.g)));
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
