@@ -166,8 +166,8 @@ export function buildWater(scene) {
           float s = fract(depth / 0.9 + t / 7.0 - 0.25 + (fn - 0.5) * 0.3);         // 0 on a crest, rising seaward behind it
           float zone = smoothstep(db, db * 0.3, depth) * smoothstep(0.0, 0.1, depth);
           float band = smoothstep(0.6, 0.0, s), edge = smoothstep(0.9, 1.0, s);
-          float web = 1.0 - smoothstep(0.0, 0.07 + 0.22 * band, min(abs(ff - 0.5), abs(fg - 0.47)));            // foam left behind a broken wave: a net of streaks that thins as it ages
-          float lace = max(smoothstep(0.3, 0.72, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6), web * smoothstep(0.0, 0.25, band));
+          float web = 1.0 - smoothstep(0.0, 0.025 + 0.09 * band, min(abs(ff - 0.5), abs(fg - 0.47)));            // foam left behind a broken wave: a net of streaks that thins as it ages
+          float lace = max(smoothstep(0.42, 0.8, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6), web * smoothstep(0.0, 0.25, band) * 0.9);
           float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));
           float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
           foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + 0.75 * oexp), 0.0, 1.0);
@@ -179,7 +179,7 @@ export function buildWater(scene) {
         wc += uWhitecap * 0.07 * calm * (0.4 + 0.6 * expo) * smoothstep(2200.0, 8000.0, dist) * (0.6 + 0.8 * fbig);   // far away: just a paler, wind-whitened sea
         foam = clamp(foam + wc * step(0.01, uWhitecap), 0.0, 1.0);
         foam *= 1.0 - smoothstep(14000.0, 40000.0, dist) * 0.6;
-        vec3 foamCol = vec3(0.95, 0.96, 0.95) * (uLightCol * (0.26 + 0.5 * max(uLightDir.y, 0.0)) * cs + uAmbSky * 0.6);
+        vec3 foamCol = vec3(0.95, 0.96, 0.95) * (uLightCol * (0.2 + 0.26 * max(uLightDir.y, 0.0)) * cs + uAmbSky * 0.7) * (0.82 + 0.3 * ff);
 
         float a = F + (1.0 - F) * foam * 0.92;
         vec3 rgb = refl * F + spec + foamCol * foam * 0.92 * (1.0 - F);

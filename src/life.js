@@ -522,7 +522,7 @@ function buildBirds(scene, F) {
       void main(){
         float way = iP.w < 0.5 ? 1.0 : -1.0, ang = iP.w * 40.0 + uTime * 0.22 / iP.z * way;
         vec2 c = iP.xy + vec2(cos(ang), sin(ang)) * iP.z, fwd = vec2(-sin(ang), cos(ang)) * way;
-        vec3 lp = position * 1.9;
+        vec3 lp = position * 1.9 - vec3(0.0, 0.17, 0.0);                 // it sits in the water, not on it
         vec3 wp = vec3(c.x + fwd.x * lp.x - fwd.y * lp.z, uSeaM * uVex + lp.y + sin(uTime * 1.3 + iP.w * 30.0) * 0.06, c.y + fwd.y * lp.x + fwd.x * lp.z);
         vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
         float ok = step(groundY(c), uSeaM * uVex - 0.5) * (1.0 - smoothstep(900.0, 1200.0, length(wp - cameraPosition)));

@@ -496,7 +496,7 @@ function buildTrees(F, scene) {
               vec3 ol = bc + q * rb * sc * (1.0 + 0.7 * (texture2D(uNoise, xz * 0.13 + bc.xz * 3.1 + q.xz * 0.33 + q.y * 0.21).g - 0.5));      // each clump billows unevenly: no ball, no facets
               lp = ol * H * s;
               c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.4);
-              ao = 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (ol.y - 0.75) * 1.6);
+              ao = 0.58 + 0.42 * smoothstep(-0.9, 0.9, nrm.y + (ol.y - 0.75) * 1.6);
             }
             vObj = (aPart > 0.5 ? position : q + (aBlob + 1.0) * vec3(0.9, 0.4, 0.7)) * 2.6 + vec3(h1, h2, h3) * 9.0;
           #else
@@ -508,16 +508,16 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-            if(uMode > 0.5 && uMode < 1.5) c = mix(c, alb * 1.3, 0.5) * (0.9 + 0.3 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
+            if(uMode > 0.5 && uMode < 1.5) c = mix(c, alb * 1.55, 0.8) * (0.9 + 0.3 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.5, h2 + (lum - 0.1) * 2.0); c = mix(vec3(0.30, 0.25, 0.20), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
-            ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5);
+            ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : mix(0.42, 0.72, step(0.5, uMode) * step(uMode, 1.5)) + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5) * mix(1.0, 0.5, step(0.5, uMode) * step(uMode, 1.5));
             vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0;
           #endif
           vec3 wp = base + lp;
           float cs = cloudShadow(wp);
-          float wrap = uMode > 0.5 && uMode < 1.5 ? 0.45 : 0.12, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
+          float wrap = aPart > 0.5 ? 0.12 : uMode > 0.5 && uMode < 1.5 ? 0.7 : 0.5, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
           vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
@@ -562,6 +562,7 @@ function buildTrees(F, scene) {
               alpha = mix(clump, la, nearL);
               col *= mix(1.0, (0.72 + 0.6 * lf.y) * (1.0 + 0.18 * smoothstep(0.12, 0.0, abs(lf.z))), nearL * la);        // every leaf its own shade of green, a paler midrib
             }
+            alpha *= smoothstep(0.5, 1.7, length(vWp - cameraPosition));          // leaves right in front of the eye fade out rather than fill the view
             if(alpha < 0.03) discard;
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
             if(!gl_FrontFacing) col *= 0.8;                                  // the shaded inside of the crown seen through the gaps

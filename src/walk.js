@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { U, VEX, clamp } from './common.js';
 import { meshY, T } from './terrain.js';
+import { waveAt } from './water.js';
 
 const EYE = 1.72 * VEX;
 export function makeWalk(camera, canvas) {
@@ -96,7 +97,7 @@ export function makeWalk(camera, canvas) {
     const by = W.air ? 0 : Math.sin(bob) * (W.dive > 0.4 ? 0.03 : W.swim ? 0.12 : 0.055) * Math.min(1, W.speed / 5);
     W.pos.y += (floor - W.pos.y) * Math.min(1, dt * 14);
     camera.position.set(W.pos.x, W.pos.y + feet + by, W.pos.z);
-    W.under = camera.position.y < sea - 0.05;
+    W.under = W.dive > 0.3 && camera.position.y < sea + waveAt(W.pos.x, W.pos.z, U.uTime.value) * VEX - 0.04;      // really under: below the wave that is passing, not just the mean level
     camera.rotation.set(W.pitch, -W.yaw, 0, 'YXZ');
     camera.updateMatrixWorld();
   };

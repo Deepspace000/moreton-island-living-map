@@ -123,10 +123,10 @@ export const SHOVEL = (() => {
 })();
 // green turtle: a domed shell, flat underneath; the head and the four flippers are skin (part 2 and 3)
 export const TURTLE = (() => {
-  const m = new Shape(() => 0).body([[0.5, 0.004, 0.01, 0], [0.47, 0.04, 0.17, 0.0], [0.36, 0.09, 0.3, 0.01], [0.2, 0.135, 0.38, 0.02], [0.02, 0.15, 0.41, 0.02], [-0.16, 0.135, 0.39, 0.015], [-0.32, 0.1, 0.31, 0.005], [-0.44, 0.05, 0.17, 0], [-0.5, 0.01, 0.03, 0]], { NR: 20, NS: 18, belly: 0.3 });
+  const m = new Shape(() => 0).body([[0.5, 0.004, 0.01, 0], [0.47, 0.05, 0.17, 0.0], [0.36, 0.115, 0.3, 0.015], [0.2, 0.17, 0.38, 0.03], [0.02, 0.19, 0.41, 0.03], [-0.16, 0.17, 0.39, 0.022], [-0.32, 0.12, 0.31, 0.008], [-0.44, 0.06, 0.17, 0], [-0.5, 0.01, 0.03, 0]], { NR: 20, NS: 18, belly: 0.3 });
   const shell = m.R; m.body([[0.83, 0.003, 0.003, 0.02], [0.8, 0.04, 0.045, 0.022], [0.72, 0.062, 0.07, 0.03], [0.62, 0.06, 0.068, 0.03], [0.52, 0.045, 0.055, 0.015], [0.42, 0.04, 0.05, 0.0]], { NR: 10, NS: 10, part: 2, flex: () => 0 }); m.R = shell;
   for (const sd of [-1, 1]) {
-    m.leaf([0.34, -0.01, sd * 0.3], [0.1, 0, sd * 1], [1, 0, sd * -0.1], 0.78, 0.115, { curl: [-0.55, 0, sd * -0.25], part: 3, flex: (t, s) => s * s, nt: 6, ns: 12, tip: 0.5 });
+    m.leaf([0.34, -0.01, sd * 0.3], [0.1, 0, sd * 1], [1, 0, sd * -0.1], 0.78, 0.17, { curl: [-0.55, 0, sd * -0.25], part: 3, flex: (t, s) => s * s, nt: 6, ns: 12, tip: 0.5 });
     m.leaf([-0.36, -0.01, sd * 0.24], [-0.75, 0, sd * 0.66], [0.66, 0, sd * 0.75], 0.3, 0.085, { part: 3, flex: (t, s) => 0.25 * s, tip: 0.6 });
   }
   return m.done();
@@ -200,11 +200,11 @@ export const PAINT = {
     body: `if(vPart < 0.5){ if(tone < 0.62){ vec2 q = vec2(vL.x * 4.6 + 0.2, abs(vL.z) * 4.4); float side = step(0.6, q.y); q.x += 0.5 * side; vec2 c = vec2(fract(q.x) - 0.5, side > 0.5 ? (q.y - 1.15) / 1.1 : q.y / 1.2);
         float seam = min(0.5 - abs(c.x), abs(q.y - 0.6)); float rim = smoothstep(0.86, 0.93, length(vec2(vL.x / 0.5, vL.z / 0.41)));
         float burst = 0.5 + 0.5 * sin(atan(c.y, c.x) * 13.0 + n * 6.0);
-        alb = mix(vec3(0.20, 0.15, 0.07), vec3(0.50, 0.40, 0.17), burst * (0.4 + 0.6 * n2)); alb = mix(alb, vec3(0.26, 0.24, 0.10), 0.35 * n);
+        alb = mix(vec3(0.13, 0.10, 0.05), vec3(0.30, 0.23, 0.10), burst * burst * (0.3 + 0.7 * n2) * smoothstep(0.02, 0.3, length(c))); alb = mix(alb, vec3(0.17, 0.16, 0.07), 0.5 * n);
         alb *= 0.45 + 0.55 * smoothstep(0.0, 0.07, seam); alb = mix(alb, vec3(0.12, 0.09, 0.05), rim * 0.6); alb *= 1.0 + 0.3 * smoothstep(0.1, 0.0, tone); gloss = 0.6; }
       else alb = vec3(0.72, 0.66, 0.42) * (0.8 + 0.3 * n); }
-      else { vec2 q = vUV * (vPart > 2.5 ? vec2(6.0, 17.0) : vec2(11.0, 9.0)) + (n2 - 0.5) * 0.35; q.x += 0.5 * floor(q.y); vec2 f = abs(fract(q) - 0.5); float edge = smoothstep(0.40, 0.49, max(f.x, f.y));
-        alb = mix(vec3(0.085, 0.07, 0.04) * (0.7 + 0.6 * n), vec3(0.50, 0.46, 0.30), edge); if(vPart < 2.5 && tone > 0.6) alb = vec3(0.7, 0.66, 0.46); }`, fin: ``, top: 1,
+      else { vec2 q = vUV * (vPart > 2.5 ? vec2(6.0, 17.0) : vec2(11.0, 9.0)) + (n2 - 0.5) * 0.35; q.x += 0.5 * floor(q.y); vec2 f = abs(fract(q) - 0.5); float edge = smoothstep(0.455, 0.497, max(f.x, f.y));
+        alb = mix(vec3(0.075, 0.062, 0.036) * (0.7 + 0.6 * n), vec3(0.30, 0.27, 0.17), edge); if(vPart < 2.5 && tone > 0.6) alb = vec3(0.7, 0.66, 0.46); }`, fin: ``, top: 1,
   },
   // bottlenose dolphin: dark grey cape, paler flanks, pinkish-white belly
   dolphin: { body: `alb = mix(uColA, mix(uColA, uColB, 0.45), smoothstep(0.26, 0.42, tone + 0.07 * sin(u * 9.0))); alb = mix(alb, uColB, smoothstep(0.6, 0.82, tone)); alb *= 0.93 + 0.14 * n; gloss = 0.9;`, fin: `alb = uColA * 0.9; gloss = 0.7;`, shade: [0.3, 0.8], gill: 0 },

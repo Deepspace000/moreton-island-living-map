@@ -142,6 +142,7 @@ export function buildSky(scene) {
           c += vec3(0.5, 0.6, 0.8) * exp(-ang / MR * 0.7) * 0.06 * uMoonLit * uNight;
         }
         c += vec3(uFlash) * (0.25 + 0.5 * smoothstep(0.3, 0.0, d.y));
+        if(uUnder > 0.5) c = fogColor(normalize(vD));                 // under water there is no sky beyond the haze
         gl_FragColor = vec4(c, 1.0);
       }`,
   });

@@ -322,9 +322,9 @@ export function buildTerrain(scene) {
           vec3 bed = vec3(0.86, 0.80, 0.62) * (0.82 + 0.3 * bA.r);
           float rp = sin((p.x * 0.55 - p.y * 0.35) * 1.3 + bB.r * 2.5 + bA.b * 6.0) * 0.5 + 0.5;
           bed *= 1.0 - 0.10 * rp * near;
-          { vec2 q = vW.xz; float fineK = (1.0 - smoothstep(4.0, 30.0, dist)) * (1.0 - smoothstep(0.6, 1.6, fwidth(dot(q, vec2(11.0, 6.0)))));                       // close to: ripple marks a hand-span apart, branching and joining, and grit in the troughs
+          { vec2 q = vW.xz; float fineK = (1.0 - smoothstep(2.0, 14.0, dist)) * (1.0 - smoothstep(0.6, 1.6, fwidth(dot(q, vec2(11.0, 6.0)))));                       // close to: ripple marks a hand-span apart, branching and joining, and grit in the troughs
             float r2 = sin(dot(q, vec2(11.0, 6.0)) + 1.7 * sin(dot(q, vec2(-1.3, 2.1))) + 1.2 * sin(dot(q, vec2(0.37, 0.23)) + bB.g * 3.0));
-            bed *= 1.0 - fineK * (0.11 * smoothstep(-0.2, 0.9, r2) + 0.06 * step(0.8, hash12(floor(q * 23.0))) * smoothstep(0.3, -0.6, r2)); }
+            bed *= 1.0 - fineK * (0.07 * smoothstep(-0.2, 0.9, r2) + 0.06 * step(0.8, hash12(floor(q * 23.0))) * smoothstep(0.3, -0.6, r2)); }
           float grass = smoothstep(0.46, 0.8, bA.g * 0.5 + bB.g * 0.36 + texture2D(uNoise, p / 17.0).b * 0.24) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
           bed = mix(bed, vec3(0.07, 0.13, 0.07), grass * 0.7);
           bed = mix(col * 0.8, bed, smoothstep(0.0, 0.9, depth));

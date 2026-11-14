@@ -140,10 +140,11 @@ export function objectMat(opts = {}) {
           #else
           float wl = (vW.y - uSeaM * uVex) / uVex;       // metres above the sea
           { float eat = texture2D(uNoise, vec2(vW.x + vW.z * 0.7, vW.y * 0.8) / 11.0).r + 0.2 * texture2D(uNoise, vec2(vW.x - vW.z, vW.y) / 2.7).b;     // holes rusted through the plating above the water, ragged at the edge
-            if(eat > 0.95 - 0.08 * smoothstep(0.5, 4.0, wl) && wl > 0.4) discard;
+            if(eat > 0.84 - 0.08 * smoothstep(0.5, 4.0, wl) && wl > 0.4) discard;
             float fl = texture2D(uNoise, vec2(vW.x + vW.z, vW.y * 1.3) / 0.9).g;                                                                    // flaking scale
-            alb = alb * 0.42 * (0.3 + 1.5 * r1 * r1 + 0.4 * streak); alb = mix(alb, vec3(0.022, 0.014, 0.01), smoothstep(0.4, 0.75, r2) * 0.85); alb = mix(alb, vec3(0.34, 0.12, 0.03), smoothstep(0.6, 0.85, r1) * (0.35 + 0.4 * fl));
-            alb *= 0.7 + 0.6 * fl; alb = mix(alb, alb * 0.35, smoothstep(0.82, 0.93, eat)); }
+            float grit = texture2D(uNoise, vec2(vW.x - vW.z * 0.6, vW.y * 1.1) / 0.23).r;                                                            // fine pitting
+            alb = vec3(0.034, 0.021, 0.015) * (0.5 + 1.2 * r1 * r1 + 0.4 * streak); alb = mix(alb, vec3(0.012, 0.009, 0.008), smoothstep(0.4, 0.75, r2) * 0.85); alb = mix(alb, vec3(0.11, 0.045, 0.016), smoothstep(0.62, 0.85, r1) * (0.3 + 0.5 * fl));
+            alb *= (0.6 + 0.6 * fl) * (0.7 + 0.6 * grit); alb = mix(alb, alb * 0.35, smoothstep(0.72, 0.83, eat)); }
           alb = mix(alb, vec3(0.02, 0.04, 0.018), smoothstep(1.3, -0.2, wl) * 0.75);
           { // below the surface a wreck is a reef: turf algae, pink coralline crust, orange sponge and pale barnacles over the dark rust
             float g1 = texture2D(uNoise, vW.xz / 2.3 + vW.y * 0.31).r, g2 = texture2D(uNoise, vec2(vW.x + vW.z, vW.y) / 2.6).g, g3 = texture2D(uNoise, vW.xz / 5.5 - vW.y * 0.11).b;

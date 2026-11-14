@@ -10,18 +10,19 @@ import { wx } from './weather.js';
 const WHITE = [.93, .93, .91], NAVY = [.07, .13, .26], ANTI = [.25, .08, .07], DECK = [.80, .76, .66], GLASS = [.06, .09, .13];
 function hull(g, L, B, D, free, col, deck, zoff = 0, bot = ANTI) {
   (g.bots ||= []).push(bot); (g.decks ||= []).push(deck);
-  const S = 10, st = [];
+  const S = 14, st = [];
   for (let i = 0; i <= S; i++) {
     const u = i / S, x = (u - .5) * L;
     const hb = B / 2 * (u < 0.55 ? 0.84 + 0.16 * Math.sin(u / 0.55 * Math.PI / 2) : Math.pow(Math.cos((u - 0.55) / 0.45 * Math.PI / 2), 0.75)) + 0.02;
-    st.push({ x, xd: x + (u > 0.55 ? Math.pow((u - 0.55) / 0.45, 2.2) * L * 0.06 : 0) - (u < 0.12 ? (0.12 - u) * L * 0.12 : 0), hb, yd: free * (1 + 0.34 * u * u * u), yk: -D * (1 - 0.7 * u * u * u) });      // the stem rakes forward and the transom leans aft
+    st.push({ x, xd: x + (u > 0.55 ? Math.pow((u - 0.55) / 0.45, 2.2) * L * 0.06 : 0) - (u < 0.12 ? (0.12 - u) * L * 0.12 : 0), hb, yd: free * (0.9 + 0.6 * Math.pow(Math.abs(u - 0.36), 1.9)), yk: -D * (1 - 0.7 * u * u * u) });      // the stem rakes forward and the transom leans aft
   }
   for (let i = 0; i < S; i++) {
     const a = st[i], b = st[i + 1];
     for (const s of [-1, 1]) {
       const A = [a.xd, a.yd, zoff + a.hb * s * 1.04], Bq = [b.xd, b.yd, zoff + b.hb * s * 1.04], Aw = [a.x, 0.05, zoff + a.hb * s * 0.96], Bw = [b.x, 0.05, zoff + b.hb * s * 0.96];
       const Ak = [a.x, a.yk, zoff + a.hb * s * 0.45], Bk = [b.x, b.yk, zoff + b.hb * s * 0.45];
-      if (s > 0) { g.quad(Aw, Bw, Bq, A, col); g.quad(Ak, Bk, Bw, Aw, bot); } else { g.quad(Bw, Aw, A, Bq, col); g.quad(Bk, Ak, Aw, Bw, bot); }
+      const fl = (o) => 1.0 + 0.1 * Math.sin(Math.PI * Math.min(1, o.x / L + 0.5)), Am = [(a.x + a.xd) / 2, (a.yd + 0.05) * 0.5, zoff + a.hb * s * fl(a)], Bm = [(b.x + b.xd) / 2, (b.yd + 0.05) * 0.5, zoff + b.hb * s * fl(b)];      // the side swells out between the waterline and the deck
+      if (s > 0) { g.quad(Aw, Bw, Bm, Am, col); g.quad(Am, Bm, Bq, A, col); g.quad(Ak, Bk, Bw, Aw, bot); } else { g.quad(Bw, Aw, Am, Bm, col); g.quad(Bm, Am, A, Bq, col); g.quad(Bk, Ak, Aw, Bw, bot); }
     }
     g.quad([a.xd, a.yd, zoff - a.hb * 1.04], [a.xd, a.yd, zoff + a.hb * 1.04], [b.xd, b.yd, zoff + b.hb * 1.04], [b.xd, b.yd, zoff - b.hb * 1.04], deck);
     g.quad([a.x, a.yk, zoff + a.hb * .45], [a.x, a.yk, zoff - a.hb * .45], [b.x, b.yk, zoff - b.hb * .45], [b.x, b.yk, zoff + b.hb * .45], bot);

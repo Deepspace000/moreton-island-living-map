@@ -6,7 +6,8 @@ export function makeDive() {
   el.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M -5,-5 H 105 V 105 H -5 Z ${LENS}" fill="#07090b" fill-rule="evenodd"/>
     <path d="${LENS}" fill="none" stroke="rgba(0,0,0,0.38)" stroke-width="34" vector-effect="non-scaling-stroke"/>
     <path d="${LENS}" fill="none" stroke="#14171b" stroke-width="12" vector-effect="non-scaling-stroke"/>
-    <path d="${LENS}" fill="none" stroke="#3b424a" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><canvas></canvas>`;
+    <path d="${LENS}" fill="none" stroke="#3b424a" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+  el.insertBefore(document.createElement('canvas'), el.firstChild);          // bubbles rise behind the frame, not over it
   document.getElementById('c').after(el);        // above the picture, below the buttons and panels
   const cv = el.querySelector('canvas'), c = cv.getContext('2d'), bubbles = [];
   let on = false, breath = 1.2, w = 0, h = 0;
