@@ -141,26 +141,122 @@ export function objectMat(opts = {}) {
           alb = mix(alb, vec3(0.20, 0.27, 0.16), smoothstep(-0.1, -0.8, wl));       // pale weed and barnacle growth below the surface   // weed and barnacles at the waterline
           #endif
         #endif
+        vec3 gloss = vec3(0.0);
         #ifdef WINDOWS
-          if(vFx.x > 0.5){
-            vec2 g = vec2(vFx.y / 3.6, vFx.z / 3.1);
-            vec2 c = fract(g) - 0.5; vec2 id = floor(g);
-            float win = step(abs(c.x), 0.24) * step(abs(c.y + 0.04), 0.2) * step(0.3, vFx.z);
-            float lit = step(0.52, hash12(id + floor(vW.xz * 0.05)));
-            alb = mix(alb, vec3(0.02, 0.035, 0.05), win * 0.85);
-            em = vec3(1.0, 0.72, 0.36) * win * lit * uNight * 2.4;
+          if(vFx.x > 0.5){                       // a wall: vFx.y is metres along it, vFx.z metres above the floor
+            float kind = floor(vFx.x + 0.1), plain = step(0.2, fract(vFx.x + 0.1)), fy = fwidth(vFx.y), fz = fwidth(vFx.z);
+            if(kind < 1.5){                      // weatherboards: each board laps the one below and throws a line of shadow
+              float b = fract(vFx.z / 0.19), k = 1.0 - smoothstep(0.25, 0.9, fz / 0.19);
+              alb *= 1.0 - k * (0.32 * smoothstep(0.18, 0.0, b) - 0.07 * smoothstep(0.7, 1.0, b));
+            } else if(kind < 2.5){               // fibro sheets, the joints covered with battens, and a rail at waist height
+              float bx = abs(fract(vFx.y / 1.2) - 0.5), k = 1.0 - smoothstep(0.02, 0.12, fy / 1.2);
+              alb *= 1.0 + k * (0.10 * smoothstep(0.034, 0.026, bx) - 0.24 * smoothstep(0.014, 0.0, abs(bx - 0.042)));
+              alb *= 1.0 + k * (0.08 * smoothstep(0.045, 0.035, abs(vFx.z - 1.2)) - 0.2 * smoothstep(0.016, 0.0, abs(vFx.z - 1.145)));
+            } else if(kind < 3.5){               // rendered block: faint courses under the paint
+              vec2 q = vec2(vFx.y / 0.4, vFx.z / 0.2); q.x += 0.5 * floor(q.y); vec2 jb = abs(fract(q) - 0.5);
+              alb *= 1.0 - 0.10 * (1.0 - smoothstep(0.2, 0.8, fz / 0.2)) * max(smoothstep(0.45, 0.5, jb.x), smoothstep(0.42, 0.5, jb.y));
+            } else if(kind < 4.5){               // newer houses: vertical boards with narrow grooves
+              alb *= 1.0 - 0.3 * (1.0 - smoothstep(0.25, 0.9, fy / 0.3)) * smoothstep(0.1, 0.0, fract(vFx.y / 0.3));
+            } else {                             // corrugated iron walls; the deeper square ribs of a shipping container; rust creeping up from the ground
+              float pitch = kind < 5.5 ? 0.16 : 0.3, rib = sin(vFx.y / pitch * 6.2832); if(kind > 5.5) rib = clamp(rib * 2.5, -1.0, 1.0);
+              alb *= 1.0 + 0.14 * rib * (1.0 - smoothstep(0.25, 0.9, fy / pitch));
+              float rs = texture2D(uNoise, vec2(vFx.y * 0.31, vFx.z * 0.045)).g;
+              alb = mix(alb, vec3(0.20, 0.085, 0.03), smoothstep(0.5, 0.8, rs) * smoothstep(2.6, 0.1, vFx.z) * 0.7);
+            }
+            // weather: patchy paint, and dark streaks run down by the rain
+            alb *= 0.84 + 0.26 * texture2D(uNoise, vFx.yz * 0.11).r;
+            alb *= 1.0 - 0.2 * smoothstep(0.55, 0.9, texture2D(uNoise, vec2(vFx.y * 0.45, vFx.z * 0.03)).b);
+            if(kind < 4.5 && plain < 0.5){       // windows and doors, one bay every 3.6 m
+              vec2 g = vec2(vFx.y / 3.6, vFx.z / 3.1); vec2 c = fract(g) - 0.5; vec2 id = floor(g);
+              float h = hash12(id + floor(vW.xz * 0.05)), h2 = fract(h * 7.31), h3 = fract(h * 23.7), h4 = fract(h * 51.3);
+              vec3 trim = kind > 3.5 ? vec3(0.05, 0.055, 0.06) : vec3(0.80, 0.79, 0.74);
+              float lit = step(0.52, h);
+              if(h2 < 0.17 && id.y == 0.0){      // a door: frame, panel, a small pane and a handle
+                float dy = (c.y + 0.5) * 3.1;
+                float fr = step(abs(c.x), 0.142) * step(0.0, dy) * step(dy, 2.14), dr = step(abs(c.x), 0.122) * step(0.03, dy) * step(dy, 2.07);
+                vec3 dc = h3 < 0.3 ? vec3(0.70, 0.69, 0.64) : h3 < 0.55 ? vec3(0.05, 0.12, 0.22) : h3 < 0.8 ? vec3(0.28, 0.10, 0.06) : vec3(0.06, 0.20, 0.17);
+                float pane = step(abs(c.x), 0.07) * step(abs(dy - 1.55), 0.3) * step(0.5, h4);
+                dc *= 1.0 - 0.25 * step(abs(abs(c.x) - 0.085), 0.006) * step(abs(dy - 1.0), 0.85);
+                dc = mix(dc, vec3(0.03, 0.045, 0.06), pane); dc = mix(dc, vec3(0.5), step(abs(c.x - 0.095), 0.012) * step(abs(dy - 1.02), 0.05));
+                alb = mix(alb, trim, fr); alb = mix(alb, dc, dr);
+                em = vec3(1.0, 0.72, 0.36) * pane * dr * lit * uNight * 2.0;
+              } else {
+                float hw = h3 < 0.45 ? 0.17 : 0.26, hh = 0.2, cy = c.y + 0.04, up = step(0.3, vFx.z);
+                float fr = step(abs(c.x), hw + 0.022) * step(abs(cy), hh + 0.026) * up, win = step(abs(c.x), hw) * step(abs(cy), hh) * up;
+                float sill = step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.04), 0.014) * up;
+                float bar = max(step(abs(c.x), 0.008), kind < 1.5 ? step(abs(cy), 0.009) : 0.0);                       // sliding sashes; the old weatherboard places have four panes
+                vec3 gl = mix(vec3(0.015, 0.028, 0.04), vec3(0.09, 0.15, 0.21), smoothstep(-hh, hh, cy)) + 0.05 * step(0.8, fract((c.x + cy) * 5.0 + h * 3.0));    // glass: dark, with the sky in it
+                float blind = step(h4, 0.45) * step(mix(-0.1, 0.12, h2), cy);                                          // some have a blind half down
+                gl = mix(gl, vec3(0.42, 0.40, 0.34), blind * 0.8);
+                alb = mix(alb, trim, max(fr, sill)); alb = mix(alb, mix(gl, trim, bar), win);
+                alb *= 1.0 - 0.22 * step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.075), 0.02) * up;               // the sill's shadow
+                em = vec3(1.0, 0.72, 0.36) * win * (1.0 - bar) * lit * uNight * mix(2.4, 1.3, blind);
+                gloss = vec3(win * (1.0 - bar) * (1.0 - blind) * 0.5);
+              }
+            }
           }
-          if(vFx.x < -0.5){                      // corrugated iron: ribs running down the roof, weathered in streaks
+          if(vFx.x < -0.5){                      // corrugated iron: ribs running down the roof, weathered in streaks, rows of screws, rust where the coating has gone
             float rib = sin(vFx.y * 14.0) * (1.0 - smoothstep(0.06, 0.3, fwidth(vFx.y)));
             alb *= 0.93 + 0.07 * rib + 0.14 * (texture2D(uNoise, vec2(vFx.y * 0.11, vW.y * 0.02 + vW.x * 0.004)).r - 0.5);
+            alb *= 1.0 - 0.10 * smoothstep(0.035, 0.0, abs(fract(vFx.z / 0.9 + 0.5) - 0.5)) * (1.0 - smoothstep(0.02, 0.12, fwidth(vFx.z)));
+            float rusty = smoothstep(0.55, 0.82, texture2D(uNoise, vW.xz / 95.0).g), rn = texture2D(uNoise, vec2(vFx.y * 0.31, vFx.z * 0.47 + vW.x * 0.013)).r;
+            alb = mix(alb, vec3(0.22, 0.10, 0.04) * (0.7 + 0.6 * rn), rusty * smoothstep(0.56, 0.8, rn) * 0.6);
           }
         #endif
+        #ifdef CAR
+          if(vFx.x > 0.5){                       // a 4WD: every part knows where on the car it is, in metres (see fourWD)
+            float code = floor(vFx.x - 0.5), part = floor(code / 8.0 + 0.01), face = code - part * 8.0, shine = 0.0; vec2 L = vFx.yz;
+            vec2 wc = vec2(L.x > 0.0 ? 1.5 : -1.55, 0.44); float dW = length(L - wc);       // from the nearer wheel centre
+            float dn = texture2D(uNoise, L * 0.23 + part * 0.37).r;
+            if(part < 0.5){                      // the painted body
+              shine = 0.5;
+              if(face < 0.5){                    // sides: door seams and handles, black wheel arches and sills
+                float seam = min(min(abs(L.x - 0.92), abs(L.x + 0.05)), abs(L.x + 1.02));
+                alb *= 1.0 - 0.6 * smoothstep(0.02, 0.006, seam) * step(0.52, L.y);
+                alb = mix(alb, vec3(0.03), step(abs(L.y - 1.04), 0.02) * max(step(abs(L.x - 0.1), 0.085), step(abs(L.x + 0.87), 0.085)));
+                float arch = max(smoothstep(0.63, 0.59, dW), step(L.y, 0.5)); alb = mix(alb, vec3(0.012), arch); shine *= 1.0 - arch;
+              } else if(face < 1.5 || (face > 3.5 && face < 4.5)){        // nose and tail (here L.x runs across the car)
+                float nose = step(face, 1.5), grille = nose * step(abs(L.x), 0.5) * step(abs(L.y - 0.93), 0.13);
+                alb = mix(alb, vec3(0.015) + 0.10 * step(0.5, fract(L.y * 24.0)), grille);
+                alb = mix(alb, vec3(0.78, 0.78, 0.72), step(abs(L.x), 0.2) * step(abs(L.y - 0.61), 0.055));           // number plate
+                alb *= 1.0 - (1.0 - nose) * 0.55 * smoothstep(0.02, 0.006, abs(L.x + 0.3)) * step(0.56, L.y);          // the seam of the tail door
+                float bump = step(L.y, 0.53); alb = mix(alb, vec3(0.025), bump); shine *= 1.0 - max(grille, bump);
+              }
+              float dust = smoothstep(1.2, 0.45, L.y) * (0.2 + 0.8 * dn) * step(face, 1.5 + 3.0 * step(3.5, face));     // sand and salt thrown up from the beach
+              alb = mix(alb, vec3(0.40, 0.34, 0.23), dust * 0.8); shine *= 1.0 - dust;
+            } else if(part < 1.5){               // the cabin: paint, with the glass let into it
+              shine = 0.5; float glass = 0.0;
+              if(face < 0.5){
+                float inY = step(1.27, L.y) * step(L.y, 1.76), fwd = 0.80 - (L.y - 1.14) * 0.54;
+                glass = inY * max(step(-0.0, L.x) * step(L.x, fwd), max(step(-0.97, L.x) * step(L.x, -0.11), step(-2.18, L.x) * step(L.x, -1.08)));
+                alb *= 1.0 - 0.6 * smoothstep(0.02, 0.006, min(abs(L.x + 0.05), abs(L.x + 1.02))) * (1.0 - glass);
+              } else if(face > 3.5 && face < 4.5) glass = step(abs(L.x), 0.66) * step(1.3, L.y) * step(L.y, 1.74);
+              else if(face > 2.5 && face < 3.5) glass = step(abs(L.x), 0.78) * step(1.2, L.y) * step(L.y, 1.81);
+              if(glass > 0.5){ alb = vec3(0.012, 0.018, 0.022) + 0.03 * dn; shine = 1.7; }
+            } else if(part < 2.5){               // wheels: tread blocks, a dusty sidewall, a steel rim with six holes
+              float a = atan(L.y - wc.y, L.x - wc.x);
+              alb = vec3(0.014) * (0.6 + 0.8 * step(0.5, fract(a * 4.8)) * step(0.435, dW));
+              alb = mix(alb, vec3(0.30, 0.26, 0.18), 0.35 * dn);
+              vec3 rim = vec3(0.42, 0.43, 0.44) * (0.35 + 0.65 * smoothstep(0.03, 0.05, abs(length(vec2(dW - 0.18, sin(a * 3.0) * 0.12)) - 0.0)));
+              alb = mix(alb, rim, smoothstep(0.30, 0.28, dW)); alb = mix(alb, vec3(0.05), smoothstep(0.065, 0.05, dW));
+            } else if(part < 3.5) shine = 0.12;  // bull bar, roof rack, spare wheel cover
+            else { em = alb * uNight * 1.5; shine = 0.6; }       // lamps
+            gloss = vec3(shine);
+          }
+        #endif
+        #ifndef CAR
         alb *= 0.72 + 0.28 * smoothstep(-0.3, 3.5, (vW.y - uSeaM * uVex) / uVex + step(1.0, vFx.x) * 9.0);   // grime toward the waterline
         if(vFx.x > 0.5) alb *= 0.62 + 0.38 * smoothstep(-0.2, 2.6, vFx.z);          // walls darken toward the ground
+        #endif
         float cs = cloudShadow(vW);
         float nl = max(dot(N, uLightDir), 0.0);
         vec3 skyA = mix(uAmbSky, vec3(dot(uAmbSky, vec3(0.3333))), 0.5);
         vec3 col = alb * (uLightCol * nl * cs + mix(uAmbGnd * 1.3, skyA, N.y * 0.5 + 0.5)) + em;
+        if(gloss.x > 0.0){                       // glass and paint mirror the sky, and glint in the sun
+          vec3 V = normalize(cameraPosition - vW), Rf = reflect(-V, N); float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
+          vec3 skyc = Rf.y > 0.0 ? mix(uHorizon, uZenith, sqrt(Rf.y)) : uAmbGnd * 2.0;
+          col += gloss.x * (skyc * (0.07 + 0.5 * fres) + uLightCol * pow(max(dot(Rf, uLightDir), 0.0), 48.0) * 0.5 * cs);
+        }
         float dw = (uSeaM * uVex - vW.y) / uVex;                     // below the surface: seen through the water
         if(dw > 0.0){ vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * dw * 2.3); col = col * Tm + vec3(0.012, 0.20, 0.18) * (uLightCol * 0.3 + uAmbSky * 0.8) * (1.0 - Tm); }
         gl_FragColor = vec4(applyFog(col, vW), 1.0);

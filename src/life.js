@@ -172,23 +172,40 @@ function buildBeachLife(scene) {
 
 // ---------------------------------------------------------------- 4WDs on the beach
 const GLASS = [.06, .09, .13], TYRE = [.07, .07, .075], DARK = [.13, .13, .14];
+// A 4WD wagon. Besides its colour every vertex is told which part of the car it belongs to (0 body, 1 cabin, 2 wheel, 3 trim, 4 lamp),
+// which way its face looks, and where on the car it sits in metres: from that the material paints doors, glass, grille, rims and beach dust.
 export function fourWD(col) {
-  const g = new GB(), M = new THREE.Matrix4();
-  g.box(0, 0.42, 0, 4.7, 0.72, 1.86, col);                                   // body
-  g.box(-0.55, 1.14, 0, 3.0, 0.72, 1.72, col); g.box(-0.55, 1.22, 0, 3.04, 0.48, 1.76, GLASS);     // cabin and windows
-  g.box(-0.55, 1.86, 0, 2.3, 0.07, 1.5, DARK); g.box(-0.9, 1.93, 0, 1.3, 0.28, 1.2, [.25, .33, .42]);   // roof rack with a swag
-  g.box(2.43, 0.4, 0, 0.1, 0.55, 1.75, DARK);                                // bull bar
+  const g = new GB(), M = new THREE.Matrix4(); let from = 0;
+  const mark = (part, xy) => {
+    for (let i = from; i < g.p.length / 3; i++) {
+      const nx = g.n[i * 3], ny = g.n[i * 3 + 1], nz = g.n[i * 3 + 2], face = Math.abs(nz) > 0.7 ? 0 : nx > 0.7 ? 1 : ny > 0.7 ? 2 : nx < -0.7 ? 4 : ny < -0.7 ? 5 : 3;
+      g.f[i * 3] = part * 8 + face + 1; g.f[i * 3 + 1] = xy || face === 0 || face === 2 || face === 5 ? g.p[i * 3] : g.p[i * 3 + 2]; g.f[i * 3 + 2] = g.p[i * 3 + 1];
+    }
+    from = g.p.length / 3;
+  };
+  g.box(0, 0.42, 0, 4.7, 0.72, 1.86, col); mark(0);                           // body
+  const zc = 0.88, y0 = 1.14, y1 = 1.87, xb = -2.3, xf0 = 0.95, xf1 = 0.55;    // cabin, with a raked windscreen
+  for (const sg of [1, -1]) g.quad([xb, y0, zc * sg], [xf0, y0, zc * sg], [xf1, y1, zc * sg], [xb, y1, zc * sg], col);
+  g.quad([xf0, y0, zc], [xf0, y0, -zc], [xf1, y1, -zc], [xf1, y1, zc], col); g.quad([xb, y0, -zc], [xb, y0, zc], [xb, y1, zc], [xb, y1, -zc], col);
+  g.quad([xb, y1, zc], [xf1, y1, zc], [xf1, y1, -zc], [xb, y1, -zc], col); mark(1);
+  g.box(-0.75, 1.9, 0, 2.3, 0.06, 1.5, DARK); g.box(2.42, 0.36, 0, 0.12, 0.16, 1.82, DARK);                 // roof rack; bull bar: a bumper, two uprights and a top rail
+  for (const z of [-0.46, 0.46]) g.box(2.46, 0.52, z, 0.06, 0.62, 0.06, DARK);
+  g.box(2.46, 1.12, 0, 0.06, 0.06, 0.98, DARK); mark(3);
+  g.box(-1.1, 1.96, 0, 1.3, 0.28, 1.2, [.25, .33, .42]); from = g.p.length / 3;                             // a swag on the rack
   g.box(2.36, 0.82, 0.62, 0.05, 0.16, 0.3, [.95, .93, .8]); g.box(2.36, 0.82, -0.62, 0.05, 0.16, 0.3, [.95, .93, .8]);
-  g.box(-2.36, 0.85, 0.7, 0.05, 0.2, 0.25, [.7, .08, .06]); g.box(-2.36, 0.85, -0.7, 0.05, 0.2, 0.25, [.7, .08, .06]);
-  for (const x of [1.5, -1.55]) for (const z of [-0.98, 0.72]) { g.at(M.clone().makeRotationX(Math.PI / 2).setPosition(x, 0.44, z)); g.cyl(0, 0, 0, 0.45, 0.45, 0.28, 10, TYRE, TYRE); }
-  g.at(M.clone().makeRotationZ(Math.PI / 2).setPosition(-2.4, 1.0, 0)); g.cyl(0, 0, 0, 0.42, 0.42, 0.24, 10, TYRE, TYRE);     // spare wheel on the back
-  g.at(null);
+  g.box(-2.36, 0.85, 0.7, 0.05, 0.2, 0.25, [.7, .08, .06]); g.box(-2.36, 0.85, -0.7, 0.05, 0.2, 0.25, [.7, .08, .06]); mark(4);
+  for (const x of [1.5, -1.55]) for (const sg of [1, -1]) {                    // wheels: a ring of tread and a disc on the outside
+    const S = 14, r = 0.45, zo = 1.0 * sg, zi = 0.72 * sg, P = (i, z, rr = r) => [x + Math.cos(i / S * 6.2832) * rr, 0.44 + Math.sin(i / S * 6.2832) * rr, z];
+    for (let i = 0; i < S; i++) { g.quad(P(i, zi), P(i + 1, zi), P(i + 1, zo), P(i, zo), TYRE); g.tri([x, 0.44, zo], P(i, zo), P(i + 1, zo), TYRE); }
+  }
+  mark(2, true);
+  g.at(M.clone().makeRotationZ(Math.PI / 2).setPosition(-2.4, 1.0, 0)); g.cyl(0, 0, 0, 0.42, 0.42, 0.24, 12, TYRE, TYRE); g.at(null); mark(3);     // spare wheel on the back
   return g.build();
 }
 function buildCars(scene, F, lights) {
   const routes = (F.beach || []).filter(r => r.p.length > 30);
   if (!routes.length) return () => {};
-  const R = rng(4004), S = 1.45, mat = objectMat({ side: THREE.DoubleSide });
+  const R = rng(4004), S = 1.45, mat = objectMat({ side: THREE.DoubleSide, defines: { CAR: 1 } });
   const COLS = [[.90, .90, .88], [.80, .81, .82], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40], [.86, .84, .70]], geos = COLS.map(fourWD);
   const cars = [];
   routes.forEach((r, ri) => {

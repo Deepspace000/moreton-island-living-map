@@ -76,65 +76,120 @@ function buildPeople(scene, list) {
 }
 
 // ---------------------------------------------------------------- signs
-// Each sign is two posts and a board; the names are painted once into one picture that all the boards share.
-function buildSigns(scene, signs) {
-  const texts = [...new Set(signs.map(s => s.text + '|' + (s.town ? 1 : 0)))].slice(0, 128), slot = new Map(texts.map((t, i) => [t, i]));
-  const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 2048; const c = cv.getContext('2d');
-  c.textAlign = 'center'; c.textBaseline = 'middle';
-  texts.forEach((key, i) => {
-    const [text, town] = key.split('|'), x = (i % 4) * 512, y = Math.floor(i / 4) * 64;
-    c.fillStyle = town === '1' ? '#f4f1e6' : '#1d4a36'; c.fillRect(x, y, 512, 64);
-    c.strokeStyle = town === '1' ? '#222' : '#e9e4cf'; c.lineWidth = 3; c.strokeRect(x + 4, y + 4, 504, 56);
-    c.fillStyle = town === '1' ? '#1a1a1a' : '#f2edd8';
-    let px = town === '1' ? 40 : 34; do { c.font = `600 ${px}px "Avenir Next", "Segoe UI", system-ui, sans-serif`; px -= 2; } while (c.measureText(text).width > 480 && px > 12);
-    c.fillText(text, x + 256, y + 34);
-  });
-  const tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const pos = [], uv = [], col = [], idx = [], K = 1.3;
-  const quad = (a, b, cc, d, u, color) => { const q = pos.length / 3; pos.push(...a, ...b, ...cc, ...d); uv.push(...(u || [-1, -1, -1, -1, -1, -1, -1, -1])); for (let i = 0; i < 4; i++) col.push(...color); idx.push(q, q + 1, q + 2, q, q + 2, q + 3); };
-  for (const s of signs) {
-    const i = slot.get(s.text + '|' + (s.town ? 1 : 0)); if (i === undefined) continue;
-    const y = meshY(s.x, s.z); if (y < U.uSeaM.value * VEX + 0.4) continue;
-    const W = (s.town ? 3.4 : 2.6) * K, Hh = (s.town ? 0.72 : 0.5) * K, y0 = y + 1.45 * K + (s.lift || 0) * (Hh + 0.1), dx = Math.cos(s.yaw), dz = Math.sin(s.yaw), nx = -dz, nz = dx;      // the board runs along (dx, dz) and faces (nx, nz)
-    const u0 = (i % 4) / 4, u1 = u0 + 0.25, v0 = Math.floor(i / 4) / 32, v1 = v0 + 1 / 32;
-    const P = (t, h, o) => [s.x + dx * t + nx * o, y0 + h, s.z + dz * t + nz * o];
-    quad(P(-W / 2, 0, 0.05), P(W / 2, 0, 0.05), P(W / 2, Hh, 0.05), P(-W / 2, Hh, 0.05), [u0, v1, u1, v1, u1, v0, u0, v0], [1, 1, 1]);
-    quad(P(W / 2, 0, -0.05), P(-W / 2, 0, -0.05), P(-W / 2, Hh, -0.05), P(W / 2, Hh, -0.05), [u0, v1, u1, v1, u1, v0, u0, v0], [1, 1, 1]);
-    for (const t of [-W / 2 + 0.25, W / 2 - 0.25]) for (const [ax, az] of [[0.07, 0], [0, 0.07]]) {               // each post as two crossed slats
-      const p = (h, k) => [s.x + dx * t + dx * ax * k + nx * az * k, y - 0.3 + h, s.z + dz * t + dz * ax * k + nz * az * k];
-      quad(p(0, -1), p(0, 1), p(y0 - y + Hh + 0.5, 1), p(y0 - y + Hh + 0.5, -1), null, [0.34, 0.27, 0.2]);
-    }
+// Signposts stand only where tracks meet. Each has one pointed board for every way on from there, naming what that
+// way leads to and how far it is (worked out along the tracks and the beach highways, not as the crow flies).
+function trackGraph(F) {
+  const nodes = new Map(), list = [], H = Math.hypot;
+  const node = (p) => { const k = Math.round(p[0] / 4) + ',' + Math.round(p[1] / 4); let n = nodes.get(k); if (!n) { n = { i: list.length, p, e: [] }; nodes.set(k, n); list.push(n); } return n; };
+  const link = (a, b, o) => { if (a === b || a.e.some(e => e.to === b)) return; const d = H(a.p[0] - b.p[0], a.p[1] - b.p[1]); a.e.push({ to: b, d, ...o }); b.e.push({ to: a, d, ...o }); };
+  for (const r of F.roads) { if (r.c === 3 || r.p.length < 2) continue; for (let i = 1; i < r.p.length; i++) link(node(r.p[i - 1]), node(r.p[i]), { n: r.n || '', c: r.c }); }
+  const roadN = list.length;
+  for (const r of F.beach || []) for (let i = 1; i < r.p.length; i++) link(node(r.p[i - 1]), node(r.p[i]), { n: r.side > 0 ? 'Eastern Beach' : 'Western Beach', c: 3 });
+  for (let i = 0; i < roadN; i++) {                 // a track that ends at the back of a beach joins the beach highway there
+    const a = list[i]; if (a.e.length !== 1) continue;
+    let best = null, bd = 170; for (let j = roadN; j < list.length; j++) { const d = H(list[j].p[0] - a.p[0], list[j].p[1] - a.p[1]); if (d < bd) { bd = d; best = list[j]; } }
+    if (best) link(a, best, { n: a.e[0].n, c: a.e[0].c });
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aUV', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.boundingSphere = FAR;
-  const mat = makeMat({
-    side: THREE.DoubleSide, uniforms: { uMap: { value: tex } },
-    vs: /* glsl */`attribute vec2 aUV; attribute vec3 aCol; varying vec2 vUV; varying vec3 vC, vW;
-      void main(){ vUV = aUV; vC = aCol; vW = position; float far = 1.0 - step(1500.0, length(position - cameraPosition)); gl_Position = far < 0.5 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
-    fs: /* glsl */`uniform sampler2D uMap; varying vec2 vUV; varying vec3 vC, vW;
-      void main(){ ${LOGF} vec3 c = vUV.x < 0.0 ? vC : texture2D(uMap, vUV).rgb; c *= uLightCol * (0.25 + 0.5 * max(uLightDir.y, 0.0)) * cloudShadow(vW) + uAmbSky * 0.9; gl_FragColor = vec4(applyFog(c, vW), 1.0); }`,
-  });
-  const m = new THREE.Mesh(g, mat); m.name = 'signs'; m.frustumCulled = false; scene.add(m);
+  return list;
+}
+function shortest(list, src) {                      // how far every point of the network is, and which way out of src the shortest route takes
+  const dist = new Float64Array(list.length).fill(Infinity), first = new Int16Array(list.length).fill(-1), hd = [], hi = [];
+  const push = (d, i) => { let k = hd.length; hd.push(d); hi.push(i); while (k > 0) { const p = (k - 1) >> 1; if (hd[p] <= d) break; hd[k] = hd[p]; hi[k] = hi[p]; k = p; } hd[k] = d; hi[k] = i; };
+  const pop = () => { const top = hi[0], d = hd.pop(), i = hi.pop(), n = hd.length; if (n) { let k = 0; for (;;) { let c = 2 * k + 1; if (c >= n) break; if (c + 1 < n && hd[c + 1] < hd[c]) c++; if (hd[c] >= d) break; hd[k] = hd[c]; hi[k] = hi[c]; k = c; } hd[k] = d; hi[k] = i; } return top; };
+  dist[src.i] = 0; src.e.forEach((e, k) => { if (e.d < dist[e.to.i]) { dist[e.to.i] = e.d; first[e.to.i] = k; push(e.d, e.to.i); } });
+  const done = new Uint8Array(list.length); done[src.i] = 1;
+  while (hd.length) { const i = pop(); if (done[i]) continue; done[i] = 1; for (const e of list[i].e) { const d = dist[i] + e.d; if (d < dist[e.to.i]) { dist[e.to.i] = d; first[e.to.i] = first[i]; push(d, e.to.i); } } }
+  return { dist, first };
 }
 function collectSigns(F) {
-  const out = [], seen = new Set(), put = (text, x, z, yaw, town) => { const k = text + Math.round(x / 40) + ',' + Math.round(z / 40); if (!text || seen.has(k)) return; seen.add(k);
-    const o = town ? null : out.find(s => !s.town && Math.hypot(s.x - x, s.z - z) < 9);       // tracks that meet share one post, boards stacked
-    if (o) { if (o.n < 4) out.push({ text, x: o.x, z: o.z, yaw: o.yaw, town, lift: o.n++ }); } else out.push({ text, x, z, yaw, town, lift: 0, n: 1 }); };
-  const ends = new Map();                       // a name can run over several pieces of track: sign its two far ends
-  for (const r of F.roads) { if (!r.n || r.n === 'Beach' || r.p.length < 2) continue; const e = ends.get(r.n) || { a: r, b: r }; e.b = r; ends.set(r.n, e); }
-  for (const [name, e] of ends) {
-    const A = e.a.p[0], A2 = e.a.p[1], B = e.b.p[e.b.p.length - 1], B2 = e.b.p[e.b.p.length - 2];
-    const at = (p, q) => { const tx = q[0] - p[0], tz = q[1] - p[1], l = Math.hypot(tx, tz) || 1; put(name, p[0] - tz / l * 4, p[1] + tx / l * 4, Math.atan2(tx, -tz), false); };       // beside the track, board square across it
-    at(A, A2); if (Math.hypot(B[0] - A[0], B[1] - A[1]) > 150) at(B, B2);
+  const list = trackGraph(F), H = Math.hypot, pois = [];
+  const poi = (name, p, r, major) => {
+    if (!name || !p) return;
+    let best = null, bd = r; for (const n of list) { const d = H(n.p[0] - p[0], n.p[1] - p[1]); if (d < bd) { bd = d; best = n; } }
+    if (best && !pois.some(q => H(q.node.p[0] - best.p[0], q.node.p[1] - best.p[1]) < 90)) pois.push({ name, node: best, major });
+  };
+  const mid = (pl) => pl.reduce((a, v) => [a[0] + v[0] / pl.length, a[1] + v[1] / pl.length], [0, 0]);
+  for (const p of F.places) if (/hamlet|village/.test(p.k) || p.n === 'Cape Moreton') poi(p.n, p.p, 600, 1);
+  for (const v of F.views) poi(v.n === 'Ship Wrecks' ? 'Bulwer Wrecks' : v.n.replace(' Viewing', ''), v.c || v.p, 350, 0);
+  for (const c of F.camps) if (!/Sunrover|Escapes|WBS/.test(c.n || '')) poi(c.n.replace('camping area', 'Camping Area'), c.p, 350, 0);
+  for (const l of F.lakes) if (l.n) poi(l.n.replace(/ \(.*\)/, ''), mid(l.p), 600, 0);
+  for (const s of F.sandnames) poi(s.n, s.p, 500, 0);
+  for (const s of F.misc) poi(s.n, s.p, 350, 0);
+  const wet = [...F.lakes, ...(F.pools || [])].map(l => l.p), inside = (pl, x, z) => { let c = false; for (let i = 0, j = pl.length - 1; i < pl.length; j = i++) { const a = pl[i], b = pl[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const far = (d) => d < 950 ? Math.max(50, Math.round(d / 50) * 50) + ' m' : d < 9950 ? (d / 1000).toFixed(1) + ' km' : Math.round(d / 1000) + ' km';
+  const posts = [];
+  const tracks = (J) => J.e.filter(e => e.c >= 1).length;
+  for (const J of list.filter(J => J.e.length > 2 && tracks(J)).sort((a, b) => tracks(b) - tracks(a) || b.e.length - a.e.length)) {       // the bigger meetings of tracks first
+    if (posts.some(q => H(q.jx - J.p[0], q.jz - J.p[1]) < 160)) continue;       // street corners inside the towns carry no signposts
+    const { dist, first } = shortest(list, J), boards = [], dirs = [];
+    J.e.forEach((e, k) => {
+      let a = J, b = e.to, g = 0; while (H(b.p[0] - J.p[0], b.p[1] - J.p[1]) < 18 && b.e.length === 2 && g++ < 8) { const nx = b.e[0].to === a ? b.e[1].to : b.e[0].to; a = b; b = nx; }
+      const l = H(b.p[0] - J.p[0], b.p[1] - J.p[1]) || 1, dir = [(b.p[0] - J.p[0]) / l, (b.p[1] - J.p[1]) / l]; dirs.push(Math.atan2(dir[1], dir[0]));
+      const mine = pois.filter(q => first[q.node.i] === k && dist[q.node.i] > 250).sort((p, q) => dist[p.node.i] - dist[q.node.i]);
+      const town = mine.find(q => q.major), minor = mine.filter(q => !q.major && dist[q.node.i] < 12000).slice(0, town ? 1 : 2);
+      const pick = [...minor, town].filter(Boolean).sort((p, q) => dist[p.node.i] - dist[q.node.i]);
+      if (!pick.length && e.n && e.c >= 1 && !/Street|Lane|Place|Close|Crescent|Drive/.test(e.n) && !boards.some(b => b.text === e.n)) boards.push({ text: e.n, dir, c: e.c, d: 9e8 });
+      for (const q of pick) boards.push({ text: q.name + '  ' + far(dist[q.node.i]), dir, c: e.c, d: dist[q.node.i] });
+    });
+    if (!boards.some(b => b.d < 9e8)) continue;
+    while (boards.length > 5) boards.splice(boards.reduce((m, b, i) => b.d > boards[m].d ? i : m, 0), 1);
+    dirs.sort((a, b) => a - b);                    // the post stands in the widest gap between the ways that meet
+    let ga = 0, gw = -1; dirs.forEach((a, i) => { const nx = i + 1 < dirs.length ? dirs[i + 1] : dirs[0] + Math.PI * 2; if (nx - a > gw) { gw = nx - a; ga = a + (nx - a) / 2; } });
+    const off = Math.min(7, 3.2 / Math.max(0.3, Math.sin(Math.min(gw, Math.PI) / 2))), x = J.p[0] + Math.cos(ga) * off, z = J.p[1] + Math.sin(ga) * off;
+    if (meshY(x, z) < 2.2 * VEX || wet.some(pl => inside(pl, x, z))) continue;
+    posts.push({ x, z, jx: J.p[0], jz: J.p[1], boards });
   }
-  const roadPt = (p, r) => { let best = null, bd = r; for (const rd of F.roads) for (const q of rd.p) { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < bd) { bd = d; best = q; } } return best; };
-  for (const p of F.places) if (/hamlet|village/.test(p.k)) { const q = roadPt(p.p, 500) || p.p; put(p.n.toUpperCase(), q[0] + 5, q[1] + 3, 0.3, true); }
-  const point = (list, fix) => { for (const o of list) { let p = o.c || o.p; if (!o.n || !p) continue;
-    if (typeof p[0] !== 'number') { const c = p.reduce((a, v) => [a[0] + v[0] / p.length, a[1] + v[1] / p.length], [0, 0]), r = roadPt(c, 900) || p[0]; let e = p[0]; for (const v of p) if (Math.hypot(v[0] - r[0], v[1] - r[1]) < Math.hypot(e[0] - r[0], e[1] - r[1])) e = v; const l = Math.hypot(e[0] - c[0], e[1] - c[1]) || 1; p = [e[0] + (e[0] - c[0]) / l * 22, e[1] + (e[1] - c[1]) / l * 22]; }
-    const q = roadPt(p, 250); put(fix ? fix(o.n) : o.n, p[0] + 3, p[1] + 3, q ? Math.atan2(q[0] - p[0], -(q[1] - p[1])) : 0.5, false); } };
-  point(F.views, (n) => n === 'Ship Wrecks' ? 'Bulwer Wrecks' : n); point(F.lakes, (n) => n.replace(/ \(.*\)/, '')); point(F.peaks); point(F.sandnames); point(F.misc);
-  point(F.camps.filter(c => !/Sunrover|Escapes|WBS/.test(c.n || '')));
-  return out;
+  return posts;
+}
+function buildSigns(scene, posts) {
+  // one small picture of the alphabet; every board is spelled out of it letter by letter
+  const COLS = 12, CW = 42, CH = 64, EM = 40, cv = document.createElement('canvas'); cv.width = cv.height = 512; const c = cv.getContext('2d');
+  c.fillStyle = '#000'; c.fillRect(0, 0, 512, 512); c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.font = `700 ${EM}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+  const adv = {}; for (let i = 32; i < 127; i++) { const ch = String.fromCharCode(i), k = i - 32; adv[ch] = Math.min(CW - 2, c.measureText(ch).width) / EM; c.fillText(ch, (k % COLS) * CW + CW / 2, Math.floor(k / COLS) * CH + 46); }
+  const tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.anisotropy = 4;
+  const pos = [], uv = [], col = [], nr = [], idx = [], K = 1.3, WOOD = [0.16, 0.12, 0.085], INK = [-1, -1, -1, -1, -1, -1, -1, -1];
+  const quad = (a, b, cc, d, u, color, n) => { const q = pos.length / 3; pos.push(...a, ...b, ...cc, ...d); uv.push(...u); for (let i = 0; i < 4; i++) { col.push(...color); nr.push(n ? n[0] : 0, n ? n[1] : 0); } idx.push(q, q + 1, q + 2, q, q + 2, q + 3); };
+  const width = (s, size) => { let w = 0; for (const ch of s) w += (adv[ch] ?? 0.5) * size; return w; };
+  const write = (s, o, r, n, size, color) => {     // o: where the text starts (its baseline), r: the way it reads, n: the side it faces
+    let pen = 0;
+    for (const ch of s) {
+      const k = ch.charCodeAt(0) - 32, a = adv[ch] ?? 0.5, w = a * size;
+      if (k > 0 && k < 95) {
+        const uc = ((k % COLS) * CW + CW / 2) / 512, hw = a * EM / 2 / 512, v0 = Math.floor(k / COLS) * CH / 512, v1 = v0 + CH / 512, yb = o[1] - (CH - 46) / EM * size, yt = yb + CH / EM * size;
+        const A = [o[0] + r[0] * pen + n[0] * 0.025, yb, o[2] + r[1] * pen + n[1] * 0.025], B = [A[0] + r[0] * w, yb, A[2] + r[1] * w];
+        quad(A, B, [B[0], yt, B[2]], [A[0], yt, A[2]], [uc - hw, v1, uc + hw, v1, uc + hw, v0, uc - hw, v0], color, n);
+      }
+      pen += w;
+    }
+  };
+  for (const p of posts) {
+    const y = meshY(p.x, p.z), Hb = 0.36 * K, gap = 0.06 * K, size = 0.2 * K, top = y + (2.0 + p.boards.length * 0.42) * K, pw = 0.07 * K;
+    for (const [ax, az] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) { const bx = -az, bz = ax, P = (h, s) => [p.x + ax * pw + bx * pw * s, y - 0.4 + h, p.z + az * pw + bz * pw * s]; quad(P(0, -1), P(0, 1), P(top - y + 0.55, 1), P(top - y + 0.55, -1), INK, WOOD); }
+    p.boards.forEach((b, i) => {
+      const y1 = top - i * (Hb + gap), y0 = y1 - Hb, tw = width(b.text, size), pad = 0.14 * K, s0 = -0.12 * K, s1 = pw + pad * 2 + tw, tip = Hb * 0.55, d = b.dir;
+      const color = b.c === 2 ? [0.13, 0.065, 0.025] : b.c === 3 ? [0.015, 0.075, 0.17] : [0.012, 0.085, 0.04];        // brown for walking tracks, blue along the beach, green for vehicle tracks
+      const P = (s, h) => [p.x + d[0] * s, h, p.z + d[1] * s];
+      quad(P(s0, y0), P(s1, y0), P(s1, y1), P(s0, y1), INK, color);
+      quad(P(s1, y0), P(s1 + tip, (y0 + y1) / 2), P(s1 + tip, (y0 + y1) / 2), P(s1, y1), INK, color);
+      const base = y0 + Hb * 0.5 - size * 0.36;
+      write(b.text, P(pw + pad, base), d, [-d[1], d[0]], size, color);                    // from one side it reads away from the post
+      write(b.text, P(s1 - pad, base), [-d[0], -d[1]], [d[1], -d[0]], size, color);       // from the other, toward it
+    });
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aUV', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aN', new THREE.Float32BufferAttribute(nr, 2));
+  g.setIndex(idx); g.boundingSphere = FAR;
+  const mat = makeMat({
+    side: THREE.DoubleSide, uniforms: { uMap: { value: tex } },
+    vs: /* glsl */`attribute vec2 aUV, aN; attribute vec3 aCol; varying vec2 vUV, vN; varying vec3 vC, vW;
+      void main(){ vUV = aUV; vC = aCol; vN = aN; vW = position; gl_Position = length(position - cameraPosition) > 1200.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+    fs: /* glsl */`uniform sampler2D uMap; varying vec2 vUV, vN; varying vec3 vC, vW;
+      void main(){ ${LOGF}
+        if(dot(vN, vN) > 0.5 && dot(vN, cameraPosition.xz - vW.xz) < 0.0) discard;                     // lettering shows only from the side it is painted on
+        vec3 c = vUV.x < 0.0 ? vC : mix(vC, vec3(0.86, 0.86, 0.80), smoothstep(0.25, 0.65, texture2D(uMap, vUV).r));
+        c *= uLightCol * (0.25 + 0.5 * max(uLightDir.y, 0.0)) * cloudShadow(vW) + uAmbSky * 0.9; gl_FragColor = vec4(applyFog(c, vW), 1.0); }`,
+  });
+  const m = new THREE.Mesh(g, mat); m.name = 'signs'; m.frustumCulled = false; scene.add(m);
 }
 
 // ---------------------------------------------------------------- camps
@@ -164,7 +219,7 @@ function buildCamps(scene, F, people, R) {
     camp(x, z, false);
   }
   const mesh = new THREE.Mesh(g.build(), objectMat({ side: THREE.DoubleSide })); mesh.name = 'camps'; mesh.frustumCulled = false; scene.add(mesh);
-  const carMat = objectMat({ side: THREE.DoubleSide }), COLS = [[.9, .9, .88], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40]], geos = COLS.map(fourWD);
+  const carMat = objectMat({ side: THREE.DoubleSide, defines: { CAR: 1 } }), COLS = [[.9, .9, .88], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40]], geos = COLS.map(fourWD);
   for (const [x, z, a] of cars) { const m = new THREE.Mesh(geos[(R() * geos.length) | 0], carMat); m.position.set(x, meshY(x, z), z); m.rotation.y = a; m.scale.setScalar(1.45); m.frustumCulled = false; scene.add(m); }
   scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
   return spots;
