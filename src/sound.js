@@ -93,6 +93,14 @@ export function makeSound() {
       for (let i = 0; i < n; i++) voice('sawtooth', t + i * 0.34, 0.2, v * 0.4, p, [[0, 640], [1, 520]], 0.2, 48);
       return n * 0.34;
     },
+    kookaburra(t, v, p) {      // laughing kookaburra: low chuckles that climb into a loud cackle and fall away
+      let u = t; const n = 16 + (Math.random() * 8 | 0);
+      for (let i = 0; i < n; i++) {
+        const k = i / n, up = Math.sin(Math.min(1, k * 1.5) * Math.PI * 0.5) * (1 - 0.5 * Math.max(0, k - 0.7) / 0.3), f = 420 + 700 * up, d = 0.14 - 0.06 * up;
+        voice('sawtooth', u, d, v * (0.4 + 0.9 * up), p, [[0, f * 0.9], [0.4, f * 1.15], [1, f * 0.85]], 0.3, 70 + 60 * up); u += d + 0.035;
+      }
+      return u - t;
+    },
     boobook(t, v, p) {         // southern boobook, the owl that says its own name at night
       voice('sine', t, 0.26, v * 1.3, p, [[0, 560], [1, 540]], 0.3); voice('sine', t + 0.42, 0.3, v * 1.3, p, [[0, 450], [1, 430]], 0.3);
       return 0.8;
@@ -158,7 +166,7 @@ export function makeSound() {
         if (night > 0.75) { if (env.wood > 0.3) pool.push('boobook'); }
         else if (day > 0.3) {
           if (env.beach > 0.35 || !env.land) pool.push('gull', 'gull', 'oystercatcher', 'tern');
-          if (env.wood > 0.3) pool.push('whipbird', 'honeyeater', 'honeyeater', 'coucal', 'crow');
+          if (env.wood > 0.3) pool.push('whipbird', 'honeyeater', 'honeyeater', 'honeyeater', 'coucal', 'crow', 'kookaburra');
           pool.push('kite');
         }
         if (pool.length) { const name = pool[Math.random() * pool.length | 0], far = 0.25 + Math.random() * 0.75; birdT = CALLS[name](t + 0.05, 0.09 * far * calm, Math.random() * 1.6 - 0.8) + (1.5 + Math.random() * 6) * (night > 0.75 ? 4 : 1); }

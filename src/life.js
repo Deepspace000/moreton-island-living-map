@@ -234,15 +234,22 @@ function buildSeaLife(scene, F) {
   const R = rng(5150), depth = (x, z) => U.uSeaM.value - heightAt(x, z), K = MOBILE ? 0.6 : 1;
   // a spot of water of the wanted depth near a point
   const spot = (cx, cz, rad, d0, d1) => { for (let t = 0; t < 40; t++) { const a = R() * 6.283, r = Math.sqrt(R()) * rad, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; if (Math.abs(x) < T.sx / 2 - 300 && Math.abs(z) < T.sz / 2 - 300) { const d = depth(x, z); if (d > d0 && d < d1) return [x, z, d]; } } return null; };
-  const school = (out, x, z, d, n, r0, size) => { const ph = R() * 6.283, sp = 0.5 + R() * 0.5, way = R() < 0.5 ? 0.2 : 0.8; for (let i = 0; i < n; i++) out.push(x + (R() - .5) * 3, z + (R() - .5) * 3, r0 + R() * 2.5, Math.min(d - 0.5, 0.6 + R() * 1.6), ph + i * 0.11 + R() * 0.2, sp, size * (0.8 + R() * 0.4), way + R() * 0.15); };
-  const bream = [], stripey = [], turtles = [], rays = [];
+  const school = (out, x, z, d, n, r0, size) => { const ph = R() * 6.283, sp = 0.5 + R() * 0.5, way = R() < 0.5 ? 0.2 : 0.8; for (let i = 0; i < n; i++) out.push(x + (R() - .5) * 3, z + (R() - .5) * 3, r0 + R() * 2.5, Math.min(d - 0.5, 0.45 + R() * 1.3), ph + i * 0.11 + R() * 0.2, sp, size * (0.8 + R() * 0.4), way + R() * 0.15); };
+  const bream = [], stripey = [], blue = [], turtles = [], rays = [];
   const tg = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p || [-1744, -540];
-  for (const w of F.wrecks) { const d = depth(w.c[0], w.c[1]); if (d < 1) continue; school(stripey, w.c[0], w.c[1], Math.max(d, 2), Math.round(12 * K), 6 + R() * 5, 0.7); school(bream, w.c[0] + 8, w.c[1], Math.max(d, 2), Math.round(10 * K), 10 + R() * 8, 0.95); }
+  // every wreck is a reef: striped sergeants close in, a cloud of small blue-green fish over the hull, bream and trevally circling wider
+  for (const w of F.wrecks) {
+    const d = Math.max(depth(w.c[0], w.c[1]), 2.2); if (depth(w.c[0], w.c[1]) < 0.6) continue;
+    school(stripey, w.c[0], w.c[1], d, Math.round(18 * K), 5 + R() * 5, 0.8); school(stripey, w.c[0] + (R() - .5) * 20, w.c[1] + (R() - .5) * 20, d, Math.round(10 * K), 9 + R() * 6, 0.8);
+    school(blue, w.c[0], w.c[1], d, Math.round(26 * K), 3 + R() * 4, 0.5); school(blue, w.c[0] + (R() - .5) * 24, w.c[1] + (R() - .5) * 24, d, Math.round(16 * K), 6 + R() * 5, 0.5);
+    school(bream, w.c[0] + 8, w.c[1], d, Math.round(14 * K), 12 + R() * 9, 1.15);
+  }
   for (let i = 0; i < 26 * K; i++) { const s = spot(tg[0] - 250, tg[1] - 600, 1900, 1.5, 6); if (s) school(i % 2 ? bream : stripey, s[0], s[1], s[2], 9, 5 + R() * 9, i % 2 ? 0.95 : 0.7); }
   const coast = (n, rad, d0, d1, f) => { for (let i = 0; i < n; i++) { const z = (R() - 0.5) * T.sz * 0.8; let x = -T.sx / 2 + 400; while (x < T.sx / 2 && depth(x, z) > 0.2) x += 40; const s = spot(i % 3 === 0 ? tg[0] - 300 : x - rad * 0.6, i % 3 === 0 ? tg[1] - 800 + (R() - .5) * 2600 : z, rad, d0, d1); if (s) f(s); } };
   coast(60 * K, 900, 1.6, 7, (s) => turtles.push(s[0], s[1], 12 + R() * 24, 0.5 + R() * 1.3, R() * 6.283, 0.45 + R() * 0.35, 1.3 + R() * 0.6, R()));     // green turtles over the seagrass on the bay side
   coast(110 * K, 500, 0.45, 1.7, (s) => rays.push(s[0], s[1], 5 + R() * 12, 0, R() * 6.283, 0.3 + R() * 0.35, 1.0 + R() * 0.7, R()));                 // stingrays gliding over the sand in the shallows
   swimmers(scene, { ...FISH, name: 'bream', amp: 0.16, rate: 9, colA: [0.62, 0.66, 0.68], colB: [0.86, 0.88, 0.86], see: 420 }, bream);
+  swimmers(scene, { ...FISH, name: 'blue', amp: 0.18, rate: 13, colA: [0.16, 0.62, 0.78], colB: [0.75, 0.9, 0.5], see: 300 }, blue);
   swimmers(scene, { ...FISH, name: 'stripey', amp: 0.16, rate: 11, colA: [0.92, 0.78, 0.16], colB: [0.12, 0.13, 0.16], see: 420 }, stripey);
   swimmers(scene, { ...TURTLE, name: 'turtles', vertical: 1, amp: 0.22, rate: 1.8, colA: [0.30, 0.27, 0.16], colB: [0.62, 0.58, 0.42], see: 1100 }, turtles);
   swimmers(scene, { ...RAY, name: 'rays', vertical: 1, bottom: 1, amp: 0.13, rate: 2.2, colA: [0.36, 0.31, 0.24], colB: [0.22, 0.19, 0.16], see: 900 }, rays);
@@ -273,10 +280,12 @@ function buildBirds(scene, F) {
   for (const p of places) for (let i = 0; i < 7; i++) { const tern = i > 4; add(p[0] - 150 + (R() - .5) * 500, 7 + R() * 26, p[1] + (R() - .5) * 500, 18 + R() * 55, 8 + R() * 4, tern ? 0.85 : 1.0, 0, tern ? 0.9 : 0.75, WHITE, tern ? [.75, .78, .8] : GREY); }
   // a few always near whoever is looking
   for (let i = 0; i < 9; i++) add((R() - .5) * 260, 9 + R() * 30, (R() - .5) * 260, 20 + R() * 50, 8 + R() * 4, 1.0, 1, 0.75, WHITE, GREY);
+  // cormorants flying fast and low over the water by the resort and the wrecks
+  for (const p of places.slice(0, 5)) for (let i = 0; i < 3; i++) add(p[0] - 420 + (R() - .5) * 300, 2.5 + R() * 5, p[1] + (R() - .5) * 600, 120 + R() * 200, 13, 1.1, 0, 0.9, [.07, .07, .08], [.1, .1, .11]);
   // pelicans gliding low in a line along the bay shore
   for (const p of places.slice(0, 6)) { const ph = R() * 6.283, rad = 160 + R() * 160, alt = 4 + R() * 6; for (let i = 0; i < 4; i++) add(p[0] - 500, alt, p[1], rad, 9, 2.6, 0, 0.3, WHITE, BLACK, ph + i * 16 / rad); }
   // whistling kites, brahminy kites and sea eagles soaring over the dunes and the shore
-  for (let i = 0; i < 22; i++) { const x = (R() - .5) * T.sx * 0.6, z = (R() - .5) * T.sz * 0.8; if (maskAt(x, z).land < 0.5 && R() < 0.6) continue; const k = i % 3; add(x, 60 + R() * 110, z, 90 + R() * 160, 9, k === 2 ? 2.2 : 1.5, 0, 0.08, k === 0 ? [.42, .33, .24] : k === 1 ? [.55, .25, .12] : [.9, .9, .88], k === 0 ? [.3, .24, .18] : k === 1 ? [.5, .22, .1] : [.38, .4, .43]); }
+  for (let i = 0; i < 22; i++) { const x = (R() - .5) * T.sx * 0.6, z = (R() - .5) * T.sz * 0.8; if (maskAt(x, z).land < 0.5 && R() < 0.6) continue; const k = i % 4; add(x, 60 + R() * 110, z, 90 + R() * 160, 9, k === 2 ? 2.2 : 1.5, 0, 0.08, [[.42, .33, .24], [.55, .25, .12], [.9, .9, .88], [.88, .86, .8]][k], [[.3, .24, .18], [.5, .22, .1], [.38, .4, .43], [.3, .25, .2]][k]); }      // whistling kite, brahminy kite, sea eagle, osprey
   add(0, 110, 0, 140, 9, 1.6, 1, 0.08, [.55, .25, .12], [.5, .22, .1]);
   const n = list.length / 8, g = new THREE.InstancedBufferGeometry(), a = new Float32Array(n * 4), b = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
@@ -345,6 +354,41 @@ function buildBirds(scene, F) {
     fs: LIT_FS,
   });
   const sm = new THREE.Mesh(ig, smat); sm.name = 'shorebirds'; sm.frustumCulled = false; scene.add(sm);
+  // pelicans and cormorants sitting on the water, paddling about: most of them by the resort jetty, where they wait for the fish feed
+  const wet = (x, z) => U.uSeaM.value - heightAt(x, z) > 0.9;
+  const afloat = (g, spots, per) => {
+    const geo2 = g.build(), fg = new THREE.InstancedBufferGeometry(), ip = [];
+    fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color);
+    for (const [p, n] of spots) for (let i = 0, t = 0; i < n * per && t < 400; t++) { const x = p[0] - 40 - R() * 160, z = p[1] + (R() - .5) * 260; if (wet(x, z)) { ip.push(x, z, 3 + R() * 9, R()); i++; } }
+    fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
+    const fm = new THREE.Mesh(fg, fmat); fm.name = 'afloat'; fm.frustumCulled = false; scene.add(fm);
+  };
+  const fmat = makeMat({
+    side: THREE.DoubleSide,
+    vs: /* glsl */`
+      attribute vec3 color; attribute vec4 iP; varying vec3 vCol, vW;
+      void main(){
+        float way = iP.w < 0.5 ? 1.0 : -1.0, ang = iP.w * 40.0 + uTime * 0.22 / iP.z * way;
+        vec2 c = iP.xy + vec2(cos(ang), sin(ang)) * iP.z, fwd = vec2(-sin(ang), cos(ang)) * way;
+        vec3 lp = position * 1.6;
+        vec3 wp = vec3(c.x + fwd.x * lp.x - fwd.y * lp.z, uSeaM * uVex + lp.y + sin(uTime * 1.3 + iP.w * 30.0) * 0.06, c.y + fwd.y * lp.x + fwd.x * lp.z);
+        float ok = step(groundY(c), uSeaM * uVex - 0.5) * (1.0 - smoothstep(900.0, 1200.0, length(wp - cameraPosition)));
+        vCol = color * (uLightCol * (0.25 + 0.6 * max(uLightDir.y, 0.0)) * cloudShadow(wp) * (0.7 + 0.3 * normal.y) + uAmbSky); vW = wp;
+        gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
+        ${LOGV}
+      }`,
+    fs: LIT_FS,
+  });
+  const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wrk = F.views.find(v => /Tangalooma Wrecks/.test(v.n || ''))?.c, others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
+  const spots = [...(tgl ? [[[tgl[0] - 230, tgl[1] + 340], 3]] : []), ...(wrk ? [[[wrk[0] + 60, wrk[1]], 2]] : []), ...others];
+  const pel = new GB(), PINK = [.92, .68, .6];
+  pel.box(0, 0.02, 0, 0.8, 0.34, 0.42, WHITE); pel.box(-0.12, 0.3, 0, 0.5, 0.1, 0.44, BLACK); pel.box(0.34, 0.3, 0, 0.12, 0.42, 0.12, WHITE);      // body low in the water, black along the wings, neck
+  pel.box(0.38, 0.66, 0, 0.2, 0.16, 0.14, WHITE); pel.box(0.7, 0.6, 0, 0.5, 0.06, 0.08, PINK); pel.box(0.66, 0.5, 0, 0.4, 0.1, 0.07, [.95, .8, .62]);         // head, long bill and pouch
+  afloat(pel, spots, 3);
+  const cor = new GB(), CB = [.06, .06, .07];
+  cor.box(0, 0.0, 0, 0.5, 0.14, 0.2, CB); cor.box(0.24, 0.12, 0, 0.07, 0.3, 0.07, CB); cor.box(0.3, 0.4, 0, 0.14, 0.07, 0.07, CB); cor.box(0.42, 0.41, 0, 0.12, 0.03, 0.03, [.8, .65, .2]);
+  afloat(cor, spots, 2);
+
   const f = new THREE.Vector3(); let first = true;
   return (dt, target) => {
     // the nearby flock drifts after the viewer instead of jumping
@@ -358,19 +402,42 @@ function buildInsects(scene) {
   return scatter(scene, LOW ? 22 : 30, 5.5, (g) => {
     attr(g, 'position', [0, 0, 0, 0.9, 0, 1, -0.7, 0, 0.8, 0, 0, 0, -0.7, 0, -0.8, 0.9, 0, -1], 3); attr(g, 'aK', [0, 1, 1, 0, -1, -1], 1); g.setIndex([0, 1, 2, 3, 4, 5]);
   }, /* glsl */`
-        // blue tigers, wanderers and grass yellows over the heath and forest edge, by day, out of the rain
+        // blue tigers, common crows, common browns and tiny grass-blues over the heath and forest edge, by day, out of the rain
         float veg = step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt) * step(h3, 0.16) * (1.0 - smoothstep(0.15, 0.5, uNight)) * (1.0 - smoothstep(0.05, 0.4, uRain));
         float t = uTime * (0.6 + 0.5 * h1), fl = abs(sin(uTime * (9.0 + 6.0 * h2) + h1 * 20.0));
-        s = (0.05 + 0.03 * h2) * veg;
-        vec3 drift = vec3(sin(t * 0.7 + h1 * 6.0) * 2.4, 1.0 + 2.2 * h2 + sin(t * 1.9 + h3 * 60.0) * 0.5, cos(t * 0.53 + h4 * 6.0) * 2.4) / max(s, 0.001);
+        float small = step(0.78, h2);                                            // grass-blues are small and keep low
+        s = mix(0.055 + 0.03 * h2, 0.03, small) * veg;
+        vec3 drift = vec3(sin(t * 0.7 + h1 * 6.0) * 2.4, mix(1.0 + 2.2 * h2, 0.35, small) + sin(t * 1.9 + h3 * 60.0) * mix(0.5, 0.15, small), cos(t * 0.53 + h4 * 6.0) * 2.4) / max(s, 0.001);
         lp = vec3(position.x, abs(aK) * (0.25 + 1.1 * fl), position.z * (1.0 - 0.6 * fl)) + drift;
         nrm = vec3(0.0, 1.0, 0.0);
-        c = (h2 < 0.4 ? mix(vec3(0.05, 0.05, 0.06), vec3(0.45, 0.72, 0.95), step(0.5, abs(aK)) * 0.9) : h2 < 0.7 ? vec3(0.95, 0.5, 0.08) : vec3(0.98, 0.9, 0.3)) * 1.3;`, 90);
+        float tip = step(0.5, abs(aK));
+        c = (h2 < 0.3 ? mix(vec3(0.05, 0.05, 0.06), vec3(0.45, 0.72, 0.95), tip * 0.9)                // blue tiger: black, streaked pale blue
+           : h2 < 0.55 ? mix(vec3(0.10, 0.07, 0.05), vec3(0.85, 0.85, 0.8), tip * 0.35)               // common crow: dark brown with white spots at the edge
+           : h2 < 0.78 ? mix(vec3(0.75, 0.42, 0.10), vec3(0.35, 0.22, 0.10), tip * 0.5)               // common brown: orange and brown
+           : vec3(0.62, 0.66, 0.92)) * 1.3;`, 90);
+}
+
+// dragonflies over the low, wet country (wallum darner, Australian tiger, blue-spotted hawker): they hang in the air, then dart
+function buildDragonflies(scene) {
+  return scatter(scene, LOW ? 20 : 28, 7, (g) => {
+    const pos = [-0.7, 0, 0.03, 0.4, 0, 0.03, 0.4, 0, -0.03, -0.7, 0, -0.03], k = [0, 0, 0, 0], idx = [0, 1, 2, 0, 2, 3];
+    for (const x of [0.2, -0.02]) { const q = pos.length / 3; pos.push(x, 0.02, -1, x + 0.16, 0.02, -1, x + 0.1, 0.02, 0, x, 0.02, 0, x, 0.02, 1, x + 0.16, 0.02, 1); k.push(-1, -1, 0.01, 0.01, 1, 1); idx.push(q, q + 1, q + 2, q, q + 2, q + 3, q + 3, q + 2, q + 5, q + 3, q + 5, q + 4); }
+    attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
+  }, /* glsl */`
+        float wetland = step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(0.8, hgt) * (1.0 - smoothstep(9.0, 16.0, hgt)) * step(h3, 0.14) * (1.0 - smoothstep(0.15, 0.5, uNight)) * (1.0 - smoothstep(0.05, 0.4, uRain));
+        float tt = uTime * (0.3 + 0.25 * h1) + h2 * 10.0, leg = floor(tt), go = smoothstep(0.72, 1.0, fract(tt));
+        vec3 pa = vec3(hash12(cell + leg * 1.31) - 0.5, hash12(cell * 1.7 + leg * 0.77), hash12(cell * 0.6 + leg * 2.3) - 0.5);
+        vec3 pb = vec3(hash12(cell + (leg + 1.0) * 1.31) - 0.5, hash12(cell * 1.7 + (leg + 1.0) * 0.77), hash12(cell * 0.6 + (leg + 1.0) * 2.3) - 0.5);
+        vec3 at = mix(pa, pb, go) * vec3(7.0, 1.8, 7.0) + vec3(0.0, 0.7 + sin(uTime * 3.0 + h1 * 9.0) * 0.04, 0.0);
+        s = (0.07 + 0.03 * h2) * wetland;
+        lp = vec3(position.x, position.y + abs(aK) * sin(uTime * 55.0 + h1 * 30.0) * 0.12, position.z) + at / max(s, 0.001);
+        nrm = vec3(0.0, 1.0, 0.0);
+        c = abs(aK) > 0.005 ? vec3(0.78, 0.84, 0.88) : (h4 < 0.35 ? vec3(0.50, 0.36, 0.10) : h4 < 0.7 ? vec3(0.80, 0.68, 0.10) : vec3(0.12, 0.35, 0.75));`, 90);
 }
 
 export function buildLife(scene, F) {
   const lights = makeLights(64); scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
-  const near = [...buildBeachLife(scene), buildInsects(scene)];
+  const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene)];
   const cars = buildCars(scene, F, lights), snork = buildSnorkelers(scene, F), birds = buildBirds(scene, F);
   buildSeaLife(scene, F);
   return {

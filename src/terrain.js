@@ -209,16 +209,16 @@ export function buildTerrain(scene) {
         // Moreton sand: fine quartz, pale yellow, with grey patches (damp or mineral-stained); the photo sets how light it is
         float sLum = dot(alb, vec3(0.3, 0.55, 0.15));
         float greyP = smoothstep(0.56, 0.74, texture2D(uNoise, vW.xz / 1300.0 + 0.61).g * 0.88 + nB.b * 0.12);
-        vec3 sd = mix(vec3(0.93, 0.78, 0.47), vec3(0.72, 0.70, 0.64), greyP * 0.5) * mix(0.84, 1.08, smoothstep(0.2, 0.8, sLum));
-        sd = mix(sd, alb * vec3(1.04, 0.94, 0.72), 0.14);
-        sd *= 0.88 + 0.24 * nA.r;
+        vec3 sd = mix(vec3(0.96, 0.83, 0.50), vec3(0.80, 0.76, 0.66), greyP * 0.18) * mix(0.94, 1.04, smoothstep(0.2, 0.8, sLum));
+        sd = mix(sd, alb * vec3(1.04, 0.94, 0.72), 0.05);
+        sd *= 0.95 + 0.10 * nA.r;
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
-        sd *= 1.0 - 0.10 * rip * near - 0.06 * nD.b * near;
-        sd = mix(sd, sd * vec3(0.90, 0.78, 0.60), smoothstep(0.06, 0.3, slope));              // slip faces
+        sd *= 1.0 - 0.05 * rip * near - 0.025 * nD.b * near;
+        sd = mix(sd, sd * vec3(0.95, 0.88, 0.74), smoothstep(0.06, 0.3, slope));              // slip faces
         // wind-built dune forms: gradients of two noise scales bend the normal so bare sand shows relief from far away
         vec2 dA = vec2(texture2D(uNoise, vW.xz / 310.0 + vec2(0.01, 0.0)).r - nB.r, texture2D(uNoise, vW.xz / 310.0 + vec2(0.0, 0.01)).r - nB.r);
         vec2 dB = vec2(texture2D(uNoise, vW.xz / 47.0 + vec2(0.02, 0.0)).r - nC.r, texture2D(uNoise, vW.xz / 47.0 + vec2(0.0, 0.02)).r - nC.r);
-        vec3 Ns = normalize(N + vec3(-(dA.x * 5.0 + dB.x * 2.2 * near), 0.0, -(dA.y * 5.0 + dB.y * 2.2 * near)) + vec3(rip - 0.5, 0.0, 0.0) * 0.1 * near);
+        vec3 Ns = normalize(N + vec3(-(dA.x * 2.6 + dB.x * 1.0 * near), 0.0, -(dA.y * 2.6 + dB.y * 1.0 * near)) + vec3(rip - 0.5, 0.0, 0.0) * 0.1 * near);
 
         // ---- open ground: dry grass, heath and bare earth (mid-bright imagery) ----
         vec3 gr = mix(vec3(lum), alb, 1.05) * vec3(0.94, 0.93, 0.78) * 0.9;
@@ -231,9 +231,9 @@ export function buildTerrain(scene) {
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
-          col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.16, sand);            // fine, clean sand: almost no blotches
+          col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.07, sand);            // fine, clean sand: almost no blotches
           col = mix(col, col * vec3(0.72, 0.9, 0.5), smoothstep(0.5, 0.78, nF.g) * 0.6 * close * (1.0 - sand));        // grass tufts and leaf litter
-          col *= 1.0 - 0.12 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + nE.r * 7.0) * 0.5 + 0.5);      // wind ripples in the sand
+          col *= 1.0 - 0.05 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + nE.r * 7.0) * 0.5 + 0.5);      // wind ripples in the sand
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
         }
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
@@ -255,7 +255,7 @@ export function buildTerrain(scene) {
 
         // wet sand just above the waterline
         float wet = smoothstep(0.9, 0.0, -depth) * step(depth, 0.0);
-        col = mix(col, col * vec3(0.62, 0.6, 0.58), wet * 0.8);
+        col = mix(col, col * vec3(0.72, 0.66, 0.56), wet * 0.8);
         vec3 lit = col * (uLightCol * nl * vis * mix(1.0, clamp(relief, 0.6, 1.25), 0.5) + amb);
         float sp = pow(max(dot(reflect(-L, Nn), V), 0.0), 60.0);
         lit += uLightCol * sp * vis * (sand * 0.5 * step(0.975, texture2D(uNoise, vW.xz / 0.41).b) * (1.0 - smoothstep(10.0, 60.0, dist)) + wet * 0.5);

@@ -173,6 +173,8 @@ function buildOverlay(F) {
   for (const r of F.roads) { c.lineWidth = r.c === 2 ? 0.9 : 1.5; c.beginPath(); r.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.stroke(); }
   c.filter = 'blur(1.2px)'; c.fillStyle = c.strokeStyle = '#ff0000'; c.lineWidth = 2.4;
   for (const b of F.buildings) { c.beginPath(); b.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); c.stroke(); }
+  c.filter = 'none'; c.fillStyle = '#0000ff';                    // blue: open fresh water, where no tree stands
+  for (const l of F.lakes) { c.beginPath(); l.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); }
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
   U.uOver.value = t;
 }
@@ -240,9 +242,9 @@ function buildTrees(F, scene) {
           vec3 mk = texture2D(uMask, uv).rgb;
           float hgt = texture2D(uHeight, uv).r;
           vec3 alb = texture2D(uAlbedo, uv).rgb;
-          vec2 ov = texture2D(uOver, uv).rg;
+          vec3 ov = texture2D(uOver, uv).rgb;
           float lum = dot(alb, vec3(0.3, 0.55, 0.15));
-          float sandm = smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45), clr = 1.0 - smoothstep(0.06, 0.3, max(ov.r, ov.g));
+          float sandm = smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.24, 0.07, lum);
           #ifdef SPECIES

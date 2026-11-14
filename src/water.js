@@ -50,8 +50,15 @@ export function buildWater(scene) {
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
     blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     vs: /* glsl */`
-      uniform vec4 uWaves[6]; uniform float uWavePh[6];
+      uniform vec4 uWaves[6]; uniform float uWavePh[6], uSurf;
       varying vec3 vW; varying vec2 vSlope; varying float vWaveH;
+      // The exposure map blurs to the land's low value right at the beach. Look about 250 m downhill (out to sea) instead,
+      // so a surf beach is known as one all the way to the sand.
+      float seaward(vec2 xz, float here){
+        vec2 uv = clamp(worldUV(xz), 0.0, 1.0), e = uHTex * 2.0;
+        vec2 down = vec2(texture2D(uHeight, uv - vec2(e.x, 0.0)).r - texture2D(uHeight, uv + vec2(e.x, 0.0)).r, texture2D(uHeight, uv - vec2(0.0, e.y)).r - texture2D(uHeight, uv + vec2(0.0, e.y)).r);
+        return max(here, texture2D(uHeight, clamp(uv + normalize(down + 1e-5) * uHTex * 22.0, 0.0, 1.0)).g);
+      }
       void main(){
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vec2 hg = texture2D(uHeight, clamp(worldUV(wp.xz), 0.0, 1.0)).rg;
@@ -65,6 +72,13 @@ export function buildWater(scene) {
           float p = dot(w.xy, wp.xz) * k - sqrt(9.81 * k) * uTime + float(i) * 1.7;
           y += a * sin(p); sl += a * k * cos(p) * w.xy;
         }
+        // surf: where the water gets about as shallow as the swell is high, the waves stand up into breakers that roll
+        // in to the sand (only near the middle of the mesh, where it is fine enough to carry them; foam is drawn at any distance)
+        if(depth < 6.0 && depth > 0.0){
+          float oe = seaward(wp.xz, expo), sv = uSurf * (0.18 + 0.82 * oe * oe), db = 1.25 * sv;
+          float crest = pow(0.5 + 0.5 * sin(6.2832 * (depth / 0.62 + uTime / 7.0)), 3.0);
+          y += 0.42 * sv * crest * smoothstep(db * 1.9, db * 0.9, depth) * smoothstep(0.05, db * 0.35, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz)));
+        }
         vWaveH = y; vSlope = sl * uVex;
         wp.y = uSeaM * uVex + y * uVex * fade;
         vW = wp.xyz;
@@ -74,6 +88,13 @@ export function buildWater(scene) {
     fs: /* glsl */`
       uniform vec2 uWindDir; uniform float uChop, uSurf, uWhitecap, uRain, uSwell;
       varying vec3 vW; varying vec2 vSlope; varying float vWaveH;
+      // The exposure map blurs to the land's low value right at the beach. Look about 250 m downhill (out to sea) instead,
+      // so a surf beach is known as one all the way to the sand.
+      float seaward(vec2 xz, float here){
+        vec2 uv = clamp(worldUV(xz), 0.0, 1.0), e = uHTex * 2.0;
+        vec2 down = vec2(texture2D(uHeight, uv - vec2(e.x, 0.0)).r - texture2D(uHeight, uv + vec2(e.x, 0.0)).r, texture2D(uHeight, uv - vec2(0.0, e.y)).r - texture2D(uHeight, uv + vec2(0.0, e.y)).r);
+        return max(here, texture2D(uHeight, clamp(uv + normalize(down + 1e-5) * uHTex * 22.0, 0.0, 1.0)).g);
+      }
       void main(){
         ${LOGF}
         vec2 uv = worldUV(vW.xz);
@@ -121,14 +142,21 @@ export function buildWater(scene) {
         float fn = texture2D(uNoise, vW.xz / 46.0 + t * 0.008).r;
         float ff = texture2D(uNoise, vW.xz / 7.0 - wd * t * 0.02).b;
         float fg = texture2D(uNoise, vW.xz / 17.0 + wd * t * 0.012).g;
-        float surf = max(uSurf * (0.18 + 0.82 * expo * expo), 0.12);
+        float oexp = depth < 6.0 ? seaward(vW.xz, expo) : expo;
+        float surf = max(uSurf * (0.18 + 0.82 * oexp * oexp), 0.12);
         float z = depth / surf;
         float foam = 0.0;
-        if(z < 1.3){
-          float nearF = 1.0 - smoothstep(1800.0, 6500.0, dist);                    // breaker lines only where they can be resolved
-          float lines = smoothstep(0.62, 0.98, sin(z * 6.5 + t * 0.75 + fn * 7.0) * 0.5 + 0.5) * smoothstep(1.3, 0.2, z) * nearF + smoothstep(1.1, 0.1, z) * 0.3 * (1.0 - nearF);
-            float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
-          foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + ff) * (0.5 + 0.7 * expo), 0.0, 1.0);
+        // surf zone: lines of broken water roll in toward the beach (in step with the breakers of the vertex stage), each trailing a lace of foam
+        if(z < 1.6){
+          float nearF = 1.0 - smoothstep(1800.0, 6500.0, dist);                    // separate lines only where they can be resolved
+          float db = 1.25 * surf;                                                  // waves break where the water is about as deep as they are high
+          float s = fract(depth / 0.62 + t / 7.0 - 0.25 + (fn - 0.5) * 0.3);         // 0 on a crest, rising seaward behind it
+          float zone = smoothstep(db, db * 0.6, depth) * smoothstep(0.0, 0.1, depth);
+          float band = smoothstep(0.6, 0.0, s), edge = smoothstep(0.9, 1.0, s);
+          float lace = smoothstep(0.3, 0.72, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6);
+          float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));
+          float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z);
+          foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + 0.75 * oexp), 0.0, 1.0);
           foam *= smoothstep(-0.25, 0.02, depth);
         }
         // whitecaps offshore when it blows
