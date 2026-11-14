@@ -391,8 +391,12 @@ function buildTrees(F, scene) {
           vec3 ov = texture2D(uOver, uv).rgb;
           float lum = dot(alb, vec3(0.3, 0.55, 0.15));
           float sandm = smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
-          // where trees grow: anywhere the photograph is clearly darker than bare sand (forest here photographs olive-brown, never bright)
-          float treeK = smoothstep(0.40, 0.20, lum);
+          // where trees grow: anywhere the photograph is clearly darker than bare sand (forest here photographs olive-brown, never bright).
+          // Near the view the sharp aerial photograph is used, so small sand patches among the scrub stay bare.
+          vec2 duv = (xz - uDetRect.xy) * uDetRect.z; vec4 dtx = texture2D(uDetail, clamp(duv, 0.0, 1.0));
+          float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
+          float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn);
+          float treeK = smoothstep(0.40, 0.20, lumP);
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * treeK;
           #ifdef SPECIES
@@ -409,7 +413,7 @@ function buildTrees(F, scene) {
             sp = 4.0; dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - sandm);
           }
           #endif
-          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
+          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));

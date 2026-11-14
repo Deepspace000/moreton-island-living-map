@@ -191,6 +191,9 @@ export function buildTerrain(scene) {
         // the strip between the tide and the first dune is open beach wherever the photo shows it bright
         sand = max(sand, (1.0 - smoothstep(3.0, 5.0, h)) * (1.0 - smoothstep(0.535, 0.555, mk.b)) * smoothstep(0.10, 0.20, lum));
         sand = max(sand, smoothstep(0.28, 0.42, mk.g) * smoothstep(0.16, 0.28, lum));
+        // and wherever the photograph itself is as bright as bare sand, it is a sand patch, whatever the coarser map says:
+        // up close the sharp aerial photograph picks out the small patches among the scrub
+        sand = max(sand, smoothstep(0.40, 0.58, lum));
         vec3 veg = alb * 1.45 + vec3(0.003, 0.009, 0.0);
         veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), mix(0.4, 0.22, dW));
         veg *= 0.72 + 0.5 * nA.r;
@@ -222,6 +225,7 @@ export function buildTerrain(scene) {
 
         // ---- open ground: dry grass, heath and bare earth (mid-bright imagery) ----
         vec3 gr = mix(vec3(lum), alb, 1.05) * vec3(0.94, 0.93, 0.78) * 0.9;
+        gr = mix(gr, sd * 0.62, 0.55);            // open ground is mostly sand showing through, not grass
         gr *= 0.80 + 0.28 * nB.r + (0.5 * (nC.b - 0.5) + 0.45 * (nD.r - 0.5)) * near;
         gr = mix(gr, gr * vec3(0.70, 0.80, 0.50), smoothstep(0.42, 0.7, nC.g) * 0.45 * near);
         float open = smoothstep(0.2, 0.36, lum) * (1.0 - sand);
