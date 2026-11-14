@@ -194,6 +194,10 @@ export function buildTerrain(scene) {
         // and wherever the photograph itself is as bright as bare sand, it is a sand patch, whatever the coarser map says:
         // up close the sharp aerial photograph picks out the small patches among the scrub
         sand = max(sand, smoothstep(0.40, 0.58, lum));
+        // Tidal flats: everything below about mean sea level is sand or sandy mud (the photograph only shows water there),
+        // except the dark fringe of mangroves just above it. The falling tide bares it as wet beach and sandbanks.
+        float flatK = 1.0 - smoothstep(-0.15, 0.4, h);
+        sand = max(sand, flatK * (1.0 - step(0.0, h) * smoothstep(0.2, 0.08, lum)));
         vec3 veg = alb * 1.45 + vec3(0.003, 0.009, 0.0);
         veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), mix(0.4, 0.22, dW));
         veg *= 0.72 + 0.5 * nA.r;
@@ -254,10 +258,12 @@ export function buildTerrain(scene) {
           // drifts of dead leaves, bark and twigs under the trees, a scatter of single pieces between, and almost no grass.
           if(floorK * close > 0.0){
             float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, vW.xz / 900.0).b);          // the same burnt country the trees know
-            float drift = smoothstep(0.38, 0.7, nE.r * 0.55 + nF.b * 0.35 + nB.r * 0.4 - 0.12);
-            vec3 det = mix(vec3(0.085, 0.06, 0.04), vec3(0.20, 0.13, 0.075), nF.r);            // dark brown leaves and twigs
-            det = mix(det, vec3(0.03, 0.028, 0.026), smoothstep(0.55, 0.8, nG.b) * burnt);      // charcoal where it has burnt
-            float speck = smoothstep(0.5, 0.62, nG.r * 0.6 + nF.g * 0.5);                       // broken cover: single leaves round the edges of the drifts
+            // (two samples at odd scales and angles, each pushed about by a third, so the pattern never lines up in rows)
+            vec3 w1 = texture2D(uNoise, vW.xz / 2.3 + nE.rg * 0.9).rgb, w2 = texture2D(uNoise, (vW.xz * mat2(0.8, 0.6, -0.6, 0.8)) / 1.37 + nE.gb * 0.7 + 0.37).rgb;
+            float drift = smoothstep(0.38, 0.7, nE.r * 0.55 + w1.b * 0.35 + nB.r * 0.4 - 0.12);
+            vec3 det = mix(vec3(0.085, 0.06, 0.04), vec3(0.20, 0.13, 0.075), w2.r);            // dark brown leaves and twigs
+            det = mix(det, vec3(0.03, 0.028, 0.026), smoothstep(0.55, 0.8, w2.b) * burnt);      // charcoal where it has burnt
+            float speck = smoothstep(0.5, 0.62, w1.r * 0.6 + w2.g * 0.5);                       // broken cover: single leaves round the edges of the drifts
             vec3 lf = mix(sd, det, clamp(drift * (0.5 + 0.5 * speck) + (1.0 - drift) * speck * 0.22, 0.0, 1.0));
             float fine = 1.0 - smoothstep(8.0, 50.0, dist);
             float s1 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.8, 0.6)) / 1.3, dot(vW.xz, vec2(-0.6, 0.8)) / 0.07)).r;         // sticks and strips of bark, lying every way
@@ -292,6 +298,13 @@ export function buildTerrain(scene) {
         vec3 amb = mix(uAmbGnd, uAmbSky, Nn.y * 0.5 + 0.5) * ao;
         vec3 V = normalize(cameraPosition - vW);
 
+        // the bared flats stay wet: darker, greyer, rippled by the last tide, with a film of water lying in the hollows
+        if(flatK > 0.0 && depth <= 0.0){
+          float rp = sin(dot(vW.xz, vec2(1.9, 0.7)) + texture2D(uNoise, vW.xz / 9.0).r * 8.0) * 0.5 + 0.5;
+          float pool = smoothstep(0.56, 0.66, texture2D(uNoise, vW.xz / 37.0 + 0.2).g * 0.6 + texture2D(uNoise, vW.xz / 150.0).b * 0.5) * smoothstep(0.5, 0.1, -depth);
+          col = mix(col, col * vec3(0.66, 0.63, 0.57) * (0.92 + 0.14 * rp * (1.0 - smoothstep(20.0, 120.0, dist))), flatK * 0.85);
+          col = mix(col, uAmbSky * 0.55 + uLightCol * 0.05, pool * flatK * 0.55);
+        }
         // wet sand just above the waterline
         float wet = smoothstep(0.9, 0.0, -depth) * step(depth, 0.0);
         col = mix(col, col * vec3(0.72, 0.66, 0.56), wet * 0.8);

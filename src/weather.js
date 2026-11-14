@@ -10,6 +10,17 @@ export const live = {
 // what the scene uses (eased toward the target every frame)
 export const wx = { overcast: 0, haze: 0.1, turb: 0, cloud: 0.3, wind: 14, windDir: 120, rain: 0, storm: 0, wave: 0.9, tide: 0, cy: 1, cs: 1, calt: 0, cirrus: 0.5, low: 1, dark: 0 };
 const target = { ...wx };
+
+// ---- tide ----
+// The sea level follows the clock: the main twice-daily tide, its fortnightly swing between springs and neaps, and the
+// daily inequality, as five harmonic parts sized for Moreton Bay (about 2 m between a spring high and low). The timing
+// is a model, not a tide table; when the live sea level is known the model is shifted to agree with it. Moving the tide
+// slider takes over until the weather is set back to Live or a preset.
+const TIDE0 = Date.UTC(2000, 0, 8, 0, 0), TIDES = [[0.62, 12.4206012], [0.17, 12], [0.12, 12.65834751], [0.19, 23.93447213], [0.10, 25.81933871]];
+export const tideModel = (ms) => { const h = (ms - TIDE0) / 3600e3; let y = 0; for (const [a, p] of TIDES) y += a * Math.cos(2 * Math.PI * h / p); return y; };
+let tideDate = Date.now(), tideManual = false, tideBias = 0;
+export function setTideDate(ms) { tideDate = ms; }
+export const tideLevel = () => tideManual ? custom.tide : clamp(tideModel(tideDate) + tideBias, -1.3, 1.3);
 export let mode = 'live';
 // hand-set weather (the sliders)
 export const custom = { sun: 85, cloud: 25, ctype: 'cumulus', wind: 14, windDir: 120, rain: 0, fog: 5, swell: 0.9, tide: 0, storm: 0 };
@@ -27,15 +38,16 @@ const PRESETS = {
 };
 const liveOvercast = (c) => clamp(smooth(55, 100, c.cloud) * 0.8 + clamp(c.rain / 6, 0, 1) * 0.35 + (c.code >= 95 ? 0.25 : 0), 0, 1);
 export function seedCustom() {          // start the sliders from what is showing now
+  if (!tideManual) custom.tide = Math.round(tideLevel() * 10) / 10;
   if (mode !== 'live') return;
   Object.assign(custom, { sun: Math.round((1 - liveOvercast(live)) * 100), cloud: Math.round(live.cloud), wind: Math.round(live.wind), windDir: Math.round(live.windDir), rain: Math.round(clamp(live.rain / 6, 0, 1) * 100), fog: (live.code === 45 || live.code === 48) ? 80 : 5, swell: Math.round(live.wave * 10) / 10, tide: Math.round(live.tide * 10) / 10, storm: live.code >= 95 ? 1 : 0, ctype: live.code >= 95 ? 'storm' : live.rain > 1 ? 'towering' : live.cloud > 92 ? 'stratus' : 'cumulus' });
 }
-export function setMode(m) { if (m !== 'live' && PRESETS[m]) { seedCustom(); Object.assign(custom, PRESETS[m]); } mode = m; apply(); }
-export function setCustom(key, val) { seedCustom(); custom[key] = val; mode = 'custom'; apply(); }
+export function setMode(m) { if (m !== 'live' && PRESETS[m]) { seedCustom(); Object.assign(custom, PRESETS[m]); } tideManual = false; mode = m; apply(); }
+export function setCustom(key, val) { seedCustom(); if (key === 'tide') tideManual = true; else if (!tideManual) custom.tide = Math.round(tideLevel() * 10) / 10; custom[key] = val; mode = 'custom'; apply(); }
 export function current() {
-  if (mode === 'live') return live;
+  if (mode === 'live') return { ...live, tide: tideLevel() };
   const c = custom, code = c.storm ? 95 : c.rain > 55 ? 65 : c.rain > 20 ? 63 : c.rain > 3 ? 61 : c.fog > 60 ? 45 : c.cloud > 85 ? 3 : c.cloud > 40 ? 2 : c.cloud > 12 ? 1 : 0;
-  return { ...live, wind: c.wind, gust: c.wind * 1.4, windDir: c.windDir, cloud: c.cloud, rain: c.rain / 100 * 6, code, wave: c.swell, swell: c.swell * 0.85, windWave: Math.max(0.1, c.wind * 0.02), tide: c.tide };
+  return { ...live, wind: c.wind, gust: c.wind * 1.4, windDir: c.windDir, cloud: c.cloud, rain: c.rain / 100 * 6, code, wave: c.swell, swell: c.swell * 0.85, windWave: Math.max(0.1, c.wind * 0.02), tide: tideLevel() };
 }
 
 const CODES = { 0: 'Clear sky', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain', 67: 'Freezing rain', 80: 'Light showers', 81: 'Showers', 82: 'Heavy showers', 95: 'Thunderstorm', 96: 'Thunderstorm, hail', 99: 'Thunderstorm, hail' };
@@ -75,6 +87,7 @@ function apply() {
 }
 
 export function stepWeather(dt) {
+  target.tide = tideLevel();
   const k = 1 - Math.exp(-dt * (mode === 'live' ? 0.6 : 1.6));
   for (const key of ['overcast', 'haze', 'turb', 'cloud', 'wind', 'rain', 'storm', 'wave', 'tide', 'cy', 'cs', 'calt', 'cirrus', 'low', 'dark']) wx[key] = lerp(wx[key], target[key], k);
   const dd = ((target.windDir - wx.windDir + 540) % 360) - 180; wx.windDir = (wx.windDir + dd * k + 360) % 360;
@@ -100,6 +113,7 @@ export async function fetchWeather() {
       const n = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
       Object.assign(live, { wave: n(m.wave_height, live.wave), waveDir: n(m.wave_direction, live.waveDir), wavePeriod: n(m.wave_period, live.wavePeriod), windWave: n(m.wind_wave_height, live.windWave), swell: n(m.swell_wave_height, live.swell), swellDir: n(m.swell_wave_direction, live.swellDir), swellPeriod: n(m.swell_wave_period, live.swellPeriod), sst: n(m.sea_surface_temperature, live.sst), tide: clamp(n(m.sea_level_height_msl, 0), -1.3, 1.3) });
     }
+    if (fb && fb.current && typeof fb.current.sea_level_height_msl === 'number') tideBias = clamp(fb.current.sea_level_height_msl - tideModel(Date.now()), -0.7, 0.7);
   } catch (e) { console.warn('weather unavailable, using defaults', e); }
   apply();
   return live;

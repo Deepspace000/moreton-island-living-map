@@ -9,7 +9,7 @@ import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp, expect, getBlob } from './com
 import { loadTerrainData, buildTerrain, followTerrain, meshY, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
-import { wx, live, fetchWeather, stepWeather, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
+import { wx, live, fetchWeather, stepWeather, setTideDate, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
 import { makeWalk, pickGround } from './walk.js';
 import { buildFeatures } from './features.js';
 import { buildBoats } from './boats.js';
@@ -265,7 +265,7 @@ function frame() {
   const dt = forceDt || Math.min(clock.getDelta(), 0.1);
   acc += dt; U.uTime.value = acc;
   if (st.live) st.date = Date.now(); else if (st.play) st.date += dt * 1000 * st.speed;
-  stepWeather(dt);
+  setTideDate(st.date); stepWeather(dt);
   updateSky(st.date, wx);
   // lightning
   if (wx.storm > 0.5 && sky.day < 2) { flashT -= dt; if (flashT < 0) { flashT = 2 + Math.random() * 9; U.uFlash.value = 1; } }
@@ -299,6 +299,6 @@ function frame() {
   bloom.strength = lerp(0.5, 0.2, sky.day);
   composer.render();
 
-  uiT -= dt; if (uiT < 0) { uiT = 0.25; refreshClock(); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
+  uiT -= dt; if (uiT < 0) { uiT = 0.25; refreshClock(); $('wxTide').textContent = (wx.tide >= 0 ? '+' : '') + wx.tide.toFixed(1); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
 }
 boot().catch((e) => { console.error(e); msg('Could not load the map: ' + e.message); });

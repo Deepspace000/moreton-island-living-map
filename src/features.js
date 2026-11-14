@@ -375,9 +375,10 @@ function buildTrees(F, scene) {
         attribute float aBlob;            // crown: which clump; limb: which limb
         // a point along a limb, in units of the tree's height: from the fork P to its end E, bowed up by arch and kinked sideways
         vec3 limbAt(vec3 P, vec3 E, float u, float arch, float kink){
-          vec3 d = E - P; float len = length(d);
+          vec3 d = E - P; float len = length(d), v = 1.0 - u;
           vec3 side = normalize(vec3(-d.z, 0.0, d.x) + vec3(0.001, 0.0, 0.0));
-          return P + d * u + vec3(0.0, sin(3.1416 * u) * arch * len, 0.0) + side * sin(3.1416 * u) * kink * (fract(len * 37.0) > 0.5 ? 1.0 : -1.0) * len;      // one long bow up and one to the side: a limb sweeps, it does not zigzag
+          vec3 C = P + vec3(d.x * 0.12, d.y * 0.6, d.z * 0.12);                 // it leaves the fork still heading up the trunk, then curves away: no sharp elbow
+          return v * v * P + 2.0 * u * v * C + u * u * E + vec3(0.0, sin(3.1416 * u) * arch * len * 0.6, 0.0) + side * sin(3.1416 * u) * kink * (fract(len * 37.0) > 0.5 ? 1.0 : -1.0) * len;      // one long bow up and one to the side: a limb sweeps, it does not zigzag
         }
         #endif
         void main(){
@@ -491,7 +492,7 @@ function buildTrees(F, scene) {
             } else {                         // clump of leaves
               float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16)) * (1.0 - deadTree);
               bc.y += rb * sc.y * hang;
-              vec3 ol = bc + q * rb * sc;
+              vec3 ol = bc + q * rb * sc * (1.0 + 0.7 * (texture2D(uNoise, xz * 0.13 + bc.xz * 3.1 + q.xz * 0.33 + q.y * 0.21).g - 0.5));      // each clump billows unevenly: no ball, no facets
               lp = ol * H * s;
               c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.4);
               ao = 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (ol.y - 0.75) * 1.6);
@@ -502,7 +503,9 @@ function buildTrees(F, scene) {
             float r = mix(uRad.x, uRad.y, h4 * h4) * (0.7 + 0.6 * smoothstep(0.12, 0.03, lum)) * (1.0 - 0.3 * tall);
             float sq = uRad.z * (0.8 + 0.5 * h1) * (1.0 + 0.9 * tall);
             float stem = uMode < 0.5 ? r * sq * (0.75 + 0.9 * h3) : 0.0;                  // bare trunk under the crown
-            lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : q * vec3(1.0, sq, 1.0) * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
+            // a bush is no ball: each is stretched its own way and its surface billows unevenly
+            vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
+            lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.5, h2 + (lum - 0.1) * 2.0); c = mix(vec3(0.30, 0.25, 0.20), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
@@ -530,7 +533,7 @@ function buildTrees(F, scene) {
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #endif
             float rim = 1.0 - abs(dot(normalize(vN), -vDir));
-            alpha = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.3 + (n2 - 0.5) * 0.3);   // clusters of leaves with gaps, thinner toward the outline
+            alpha = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.55 + (n2 - 0.5) * 0.36);   // clusters of leaves with gaps; the outline is eaten ragged, so no straight facet edge shows
             if(alpha < 0.03) discard;
             col *= 0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5);
             if(!gl_FrontFacing) col *= 0.4;                                   // the shaded inside of the crown seen through the gaps
@@ -555,8 +558,8 @@ function buildTrees(F, scene) {
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 8, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
   ring(n, 30, 9, 17, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
-  ring(LOW ? 90 : 160, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(0, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
-  ring(LOW ? 70 : 110, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(0, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
+  ring(LOW ? 90 : 150, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
+  ring(LOW ? 70 : 104, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
   const grass = buildGrassTrees(scene);
   return (target, camDist) => {
     for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; if (r.mode === 3) r.m.visible = camDist < 1400; }
