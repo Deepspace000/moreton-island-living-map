@@ -8,7 +8,10 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - Yachts and cruisers at anchor that swing to the wind, yachts under sail, and the island ferries on their charted routes
 - Drifting clouds with shadows, sun, moon (true phase) and stars for the real time of day
 - Live weather, swell and tide from Open-Meteo, or set your own with sliders (sunshine, cloud cover and type, wind, rain, fog, swell, tide, lightning)
-- Walk mode: press Walk (or double-click a spot) to explore on foot with keyboard and mouse, touch or a gamepad. On a touch screen, hold a finger down to walk forward and slide it sideways to steer (up to run, down to stop or back up); a second finger looks around
+- Walk mode: press Walk (or double-click a spot) to explore on foot with keyboard and mouse, touch or a gamepad. On a touch screen, a finger on the view walks forward for as long as it is down; slide it sideways to steer or far up to run, and put two fingers down to stand still and look around
+- The real plants of the island: scribbly gum and bloodwood forest, coastal she-oak (casuarina) and banksia behind the beaches, paperbark on the swampy flats, mangroves at the tide line, pandanus on the foredunes and coconut palms at the resort and villages
+- Life: shells, sea stars and driftwood on the sand, 4WDs and their wheel ruts on the beach highways, snorkelers at the wrecks, fish, green turtles and stingrays under the water, gulls, terns, pelicans, kites, oystercatchers and butterflies
+- Sound (the Sound button): wind and leaves, ocean surf and bay ripples, rain and thunder, cicadas by day, crickets by night, and the calls of local birds, all made in the browser and following where you are, the weather and the hour
 - The ground is one smooth surface: a coarse mesh covers the island and finer grids follow the view, so dunes stay rounded up close and trees stand on the ground
 - Every panel can be minimised to a small named chip with its – button, and opened again with +
 - Download: the Download button (or `?download` added to the address) saves the whole map as one HTML file of about 37 MB that opens on its own, even offline

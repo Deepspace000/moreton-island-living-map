@@ -188,6 +188,9 @@ export function buildTerrain(scene) {
 
         // ---- vegetation: lift the satellite colour, add canopy clumps ----
         float lum = dot(alb, vec3(0.3, 0.55, 0.15));
+        // the strip between the tide and the first dune is open beach wherever the photo shows it bright
+        sand = max(sand, (1.0 - smoothstep(3.0, 5.0, h)) * (1.0 - smoothstep(0.535, 0.555, mk.b)) * smoothstep(0.10, 0.20, lum));
+        sand = max(sand, smoothstep(0.28, 0.42, mk.g) * smoothstep(0.16, 0.28, lum));
         vec3 veg = alb * 1.45 + vec3(0.003, 0.009, 0.0);
         veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), mix(0.4, 0.22, dW));
         veg *= 0.72 + 0.5 * nA.r;
@@ -203,8 +206,12 @@ export function buildTerrain(scene) {
         vec3 Nv = normalize(N + vec3(-(cg.x * near * 2.2 + cg1.x * 1.3), 0.0, -(cg.y * near * 2.2 + cg1.y * 1.3)));
 
         // ---- sand: warm, wind-rippled, sparkling ----
-        vec3 sd = mix(alb * 1.05, vec3(0.90, 0.80, 0.60), 0.28);
-        sd *= 0.86 + 0.28 * nA.r;
+        // Moreton sand: fine quartz, pale yellow, with grey patches (damp or mineral-stained); the photo sets how light it is
+        float sLum = dot(alb, vec3(0.3, 0.55, 0.15));
+        float greyP = smoothstep(0.56, 0.74, texture2D(uNoise, vW.xz / 1300.0 + 0.61).g * 0.88 + nB.b * 0.12);
+        vec3 sd = mix(vec3(0.93, 0.78, 0.47), vec3(0.72, 0.70, 0.64), greyP * 0.5) * mix(0.84, 1.08, smoothstep(0.2, 0.8, sLum));
+        sd = mix(sd, alb * vec3(1.04, 0.94, 0.72), 0.14);
+        sd *= 0.88 + 0.24 * nA.r;
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
         sd *= 1.0 - 0.10 * rip * near - 0.06 * nD.b * near;
         sd = mix(sd, sd * vec3(0.90, 0.78, 0.60), smoothstep(0.06, 0.3, slope));              // slip faces
@@ -218,13 +225,13 @@ export function buildTerrain(scene) {
         gr *= 0.80 + 0.28 * nB.r + (0.5 * (nC.b - 0.5) + 0.45 * (nD.r - 0.5)) * near;
         gr = mix(gr, gr * vec3(0.70, 0.80, 0.50), smoothstep(0.42, 0.7, nC.g) * 0.45 * near);
         float open = smoothstep(0.07, 0.19, lum) * (1.0 - sand);
-        sd *= 0.7; sd = mix(sd, sd * vec3(1.06, 0.95, 0.78), 0.4);
+        sd *= 0.66;
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
-          col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.55, sand);
+          col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.16, sand);            // fine, clean sand: almost no blotches
           col = mix(col, col * vec3(0.72, 0.9, 0.5), smoothstep(0.5, 0.78, nF.g) * 0.6 * close * (1.0 - sand));        // grass tufts and leaf litter
           col *= 1.0 - 0.12 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + nE.r * 7.0) * 0.5 + 0.5);      // wind ripples in the sand
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);

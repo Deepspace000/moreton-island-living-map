@@ -15,6 +15,8 @@ import { buildFeatures } from './features.js';
 import { buildBoats } from './boats.js';
 import { buildClouds } from './clouds.js';
 import { buildDetail } from './detail.js';
+import { buildLife } from './life.js';
+import { makeSound } from './sound.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
@@ -144,6 +146,11 @@ $('btLabels').onclick = (e) => { showLabels = !showLabels; e.currentTarget.class
 $('btClouds').onclick = (e) => { showClouds = !showClouds; e.currentTarget.classList.toggle('on', showClouds); };
 $('btSpin').onclick = (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); };
 $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.position.distanceTo(controls.target), 0, null);
+// ---------- sound: starts on the button (browsers need a tap first); if it was on last time, the first tap anywhere brings it back ----------
+const btSound = $('btSound');
+const setSound = (v) => { if (sound.on !== v) sound.toggle(); btSound.classList.toggle('on', sound.on); try { localStorage.setItem('sound', sound.on ? '1' : '0'); } catch (e) { /* not remembered then */ } };
+btSound.onclick = () => setSound(!sound.on);
+try { if (localStorage.getItem('sound') === '1') addEventListener('pointerdown', (e) => { if (e.target !== btSound && !sound.on) setSound(true); }, { once: true }); } catch (e) { /* storage can be blocked */ }
 // ---------- windows: each one can be shrunk to a small named chip and opened again (remembered between visits) ----------
 for (const w of document.querySelectorAll('.win')) {
   const b = document.createElement('button'), key = 'min:' + w.id, name = w.dataset.win;
@@ -206,7 +213,8 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water, detail;
+let features, boats, clouds, water, detail, life;
+const sound = makeSound();
 const clock = new THREE.Clock();
 async function boot() {
   // downloads fill the bar to 78 %, building the scene takes it to 100 %
@@ -221,6 +229,7 @@ async function boot() {
   features = buildFeatures(scene, F, flyTo);
   pct(94); msg('Launching the boats'); await paint();
   boats = buildBoats(scene, F);
+  life = buildLife(scene, F);
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   pct(98); msg('Checking the weather'); await paint();
@@ -232,7 +241,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -281,7 +290,10 @@ function frame() {
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
   boats.update(dt, acc, camera);
   clouds.update(dt, acc, camera, showClouds);
-  detail.update(t, walk.active ? 0 : camera.position.distanceTo(t), acc, dt);
+  const camDist = walk.active ? 0 : camera.position.distanceTo(t);
+  detail.update(t, camDist, acc, dt);
+  life.update(dt, acc, t, camDist);
+  sound.update({ x: t.x, z: t.z, dist: camDist, wind: wx.wind, wave: wx.wave, rain: wx.rain, dt });
   const e = sky.sunEl;
   { const k = clamp((e + 10) / 16, 0, 1); renderer.toneMappingExposure = lerp(1.7, EXPO, k * k * (3 - 2 * k)); }
   bloom.strength = lerp(0.5, 0.2, sky.day);

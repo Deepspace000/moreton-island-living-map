@@ -2,7 +2,7 @@
 // the wrecks, lighthouses, jetty, navigation marks, lakes and the name labels.
 import * as THREE from 'three';
 import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
-import { T, meshY, heightAt, maskAt, albedoAt } from './terrain.js';
+import { T, meshY, groundH, heightAt, maskAt, albedoAt } from './terrain.js';
 import { GB, makeLights } from './geo.js';
 
 const seaY = () => U.uSeaM.value * VEX;
@@ -69,7 +69,7 @@ function buildRoads(F, scene, occ) {
   const pos = [], dir = [], par = [], idx = [];
   for (const r of F.roads) {
     const pts = r.p; let L = 0;
-    const hw = r.c === 2 ? 1.5 : r.c === 1 ? 2.4 : 3.2;
+    const hw = r.c === 3 ? 1.25 : r.c === 2 ? 1.5 : r.c === 1 ? 2.4 : 3.2;
     const out = [];
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(len / 12));
@@ -116,7 +116,10 @@ function buildRoads(F, scene, occ) {
         vec3 sand = vec3(0.66, 0.58, 0.42);
         float n = texture2D(uNoise, vW.xz / 14.0).r;
         vec3 col; float a;
-        if(cls > 1.5){            // walking path: pale dashes
+        if(cls > 2.5){            // wheel ruts pressed into the beach
+          float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
+          col = vec3(0.40, 0.34, 0.23) * (0.8 + 0.3 * n); a = 0.85 * rut * (0.55 + 0.45 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g);
+        } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
           col = vec3(0.92, 0.84, 0.66); a = 0.75 * dash * edge;
         } else if(cls > 0.5){     // sand 4WD track with wheel ruts
@@ -125,7 +128,7 @@ function buildRoads(F, scene, occ) {
         } else {                  // village street
           col = vec3(0.66, 0.62, 0.53) * (0.9 + 0.15 * n); a = 0.9 * edge;
         }
-        a *= on * mix(1.0, 0.38, smoothstep(6000.0, 35000.0, vD)) * mix(1.0, smoothstep(50.0, 450.0, vD), uDetRect.w);   // up close the photo itself shows the track
+        a *= on * mix(1.0, 0.38, smoothstep(6000.0, 35000.0, vD)) * (cls > 2.5 ? 1.0 - smoothstep(1500.0, 4000.0, vD) : mix(1.0, smoothstep(50.0, 450.0, vD), uDetRect.w));   // up close the photo itself shows the track
         float cs = cloudShadow(vW);
         col *= uLightCol * max(uLightDir.y, 0.0) * 0.85 * cs + uAmbSky * 1.1;
         gl_FragColor = vec4(applyFog(col, vW), a);
@@ -188,19 +191,47 @@ function crown(detail, blobs, trunk) {
   }
   return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), idx };
 }
+// The parts of a tree, all placed and bent by the tree shader: crown clumps (unit spheres), a trunk
+// tube up to the fork, and a few limb tubes from the fork out to the clumps.
+function speciesTree(K, B) {
+  const ico = new THREE.IcosahedronGeometry(1, 0), P = ico.attributes.position, pos = [], nrm = [], idx = [], part = [], blob = [];
+  const ix = ico.index ? Array.from(ico.index.array) : Array.from({ length: P.count }, (_, i) => i);
+  for (let k = 0; k < K; k++) {
+    const base = pos.length / 3;
+    for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i); pos.push(x, y, z); nrm.push(x, y, z); part.push(0); blob.push(k); }
+    for (const i of ix) idx.push(base + i);
+  }
+  const tube = (rings, S, kind, which) => {
+    const base = pos.length / 3;
+    for (let k = 0; k <= rings; k++) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2; pos.push(Math.cos(a), k / rings, Math.sin(a)); nrm.push(Math.cos(a), 0, Math.sin(a)); part.push(kind); blob.push(which); }
+    for (let k = 0; k < rings; k++) for (let i = 0; i < S; i++) { const j = (i + 1) % S, q = base + k * S; idx.push(q + i, q + S + i, q + j, q + j, q + S + i, q + S + j); }
+  };
+  tube(3, 5, 1, 0);
+  for (let i = 0; i < B; i++) tube(2, 4, 2, i);
+  return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), blob: new THREE.Float32BufferAttribute(blob, 1), idx, K, B };
+}
 function buildTrees(F, scene) {
   const rings = [];
   const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy, mode = 0) => {
     const cells = new Float32Array(n * n * 2); let k = 0;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part);
+    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
     geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); geo.instanceCount = n * n; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
     const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 } };
     const mat = makeMat({
-      uniforms: uni, defines: leafy ? { LEAFY: 1 } : {}, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
+      uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
         attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
-        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk;
+        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; uniform float uPorous;
+        #ifdef SPECIES
+        attribute float aBlob;            // crown: which clump; limb: which limb
+        // a point along a limb, in units of the tree's height: from the fork P to its end E, bowed up by arch and kinked sideways
+        vec3 limbAt(vec3 P, vec3 E, float u, float arch, float kink){
+          vec3 d = E - P; float len = length(d);
+          vec3 side = normalize(vec3(-d.z, 0.0, d.x) + vec3(0.001, 0.0, 0.0));
+          return P + d * u + vec3(0.0, sin(3.1416 * u) * arch * len, 0.0) + side * sin(6.2832 * u) * kink * len;
+        }
+        #endif
         void main(){
           vec2 cell = uCentre + iCell;
           float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
@@ -214,36 +245,104 @@ function buildTrees(F, scene) {
           float sandm = smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45), clr = 1.0 - smoothstep(0.06, 0.3, max(ov.r, ov.g));
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.24, 0.07, lum);
+          #ifdef SPECIES
+          // which tree grows here (0 eucalypt, 1 she-oak, 2 banksia, 3 paperbark, 4 mangrove), from how far inland and how high the spot is
+          float shoreD = (mk.b - 0.5) * 3000.0, hs = hash12(cell * 2.3 + 40.0), hs2 = hash12(cell * 0.71 + 7.7);
+          float sp = hs < 0.6 ? 0.0 : hs < 0.82 ? 2.0 : 1.0;                         // dune forest: scribbly gum and bloodwood, banksia, forest she-oak
+          if(hgt < 5.5 && shoreD > 260.0) sp = hs < 0.6 ? 3.0 : hs < 0.8 ? 1.0 : 0.0;     // swampy flats: paperbark
+          if(shoreD < 170.0 && hgt < 22.0) sp = hs < 0.7 ? 1.0 : 2.0;                     // behind the beach: coastal she-oak and coast banksia
+          if(hgt < 1.7 && shoreD < 130.0){                                               // dark growth at the tide line: mangroves
+            sp = 4.0; dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - sandm);
+          }
+          #endif
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
-          float tall = step(0.84, h2);                                   // slender she-oaks and pines among the round crowns
-          float r = mix(uRad.x, uRad.y, h4 * h4) * (0.7 + 0.6 * smoothstep(0.12, 0.03, lum)) * (1.0 - 0.3 * tall);
-          vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
-          float dc = length(base - cameraPosition);
-          float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc));
+          float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
+          float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
           if(uInner > 1.0) s *= smoothstep(0.13, 0.07, lum);
+          if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
+          vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
           vec3 q = vec3(position.x * ca - position.z * sa, position.y, position.x * sa + position.z * ca);
           vec3 nrm = normalize(vec3(normal.x * ca - normal.z * sa, normal.y, normal.x * sa + normal.z * ca));
-          float sq = uRad.z * (0.8 + 0.5 * h1) * (1.0 + 0.9 * tall);
-          float stem = uMode < 0.5 ? r * sq * (0.75 + 0.9 * h3) : 0.0;                  // bare trunk under the crown
-          vec3 lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : q * vec3(1.0, sq, 1.0) * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
-          vec3 wp = base + lp;
           vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
           c = mix(c, vec3(lum * 1.15, lum * 1.8, lum * 0.75), 0.28) * (0.9 + 0.5 * h2);
           c = mix(c, c * vec3(1.25, 1.1, 0.7), step(0.8, h3) * 0.5);
-          c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-          if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
-          if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
+          float ao; vec3 lp; vPor = uPorous;
+          #ifdef SPECIES
+            // Each kind of tree has its own build, and each tree its own form: where the trunk forks, how far the limbs
+            // spread and bow, how much it leans and wanders. form picks between the distinct forms of a kind.
+            float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), form = hash12(cell * 3.1 + 11.0);
+            float H, tr, lean, wig, fork, spread, top0, arch, kink, fill, rbK; vec3 sc = vec3(1.0), bark, tint;
+            if(sp < 0.5){ H = 15.0; tr = 0.011; vPor = 0.64; rbK = 0.17; sc.y = 0.8; fill = 0.0;                      // eucalypt: pale scribbly gum or dark rough bloodwood
+              bark = hs2 < 0.45 ? vec3(0.62, 0.60, 0.54) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
+              if(form < 0.38){ fork = 0.5; spread = 0.22; top0 = 0.8; arch = 0.10; kink = 0.04; lean = 0.10; wig = 0.035; }           // tall, forking high
+              else if(form < 0.74){ fork = 0.25; spread = 0.36; top0 = 0.68; arch = 0.22; kink = 0.07; lean = 0.08; wig = 0.05; }     // forking low into wide, twisting limbs
+              else { fork = 0.38; spread = 0.27; top0 = 0.72; arch = 0.13; kink = 0.08; lean = 0.36; wig = 0.08; } }                 // leaning and crooked
+            else if(sp < 1.5){ H = 12.0; tr = 0.010; vPor = 0.72; rbK = 0.13; sc.y = 1.6; fill = 0.8; bark = vec3(0.21, 0.18, 0.15); tint = vec3(0.70, 0.80, 0.72);    // she-oak: slender, wispy, grey-green
+              top0 = 0.84; arch = -0.03; kink = 0.03; wig = 0.035;
+              if(form < 0.5){ fork = 0.55; spread = 0.07; lean = 0.07; }                // one straight-ish stem
+              else if(form < 0.8){ fork = 0.22; spread = 0.16; lean = 0.08; }           // two or three stems from low down
+              else { fork = 0.45; spread = 0.1; lean = 0.4; } }                        // bent over by the sea wind
+            else if(sp < 2.5){ H = 6.0; tr = 0.022; vPor = 0.52; rbK = 0.28; sc.y = 0.72; fill = 0.0; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
+              fork = 0.18 + 0.2 * form; spread = 0.42; top0 = 0.6; arch = 0.07; kink = 0.12; lean = 0.28; wig = 0.1; }
+            else if(sp < 3.5){ H = 10.0; tr = 0.016; vPor = 0.6; rbK = 0.16; sc.y = 1.15; fill = 0.6; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
+              fork = 0.1 + 0.3 * form; spread = 0.18; top0 = 0.8; arch = 0.04; kink = 0.05; lean = 0.12; wig = 0.05; }
+            else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.36; sc.y = 0.7; fill = 0.0; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
+              fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
+            fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
+            vec2 ld = vec2(cos(h2 * 6.2832), sin(h2 * 6.2832)) * lean * (0.4 + 0.6 * h3);
+            float wph = h1 * 6.2832;
+            // centre of the trunk at fraction t of the way up to the fork: it leans and wanders
+            #define TRUNK(t) vec3(ld.x * (t) * (t) * fork + sin((t) * 4.7 + wph) * wig * (t), (t) * fork, ld.y * (t) * (t) * fork + cos((t) * 3.9 + wph) * wig * (t))
+            vec3 P = TRUNK(1.0);
+            float li = aPart > 1.5 ? aBlob : mod(aBlob, NLIMB);                         // the limb this vertex belongs to, or the limb its clump sits on
+            float hb = hash12(cell + li * 13.7), hb2 = hash12(cell * 1.3 + li * 5.1 + 2.0), la = 6.2832 * (li / NLIMB + 0.3 * hb + h1), reach = spread * (0.55 + 0.6 * hb);
+            vec3 E = vec3(P.x + cos(la) * reach, mix(top0, 0.98, hb2), P.z + sin(la) * reach);
+            E.xz += ld * (E.y - fork);                                                  // the crown carries on the lean
+            if(aPart > 1.5){                 // limb
+              float u = position.y;
+              vec3 c0 = limbAt(P, E, u, arch, kink), dir = normalize(limbAt(P, E, u + 0.06, arch, kink) - c0);
+              vec3 ax = normalize(cross(dir, vec3(0.31, 0.0, 0.95))), ay = cross(dir, ax), ring = ax * position.x + ay * position.z;
+              lp = (c0 + ring * tr * mix(0.62, 0.2, u)) * H * s; nrm = ring;
+              c = bark * (0.75 + 0.5 * h2); ao = 0.6 + 0.3 * u;
+            } else if(aPart > 0.5){          // trunk
+              float t = position.y;
+              lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.66, t) * (1.0 + 0.6 * (1.0 - t) * (1.0 - t))) * H * s;
+              c = bark * (0.75 + 0.5 * h2); ao = 0.5 + 0.35 * t;
+            } else {                         // crown clump: one at the end of each limb, the others beside it or back along it
+              float k = aBlob, sec = step(NLIMB - 0.5, k), hk = hash12(cell + k * 7.9 + 3.0), hk2 = hash12(cell * 0.9 + k * 3.3 + 1.0);
+              float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.25 * sec);
+              vec3 bc = limbAt(P, E, 1.0 - sec * fill * (0.3 + 0.45 * hk), arch, kink);
+              bc += sec * (1.0 - fill) * vec3(cos(hk * 6.2832), 0.5 * (hk2 - 0.3), sin(hk * 6.2832)) * rb * 0.9;
+              bc.y += rb * sc.y * 0.3;
+              vec3 ol = bc + q * rb * sc;
+              lp = ol * H * s;
+              c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.4);
+              ao = 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (ol.y - 0.75) * 1.6);
+            }
+            vObj = (aPart > 0.5 ? position : q + (aBlob + 1.0) * vec3(0.9, 0.4, 0.7)) * 2.6 + vec3(h1, h2, h3) * 9.0;
+          #else
+            float tall = step(0.84, h2);                                   // slender she-oaks and pines among the round crowns
+            float r = mix(uRad.x, uRad.y, h4 * h4) * (0.7 + 0.6 * smoothstep(0.12, 0.03, lum)) * (1.0 - 0.3 * tall);
+            float sq = uRad.z * (0.8 + 0.5 * h1) * (1.0 + 0.9 * tall);
+            float stem = uMode < 0.5 ? r * sq * (0.75 + 0.9 * h3) : 0.0;                  // bare trunk under the crown
+            lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : q * vec3(1.0, sq, 1.0) * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
+            c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
+            if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
+            if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
+            ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5);
+            vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0;
+          #endif
+          vec3 wp = base + lp;
           float cs = cloudShadow(wp);
           float nl = max(dot(nrm, uLightDir), 0.0);
-          float ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5);
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
-          vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0; vWp = wp; vTrunk = aPart;
+          vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
-      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk; uniform float uPorous;
+      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor;
         void main(){
           ${LOGF}
           vec3 col = vCol; float alpha = 1.0;
@@ -251,7 +350,7 @@ function buildTrees(F, scene) {
           if(vTrunk < 0.5){
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             float rim = 1.0 - abs(dot(normalize(vN), -vDir));
-            alpha = smoothstep(uPorous - 0.07, uPorous + 0.07, n - rim * 0.3 + (n2 - 0.5) * 0.3);   // clusters of leaves with gaps, thinner toward the outline
+            alpha = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.3 + (n2 - 0.5) * 0.3);   // clusters of leaves with gaps, thinner toward the outline
             if(alpha < 0.03) discard;
             col *= 0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5);
             if(!gl_FrontFacing) col *= 0.4;                                   // the shaded inside of the crown seen through the gaps
@@ -265,11 +364,107 @@ function buildTrees(F, scene) {
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
   };
   const n = +(Q.get('trees') || (LOW ? 120 : 200));
-  const trio = crown(0, [[0, 0, 0, 1], [0.62, 0.22, 0.28, 0.68], [-0.42, 0.3, -0.52, 0.74], [0.05, 0.62, 0.1, 0.6]].slice(0, LOW ? 3 : 4), true);
-  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, trio, true);                               // single trees close to the view
+  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 4 : 6, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
   ring(n, 30, 7, 13, 0.7, 15000, n * 11 * 0.42, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.7]]), false, 1);   // canopy clumps beyond them
   ring(LOW ? 90 : 160, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(0, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
   return (target, camDist) => { for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; } };
+}
+
+// ---------------------------------------------------------------- palms and pandanus
+// Plants with fronds are few, so each one is placed here: coconut palms around the resort and the
+// villages, pandanus (screw pine, on its prop roots) on the dunes just behind the beaches.
+function frondPlant(o) {
+  const pos = [], nrm = [], uv = [], idx = [], S = 6;           // uv.x: 0..1 along a frond, or -1 on wood; uv.y: across the frond, or height on wood
+  const stick = (a, b, r0, r1, rings) => {
+    const base = pos.length / 3;
+    for (let k = 0; k <= rings; k++) for (let i = 0; i < S; i++) {
+      const t = k / rings, an = i / S * Math.PI * 2, r = r0 + (r1 - r0) * t, bend = o.bend * t * t * (b[1] - a[1]) * (rings > 1 ? 1 : 0);
+      pos.push(a[0] + (b[0] - a[0]) * t + bend + Math.cos(an) * r, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t + Math.sin(an) * r);
+      nrm.push(Math.cos(an), 0, Math.sin(an)); uv.push(-1, t);
+    }
+    for (let k = 0; k < rings; k++) for (let i = 0; i < S; i++) { const j = (i + 1) % S, q = base + k * S; idx.push(q + i, q + S + i, q + j, q + j, q + S + i, q + S + j); }
+  };
+  stick([0, 0, 0], [0, o.h, 0], o.r * 1.5, o.r * 0.75, o.rings);
+  const top = [o.bend * o.h, o.h, 0];
+  for (let i = 0; i < (o.roots || 0); i++) { const a = i / o.roots * 6.283 + 0.4; stick([Math.cos(a) * o.h * 0.3, 0, Math.sin(a) * o.h * 0.3], [0, o.h * 0.38, 0], o.r * 0.3, o.r * 0.3, 1); }
+  o.heads.forEach((hd, hi) => {
+    const c = [top[0] + hd.at[0], top[1] + hd.at[1], hd.at[2]];
+    if (hi) stick([o.bend * o.h * 0.5, o.h * 0.7, 0], c, o.r * 0.5, o.r * 0.4, 1);
+    for (let f = 0; f < hd.n; f++) {
+      const a = f / hd.n * Math.PI * 2 + hi * 1.3, el = hd.up - (f % 4) / 3 * (hd.up - hd.down), ca = Math.cos(a), sa = Math.sin(a), base = pos.length / 3;
+      for (let j = 0; j <= hd.seg; j++) {
+        const u = j / hd.seg, out = hd.L * u * Math.cos(el) * (1 - 0.12 * u * u), y = hd.L * (Math.sin(el) * u - hd.droop * u * u), w = hd.W * Math.pow(Math.sin(Math.PI * Math.min(1, 0.06 + u * 0.94)), 0.45);
+        for (const sd of [-1, 1]) { pos.push(c[0] + ca * out - sa * w * sd, c[1] + y - Math.abs(sd) * w * hd.vee, c[2] + sa * out + ca * w * sd); nrm.push(ca * 0.3, 0.95, sa * 0.3); uv.push(u, sd); }
+        if (j) { const q = base + j * 2; idx.push(q - 2, q - 1, q, q, q - 1, q + 1); }
+      }
+    }
+  });
+  const g = new THREE.InstancedBufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('aUV', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+  return g;
+}
+function buildPalms(F, scene, occ) {
+  const R = rng(4711), taken = new Set();
+  const free = (x, z, d) => { const k = cellKey(x, z, d); if (taken.has(k) || occ.has(cellKey(x, z, 6))) return false; taken.add(k); return true; };
+  const palms = [], pands = [];
+  const find = (re) => F.places.find(o => re.test(o.n || ''))?.p;
+  for (const [re, n, rad] of [[/^Tangalooma/, 150, 560], [/Bulwer/, 36, 380], [/Cowan/, 22, 320], [/Kooringal/, 40, 420]]) {
+    const c = find(re); if (!c) continue;
+    for (let t = 0, k = 0; t < n * 60 && k < n; t++) {
+      const a = R() * 6.283, r = Math.sqrt(R()) * rad, x = c[0] + Math.cos(a) * r, z = c[1] + Math.sin(a) * r * 1.6, m = maskAt(x, z), y = meshY(x, z) / VEX;
+      if (m.land < 0.9 || y < 1.7 || y > 16 || m.shore < 10 || m.shore > 240 || !free(x, z, 7)) continue;
+      palms.push(x, meshY(x, z) - 0.15, z, R() * 6.283, 0.8 + R() * 0.55, R()); k++;
+    }
+  }
+  for (let t = 0; t < 420000 && pands.length < (MOBILE ? 800 : 1500) * 6; t++) {
+    const x = (R() - 0.5) * T.sx * 0.96, z = (R() - 0.5) * T.sz * 0.96, m = maskAt(x, z);
+    if (m.land < 0.9 || m.shore < 20 || m.shore > 120 || m.sand > 0.8) continue;
+    const y = meshY(x, z) / VEX; if (y < 2 || y > 32 || !free(x, z, 7)) continue;
+    pands.push(x, meshY(x, z) - 0.1, z, R() * 6.283, 0.7 + R() * 0.7, R());
+  }
+  const mat = (cut, leaf, wood) => makeMat({
+    side: THREE.DoubleSide, uniforms: { uCut: { value: cut }, uLeaf: { value: new THREE.Vector3(...leaf) }, uWood: { value: new THREE.Vector3(...wood) } },
+    vs: /* glsl */`
+      attribute vec2 aUV; attribute vec4 iPos; attribute vec2 iPar; uniform vec3 uLeaf, uWood; uniform vec2 uWindDir;
+      varying vec3 vCol, vDir; varying vec2 vUV; varying float vFog;
+      void main(){
+        float ca = cos(iPos.w), sa = sin(iPos.w), sc = iPar.x * 1.25, lf = step(0.0, aUV.x);
+        vec3 p = position * sc; p.xz = vec2(p.x * ca - p.z * sa, p.x * sa + p.z * ca);
+        vec3 n = vec3(normal.x * ca - normal.z * sa, normal.y, normal.x * sa + normal.z * ca);
+        // fronds stream and flutter in the wind, the trunk leans a little
+        float gust = sin(uTime * 1.3 + iPar.y * 40.0 + aUV.x * 2.5) + 0.5 * sin(uTime * 3.1 + iPar.y * 17.0 + aUV.x * 6.0);
+        p.xz += uWindDir * (lf * aUV.x * aUV.x * (0.25 + 0.2 * gust) + (1.0 - lf) * aUV.y * aUV.y * 0.05 * gust) * sc;
+        vec3 wp = iPos.xyz + p;
+        float far = 1.0 - smoothstep(3200.0, 4200.0, length(wp - cameraPosition));
+        float nl = mix(max(dot(n, uLightDir), 0.0), 0.35 + 0.5 * max(uLightDir.y, 0.0), lf * 0.6);
+        vec3 c = mix(uWood * (0.8 + 0.3 * sin(aUV.y * 60.0)), uLeaf * (0.75 + 0.5 * iPar.y) * (0.75 + 0.45 * aUV.x), lf);
+        float ao = mix(0.55 + 0.4 * aUV.y, 0.6 + 0.4 * aUV.x, lf);
+        vCol = c * (uLightCol * nl * cloudShadow(wp) * ao + mix(uAmbGnd, uAmbSky, n.y * 0.5 + 0.5) * ao);
+        vUV = aUV; vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition);
+        gl_Position = far <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
+        ${LOGV}
+      }`,
+    fs: /* glsl */`varying vec3 vCol, vDir; varying vec2 vUV; varying float vFog; uniform float uCut;
+      void main(){
+        ${LOGF}
+        if(vUV.x >= 0.0 && uCut > 0.0){                       // cut the blade into leaflets on both sides of the rib
+          float v = abs(vUV.y);
+          if(v > 0.1 && fract(vUV.x * uCut + v * 0.9) > 0.6) discard;
+        }
+        gl_FragColor = vec4(mix(vCol, fogColor(vDir), vFog), 1.0);
+      }`,
+  });
+  const add = (g, list, m) => {
+    const n = list.length / 6, a = new Float32Array(n * 4), b = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { a.set(list.slice(i * 6, i * 6 + 4), i * 4); b[i * 2] = list[i * 6 + 4]; b[i * 2 + 1] = list[i * 6 + 5]; }
+    g.setAttribute('iPos', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iPar', new THREE.InstancedBufferAttribute(b, 2)); g.instanceCount = n;
+    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
+  };
+  // coconut palm: a tall, slightly curved ringed trunk and a head of long arching fronds
+  add(frondPlant({ h: 9.5, r: 0.17, bend: 0.14, rings: 5, heads: [{ at: [0, 0, 0], n: 12, L: 4.2, W: 0.62, up: 1.05, down: -0.35, droop: 0.75, seg: 5, vee: 0.25 }] }), palms, mat(16, [0.26, 0.40, 0.10], [0.46, 0.41, 0.34]));
+  // pandanus: a short trunk standing on prop roots, a few branches, each ending in a tuft of long narrow leaves
+  add(frondPlant({ h: 2.8, r: 0.12, bend: 0.1, rings: 2, roots: 5, heads: [{ at: [0, 0.2, 0], n: 10, L: 1.5, W: 0.07, up: 1.2, down: -0.2, droop: 0.95, seg: 3, vee: 0.3 }, { at: [0.9, -0.5, 0.3], n: 9, L: 1.35, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }, { at: [-0.6, -0.7, -0.7], n: 9, L: 1.3, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }] }), pands, mat(0, [0.20, 0.36, 0.15], [0.40, 0.35, 0.27]));
 }
 
 // ---------------------------------------------------------------- wrecks
@@ -491,9 +686,31 @@ function buildLabels(F, flyTo) {
 }
 
 // ---------------------------------------------------------------- assemble
+// The beaches are the island's highways. Follow the firm sand just above the tide down each coast
+// (side +1: the ocean beach on the east, -1: the bay beach on the west) and return the runs of open sand.
+function beachRoutes() {
+  const out = [];
+  for (const side of [1, -1]) {
+    let run = [];
+    const close = () => { if (run.length > 30) { for (let k = 0; k < 3; k++) run = run.map((p, i) => i && i < run.length - 1 ? [(run[i - 1][0] + p[0] * 2 + run[i + 1][0]) / 4, p[1]] : p); out.push({ p: run, side }); } run = []; };
+    for (let z = -T.sz / 2 + 500; z < T.sz / 2 - 500; z += 45) {
+      let x = side * (T.sx / 2 - 150), hit = null;
+      for (let i = 0; i < 2400 && Math.abs(x) < T.sx / 2; i++, x -= side * 9) if (groundH(x, z) > 0.9) { hit = x; break; }
+      const bx = hit === null ? 0 : hit - side * 14, m = hit === null ? null : maskAt(bx, z);
+      // keep only real beach: sand, open ground behind it, and no jump sideways from the last point (headlands, creek mouths, offshore banks)
+      if (!m || m.sand < 0.5 || groundH(hit - side * 70, z) < 1.2 || (run.length && Math.abs(bx - run[run.length - 1][0]) > 60)) { close(); continue; }
+      run.push([bx, z]);
+    }
+    close();
+  }
+  return out;
+}
+
 export function buildFeatures(scene, F, flyTo) {
   const occ = new Set(), g = new GB(), lights = makeLights(700);
   const casters = [];
+  F.beach = beachRoutes();
+  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.11 + wig) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // several sets of wheel ruts wandering along the sand
   buildOverlay(F);
   buildBuildings(F, g, occ, casters, lights);
   buildRoads(F, scene, occ);
@@ -505,6 +722,7 @@ export function buildFeatures(scene, F, flyTo) {
   const fl = buildFloaters(st.floaters, scene, lights);
   buildLakes(F, scene);
   const trees = buildTrees(F, scene);
+  buildPalms(F, scene, occ);
   scene.add(lights.pts);
   const labels = buildLabels(F, flyTo);
 

@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }</script>
 </head>
 <body>
@@ -57,13 +57,14 @@
 <nav id="places" class="glass win" data-win="Places"></nav>
 
 <div id="dock">
-<div id="walkHint" class="win" data-win="Walking help"><b>Walking</b> <span class="kb">W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br></span><small>Touch: hold a finger down to walk · slide it sideways to steer, up to run, down to stop or back up · a second finger looks around<br>Gamepad: sticks, A jump, RT run, B map</small></div>
+<div id="walkHint" class="win" data-win="Walking help"><b>Walking</b> <span class="kb">W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br></span><small>Touch: put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around<br>Gamepad: sticks, A jump, RT run, B map</small></div>
 <footer id="bar" class="glass win" data-win="Controls">
   <button id="btLive" class="pill on" title="Follow the real time on the island">● Live</button>
   <button id="btPlay" class="pill" title="Run a day in a few minutes">▶ Day cycle</button>
   <span id="clock">--:--</span>
   <input id="time" type="range" min="0" max="1439" step="1" value="720" aria-label="Time of day">
   <span class="sep"></span>
+  <button id="btSound" class="pill" title="Wind, sea, cicadas and bird calls">Sound</button>
   <button id="btWalk" class="pill" title="Walk on the island from the centre of the view (or double-click a spot)">Walk</button>
   <button id="btLabels" class="pill on">Names</button>
   <button id="btDepth" class="pill on" title="Seabed depth lines">Depths</button>
@@ -78,6 +79,6 @@
 <div id="stick"><i></i></div>
 <div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=6"></script>
+<script type="module" src="src/main.js?v=7"></script>
 </body>
 </html>

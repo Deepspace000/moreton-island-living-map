@@ -124,7 +124,7 @@ export function buildBoats(scene, F) {
   const tw = at(find(F.views, /Tangalooma Wrecks/)), tg = at(find(F.places, /^Tangalooma/)), bw = at(find(F.places, /Bulwer/)), cc = at(find(F.places, /Cowan/)), ko = at(find(F.places, /Kooringal/)), dg = at(find(F.seanames, /Days Gutter/));
   const M3 = ['moor', 'moor', 'cru', 'cru', 'tin'];
   if (tw) { moor(tw[0] - 60, tw[1], MOBILE ? 9 : 16, 330, M3, 1.6, 9); }
-  if (tg) moor(tg[0] - 350, tg[1] + 100, MOBILE ? 4 : 7, 420, M3);
+  if (tg) moor(tg[0] - 350, tg[1] + 100, MOBILE ? 7 : 12, 480, M3);
   if (bw) moor(bw[0] - 350, bw[1], 6, 420, M3);
   if (cc) moor(cc[0] - 300, cc[1], 4, 350, M3);
   if (ko) moor(ko[0] - 250, ko[1], 7, 520, ['moor', 'cru', 'tin', 'tin'], 1.2, 9);
@@ -141,13 +141,23 @@ export function buildBoats(scene, F) {
     for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
     mk(sail ? pick(geo.sail) : pick(geo.cru), x, z, { move: 1, sail, home: h, tx: x, tz: z, tt: 0, tack: R() < .5 ? 1 : -1, mast: sail ? 15.5 : 5.3, cruise: sail ? 0 : 8 + R() * 5 });
   }
+  // small boats pottering between the resort and the wrecks
+  if (tg) for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
+    const h = [tg[0] - 1000, tg[1] - 900, 1700], tin = i % 2 === 0;
+    let x = h[0], z = h[1];
+    for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
+    mk(tin ? geo.tin[0] : pick(geo.cru), x, z, { move: 1, sail: false, home: h, tx: x, tz: z, tt: 0, tack: 1, mast: tin ? 1.2 : 5.3, small: tin ? 1 : 0, cruise: tin ? 5 + R() * 3 : 7 + R() * 4 });
+  }
   // ---- ferries on their charted routes ----
   for (const f of F.ferries) {
     let pts = f.p.filter(p => p[0] > -T.sx / 2 - 9000 && Math.abs(p[1]) < T.sz / 2 + 5000);
     if (pts.length < 2) continue;
     const big = /MICAT/i.test(f.n), trader = /Trader/i.test(f.n);
     const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-    mk(big || trader ? geo.barge : geo.flyer, pts[0][0], pts[0][1], { ferry: 1, move: 1, big: 1, pts, cum, s: R() * cum[cum.length - 1], dir: 1, wait: 0, scale: trader ? 0.55 : 1, cruise: big ? 9 : trader ? 6 : 15, mast: big ? 12.5 : 10.8 });
+    // the island end of each route: the resort jetty, the wrecks landing, Kooringal
+    const end = cum[cum.length - 1], e0 = pts[0], e1 = pts[pts.length - 1], islandFirst = Math.hypot(e0[0], e0[1] / 2) < Math.hypot(e1[0], e1[1] / 2);
+    const out = big ? 2600 : trader ? 900 : 1500;                       // metres still to run when the map opens
+    mk(big || trader ? geo.barge : geo.flyer, pts[0][0], pts[0][1], { ferry: 1, move: 1, big: 1, pts, cum, s: islandFirst ? out : end - out, dir: islandFirst ? -1 : 1, wait: 0, scale: trader ? 0.55 : 1, cruise: big ? 9 : trader ? 6 : 15, mast: big ? 12.5 : 10.8 });
   }
 
   // ---- wakes ----
@@ -195,7 +205,7 @@ export function buildBoats(scene, F) {
             const toEnd = b.dir > 0 ? end - b.s : b.s;
             b.sp += (Math.min(b.cruise, 1.5 + toEnd * 0.05) * 1.6 - b.sp) * Math.min(1, dt * 0.5);
             b.s += b.sp * b.dir * dt;
-            if (b.s >= end || b.s <= 0) { b.s = clamp(b.s, 0, end); b.dir *= -1; b.wait = 35; }
+            if (b.s >= end || b.s <= 0) { b.s = clamp(b.s, 0, end); b.dir *= -1; b.wait = 75; }
           }
           let i = 1; while (i < b.cum.length - 1 && b.cum[i] < b.s) i++;
           const a = b.pts[i - 1], c = b.pts[i], f = (b.s - b.cum[i - 1]) / Math.max(1, b.cum[i] - b.cum[i - 1]);
