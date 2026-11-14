@@ -11,6 +11,82 @@ const cellKey = (x, z, s) => (Math.floor(x / s) + 8192) * 16384 + (Math.floor(z 
 // ---------------------------------------------------------------- buildings
 const WALLS = [[.93, .90, .83], [.90, .84, .70], [.84, .77, .62], [.95, .94, .91], [.76, .68, .55], [.86, .82, .73], [.80, .88, .88], [.92, .85, .60]];
 const ROOFS = [[.70, .72, .72], [.38, .52, .44], [.68, .27, .18], [.78, .73, .62], [.28, .40, .54], [.86, .86, .84], [.52, .54, .55], [.74, .36, .24], [.58, .65, .60]];
+// ---- houses of the island townships ----
+// Bulwer, Cowan Cowan and Kooringal are off the grid: small fibro and weatherboard beach shacks, highset timber
+// houses on stumps with a verandah, newer two-storey places with skillion roofs, tin sheds and the odd shipping
+// container, all under corrugated iron, each with its rainwater tanks and many with solar panels.
+const PASTEL = [[.93, .92, .88], [.90, .85, .72], [.72, .82, .88], [.74, .86, .78], [.92, .87, .64], [.64, .62, .57], [.86, .76, .70], [.80, .86, .90]];
+const MODERN = [[.30, .32, .34], [.78, .72, .60], [.93, .93, .91], [.52, .56, .54], [.40, .46, .50]];
+const IRON = [[.72, .74, .75], [.42, .52, .45], [.55, .22, .17], [.82, .78, .66], [.28, .30, .32], [.60, .68, .72], [.50, .38, .30], [.66, .68, .66]];
+const TANKS = [[.70, .72, .72], [.50, .60, .52], [.82, .78, .66], [.45, .50, .52]];
+const pickC = (R, a) => a[(R() * a.length) | 0];
+function houseStyle(R, area, cape) {
+  const r = R(), r2 = R();
+  if (cape) return { stump: 0.4, wallH: 2.8, roofT: 'gable', pitch: 0.3, wall: [.94, .93, .89], roof: [.50, .52, .54], ver: area > 60, verD: 2.2, tank: area > 60, solar: false, win: 1 };
+  if (area < 34) return r < 0.25
+    ? { stump: 0.1, wallH: 2.5, roofT: 'skillion', pitch: 0.01, wall: pickC(R, [[.16, .32, .50], [.55, .20, .14], [.20, .42, .30], [.50, .34, .24], [.80, .80, .78]]), roof: [.5, .5, .5], ver: false, tank: false, solar: r2 < 0.4, win: 0 }      // a shipping container
+    : { stump: 0, wallH: 2.5, roofT: r2 < 0.5 ? 'skillion' : 'gable', pitch: 0.16, wall: pickC(R, IRON), roof: pickC(R, IRON), ver: false, tank: r2 < 0.3, solar: false, win: 0 };                                                              // a tin shed
+  if (area < 95) return { stump: 0.5, wallH: 2.5, roofT: r < 0.45 ? 'skillion' : 'gable', pitch: r < 0.45 ? 0.14 : 0.2, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: r2 < 0.6, verD: 2.0, tank: true, solar: r2 > 0.6, win: 1 };              // a beach shack
+  if (r < 0.45) return { stump: 2.4, wallH: 2.7, roofT: 'gable', pitch: 0.3, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: true, verD: 2.4, tank: true, solar: r2 < 0.55, under: r2 > 0.5, win: 1 };                                         // a highset house on stumps
+  if (r < 0.8) return { stump: 0.6, wallH: 2.8, roofT: 'gable', pitch: 0.26, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: r2 < 0.75, verD: 2.4, tank: true, solar: r2 > 0.5, win: 1 };                                                    // a lowset house
+  return { stump: 0.3, wallH: 5.5, roofT: 'skillion', pitch: 0.13, wall: pickC(R, MODERN), roof: pickC(R, [[.28, .30, .32], [.72, .74, .75], [.82, .78, .66]]), ver: true, verD: 3.0, tank: true, solar: r2 < 0.75, win: 1 };                  // a newer two-storey beach house
+}
+function buildHouse(g, pts, base, hi, st, R) {
+  const K = VEX * 0.9, POST = [.42, .37, .30], TIMBER = [.55, .47, .38], H2 = Math.hypot;
+  const [p0, p1, p2, p3] = pts, e0 = H2(p1[0] - p0[0], p1[1] - p0[1]), e1 = H2(p2[0] - p1[0], p2[1] - p1[1]);
+  const [a, b, , d] = e0 >= e1 ? [p0, p1, p2, p3] : [p1, p2, p3, p0];
+  const L = H2(b[0] - a[0], b[1] - a[1]), Wd = H2(d[0] - a[0], d[1] - a[1]), u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], v = [(d[0] - a[0]) / Wd, (d[1] - a[1]) / Wd];
+  const P = (s, t, y, k = 0, w = [0, 0]) => [a[0] + u[0] * s * L + v[0] * t * Wd + w[0] * k, y, a[1] + u[1] * s * L + v[1] * t * Wd + w[1] * k];      // a point of the plan: s along, t across, k metres out along w
+  const yG = base, yF = hi + st.stump * K, yT = yF + st.wallH * K, high = st.stump > 1.2, yLow = high ? yF : yG - 1.2;
+  const tv = v[0] > 0 ? 0 : 1, w = tv === 0 ? [-v[0], -v[1]] : v;                    // the front faces west, to the bay
+  const es = 0.5 / L, et = 0.5 / Wd, rf = (s) => [-1, s * L, 0];                     // eaves; roof sheets are marked so the shader can rib them
+  // walls, with windows
+  const C = [[0, 0], [1, 0], [1, 1], [0, 1]]; let along = 0;
+  for (let i = 0; i < 4; i++) {
+    const [s0, t0] = C[i], [s1, t1] = C[(i + 1) % 4], len = i % 2 ? Wd : L, f0 = (yLow - yF) / K, f1 = st.wallH;
+    g.quad(P(s1, t1, yLow), P(s0, t0, yLow), P(s0, t0, yT), P(s1, t1, yT), st.wall, [st.win, along + len, f0], [st.win, along, f0], [st.win, along, f1], [st.win, along + len, f1]);
+    along += len + 1.3;
+  }
+  if (high) {            // stumps, the dark underside of the floor, and sometimes a room built in underneath
+    const ns = Math.max(2, Math.round(L / 3.5) + 1), nt = Wd > 6.5 ? 3 : 2;
+    for (let i = 0; i < ns; i++) for (let j = 0; j < nt; j++) { const q = P(0.03 + 0.94 * i / (ns - 1), 0.04 + 0.92 * j / (nt - 1), 0); g.box(q[0], yG - 0.6, q[2], 0.24, yF - yG + 0.6, 0.24, POST); }
+    g.quad(P(0, 0, yF), P(1, 0, yF), P(1, 1, yF), P(0, 1, yF), [.28, .26, .23]);
+    if (st.under) { const dk = [st.wall[0] * .8, st.wall[1] * .8, st.wall[2] * .8], Q = [[0.5, 0.05], [0.98, 0.05], [0.98, 0.95], [0.5, 0.95]]; for (let i = 0; i < 4; i++) { const [s0, t0] = Q[i], [s1, t1] = Q[(i + 1) % 4]; g.quad(P(s1, t1, yG - 1), P(s0, t0, yG - 1), P(s0, t0, yF), P(s1, t1, yF), dk); } }
+  }
+  // roof of corrugated iron
+  let top = yT;
+  if (st.roofT === 'gable') {
+    const rh = Wd * st.pitch * K, ye = yT - 0.12; top = yT + rh;
+    const r0 = P(-es, 0.5, top), r1 = P(1 + es, 0.5, top);
+    g.quad(P(-es, -et, ye), P(1 + es, -et, ye), r1, r0, st.roof, rf(-es), rf(1 + es), rf(1 + es), rf(-es));
+    g.quad(P(1 + es, 1 + et, ye), P(-es, 1 + et, ye), r0, r1, st.roof, rf(1 + es), rf(-es), rf(-es), rf(1 + es));
+    g.tri(P(0, 0, yT), P(0, 1, yT), P(0, 0.5, top), st.wall); g.tri(P(1, 1, yT), P(1, 0, yT), P(1, 0.5, top), st.wall);
+    if (st.solar) {      // panels on the slope that faces north
+      const tn = v[1] > 0 ? 0 : 1, T = (f) => tn === 0 ? 0.5 * f : 1 - 0.5 * f, Y = (f) => yT + rh * f + 0.14, s0 = 0.2 + R() * 0.15, s1 = s0 + 0.4;
+      g.quad(P(s0, T(0.2), Y(0.2)), P(s1, T(0.2), Y(0.2)), P(s1, T(0.8), Y(0.8)), P(s0, T(0.8), Y(0.8)), [.07, .09, .18]);
+    }
+  } else {               // a skillion: one slope, high at the front
+    const rise = Wd * st.pitch * K, Y = (t) => yT + rise * (tv === 0 ? 1 - t : t) + 0.05; top = yT + rise;
+    g.quad(P(-es, -et, Y(-et)), P(1 + es, -et, Y(-et)), P(1 + es, 1 + et, Y(1 + et)), P(-es, 1 + et, Y(1 + et)), st.roof, rf(-es), rf(1 + es), rf(1 + es), rf(-es));
+    g.quad(P(0, tv, yT), P(1, tv, yT), P(1, tv, yT + rise), P(0, tv, yT + rise), st.wall);
+    for (const s of [0, 1]) g.tri(P(s, tv, yT), P(s, 1 - tv, yT), P(s, tv, yT + rise), st.wall);
+    if (st.solar) g.quad(P(0.25, 0.25, Y(0.25) + 0.12), P(0.7, 0.25, Y(0.25) + 0.12), P(0.7, 0.75, Y(0.75) + 0.12), P(0.25, 0.75, Y(0.75) + 0.12), [.07, .09, .18]);
+  }
+  if (st.ver) {          // verandah or deck along the front: boards, posts, a rail, its own strip of roof, and steps down from a highset house
+    const dv = st.verD, yV = yT - 0.45 * K, m = Math.max(2, Math.round(L / 3) + 1);
+    g.quad(P(0, tv, yF, 0, w), P(1, tv, yF, 0, w), P(1, tv, yF, dv, w), P(0, tv, yF, dv, w), TIMBER);
+    g.quad(P(0, tv, yF - 0.3, dv, w), P(1, tv, yF - 0.3, dv, w), P(1, tv, yF, dv, w), P(0, tv, yF, dv, w), POST);
+    for (let i = 0; i < m; i++) { const q = P(0.02 + 0.96 * i / (m - 1), tv, 0, dv - 0.12, w), y0 = high ? yG - 0.6 : yF - 0.4; g.box(q[0], y0, q[2], 0.16, yV - y0, 0.16, [.90, .89, .85]); }
+    for (const hgt of [0.5, 1.0]) g.quad(P(0, tv, yF + (hgt - 0.05) * K, dv, w), P(1, tv, yF + (hgt - 0.05) * K, dv, w), P(1, tv, yF + (hgt + 0.03) * K, dv, w), P(0, tv, yF + (hgt + 0.03) * K, dv, w), [.90, .89, .85]);
+    g.quad(P(-es, tv, yT - 0.08, 0, w), P(1 + es, tv, yT - 0.08, 0, w), P(1 + es, tv, yV, dv + 0.35, w), P(-es, tv, yV, dv + 0.35, w), st.roof, rf(-es), rf(1 + es), rf(1 + es), rf(-es));
+    if (yF - yG > 1) { const run = (yF - yG) / K * 1.15, s0 = 0.1, s1 = s0 + 1.2 / L; g.quad(P(s0, tv, yF, dv, w), P(s1, tv, yF, dv, w), P(s1, tv, yG, dv + run, w), P(s0, tv, yG, dv + run, w), TIMBER); }
+  }
+  if (st.tank) {         // rainwater tanks at the end of the house: there is no town water
+    const n = R() < 0.35 ? 2 : 1;
+    for (let i = 0; i < n; i++) { const r = 1.2 + R() * 0.7, c = pickC(R, TANKS), q = P(i ? 0 : 1, 0.3 + 0.4 * R(), 0, r + 0.6, i ? [-u[0], -u[1]] : u); g.cyl(q[0], yG - 0.4, q[2], r, r, (2.0 + R() * 0.6) * K + (hi - base) + 0.4, 12, c, [c[0] * .85, c[1] * .85, c[2] * .85]); }
+  }
+  return top;
+}
 function buildBuildings(F, g, occ, casters, lights) {
   const R = rng(11); let nl = 0;
   const cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p;
@@ -28,10 +104,13 @@ function buildBuildings(F, g, occ, casters, lights) {
     h *= VEX * 0.9;
     let wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
     if (cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350) { wall = [.94, .93, .89]; roof = [.50, .52, .54]; }       // the lighthouse keepers' cottages and sheds: white walls, grey roofs
+    const isCape = cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350, st = n === 4 && area < 340 ? houseStyle(R, area, isCape) : null;
+    if (st) h = (st.stump + st.wallH) * VEX * 0.9;
     const y0 = base - 1.5, y1 = hi + h;
     const win = area > 30 ? 1 : 0;
     casters.push({ pts, y: hi, h: h + Math.min(Math.sqrt(area) * 0.12, 2) * VEX });
     if (area > 55 && nl < 230 && R() < 0.7) { nl++; const q = pts[(R() * n) | 0]; lights.add([q[0] + (q[0] - cx) * 0.15, hi + 2.4 * VEX, q[1] + (q[1] - cz) * 0.15], [1, .74, .42], 0, 1, 0, 0.75); }
+    if (st) { buildHouse(g, pts, base, hi, st, R); continue; }
     let along = 0;
     for (let i = 0; i < n; i++) {
       const p = pts[i], q = pts[(i + 1) % n], len = Math.hypot(q[0] - p[0], q[1] - p[1]);

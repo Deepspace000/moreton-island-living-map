@@ -150,6 +150,10 @@ export function objectMat(opts = {}) {
             alb = mix(alb, vec3(0.02, 0.035, 0.05), win * 0.85);
             em = vec3(1.0, 0.72, 0.36) * win * lit * uNight * 2.4;
           }
+          if(vFx.x < -0.5){                      // corrugated iron: ribs running down the roof, weathered in streaks
+            float rib = sin(vFx.y * 14.0) * (1.0 - smoothstep(0.06, 0.3, fwidth(vFx.y)));
+            alb *= 0.93 + 0.07 * rib + 0.14 * (texture2D(uNoise, vec2(vFx.y * 0.11, vW.y * 0.02 + vW.x * 0.004)).r - 0.5);
+          }
         #endif
         alb *= 0.72 + 0.28 * smoothstep(-0.3, 3.5, (vW.y - uSeaM * uVex) / uVex + step(1.0, vFx.x) * 9.0);   // grime toward the waterline
         if(vFx.x > 0.5) alb *= 0.62 + 0.38 * smoothstep(-0.2, 2.6, vFx.z);          // walls darken toward the ground

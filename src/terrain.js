@@ -228,6 +228,8 @@ export function buildTerrain(scene) {
         sd *= 0.66;
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
+        float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(vW.xz - uCape.xy));
+        float floorK = (1.0 - sand) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland);
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
@@ -236,26 +238,28 @@ export function buildTerrain(scene) {
           col *= 1.0 - 0.05 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + nE.r * 7.0) * 0.5 + 0.5);      // wind ripples in the sand
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
-          float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(vW.xz - uCape.xy));      // the cape is long green grass, not leaf litter
-          col = mix(col, vec3(0.10, 0.19, 0.055) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);
-          float floorK = close * (1.0 - sand) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland);
-          if(floorK > 0.0){
+          col = mix(col, vec3(0.10, 0.19, 0.055) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long green grass
+          // The floor of the bush is sand, the same pale yellow sand as the beaches, with dark detritus lying on it:
+          // drifts of dead leaves, bark and twigs under the trees, a scatter of single pieces between, and almost no grass.
+          if(floorK * close > 0.0){
             float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, vW.xz / 900.0).b);          // the same burnt country the trees know
-            vec3 lf = mix(vec3(0.13, 0.085, 0.05), vec3(0.33, 0.22, 0.12), nE.r);                 // layers of brown leaves
-            lf = mix(lf, vec3(0.46, 0.33, 0.18), smoothstep(0.58, 0.8, nF.b) * 0.7);              // newer, paler ones on top
-            lf = mix(lf, vec3(0.62, 0.58, 0.50), smoothstep(0.66, 0.82, nE.b * 0.6 + nF.g * 0.5) * 0.8);      // bare pale sand between
-            lf = mix(lf, vec3(0.03, 0.028, 0.026), smoothstep(0.6, 0.8, nG.b * 0.6 + nF.r * 0.5) * 0.75 * burnt);   // charcoal and ash
+            float drift = smoothstep(0.38, 0.7, nE.r * 0.55 + nF.b * 0.35 + nB.r * 0.4 - 0.12);
+            vec3 det = mix(vec3(0.085, 0.06, 0.04), vec3(0.20, 0.13, 0.075), nF.r);            // dark brown leaves and twigs
+            det = mix(det, vec3(0.03, 0.028, 0.026), smoothstep(0.55, 0.8, nG.b) * burnt);      // charcoal where it has burnt
+            float speck = smoothstep(0.5, 0.62, nG.r * 0.6 + nF.g * 0.5);                       // broken cover: single leaves round the edges of the drifts
+            vec3 lf = mix(sd, det, clamp(drift * (0.5 + 0.5 * speck) + (1.0 - drift) * speck * 0.22, 0.0, 1.0));
             float fine = 1.0 - smoothstep(8.0, 50.0, dist);
             float s1 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.8, 0.6)) / 1.3, dot(vW.xz, vec2(-0.6, 0.8)) / 0.07)).r;         // sticks and strips of bark, lying every way
             float s2 = texture2D(uNoise, vec2(dot(vW.xz, vec2(-0.5, 0.87)) / 1.1, dot(vW.xz, vec2(0.87, 0.5)) / 0.06) + 0.31).g;
             float s3 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.17, 0.98)) / 0.5, dot(vW.xz, vec2(-0.98, 0.17)) / 0.035) + 0.63).b;
-            lf = mix(lf, vec3(0.55, 0.50, 0.43), smoothstep(0.73, 0.79, s1) * fine * 0.9);
-            lf = mix(lf, vec3(0.09, 0.07, 0.055), smoothstep(0.75, 0.81, s2) * fine * 0.85);
-            lf = mix(lf, vec3(0.46, 0.33, 0.19), smoothstep(0.7, 0.76, s3) * fine * 0.8);
-            float green = smoothstep(0.62, 0.82, nE.g * 0.6 + nB.g * 0.6);                        // patches of living ground cover keep their green
-            col = mix(col, lf * 0.82, floorK * (1.0 - 0.5 * green) * 0.95);
+            lf = mix(lf, vec3(0.15, 0.105, 0.07), smoothstep(0.73, 0.79, s1) * fine * 0.9);
+            lf = mix(lf, vec3(0.07, 0.055, 0.045), smoothstep(0.75, 0.81, s2) * fine * 0.9);
+            lf = mix(lf, vec3(0.24, 0.16, 0.09), smoothstep(0.7, 0.76, s3) * fine * 0.85);
+            col = mix(col, lf, floorK * close * 0.97);
           }
         }
+        // farther off the same floor shows between the bushes as sand dulled by its litter
+        col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85);
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));

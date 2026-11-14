@@ -106,7 +106,7 @@ function buildBeachLife(scene) {
         lp = vec3(position.x * len, (position.y * taper + 0.8) * rad, position.z * rad * taper + crook * len);
         nrm = vec3(0.0, position.y, position.z);
         float grain = texture2D(uNoise, vec2(position.x * len * 0.35 + h1, aK * 0.07 + h2)).r;
-        c = mix(mix(vec3(0.52, 0.48, 0.42), vec3(0.30, 0.23, 0.16), smoothstep(0.3, 0.7, h4)), vec3(0.04, 0.035, 0.03), step(0.82, h1) * 0.85) * (0.65 + 0.6 * grain);`, 300);
+        c = mix(mix(vec3(0.26, 0.21, 0.16), vec3(0.14, 0.10, 0.07), smoothstep(0.3, 0.7, h4)), vec3(0.04, 0.035, 0.03), step(0.82, h1) * 0.85) * (0.65 + 0.6 * grain);`, 300);
   // leaves and curls of bark: one small flat piece, long and narrow
   const litter = scatter(scene, LOW ? 84 : 128, 0.5, (g) => {
     attr(g, 'position', [-0.5, 0, 0, 0, 0, 0.5, 0.5, 0, 0, 0, 0, -0.5], 3); attr(g, 'aK', [0, 1, 0, 1], 1); g.setIndex([0, 1, 2, 0, 2, 3]);
@@ -116,8 +116,8 @@ function buildBeachLife(scene) {
         float len = bark > 0.5 ? 0.16 + 0.26 * h1 : 0.07 + 0.07 * h1, wid = bark > 0.5 ? 0.025 + 0.02 * h2 : 0.02;
         lp = vec3(position.x * len, 0.012 + abs(position.x) * len * (0.06 + 0.3 * h2 * bark) + aK * 0.006, position.z * wid * 2.0);       // lying nearly flat, bark curled up at the ends
         nrm = vec3(0.0, 1.0, 0.0);
-        c = bark > 0.5 ? mix(vec3(0.40, 0.36, 0.30), vec3(0.27, 0.22, 0.17), h2)
-          : (h2 < 0.35 ? vec3(0.30, 0.18, 0.08) : h2 < 0.65 ? vec3(0.42, 0.31, 0.17) : h2 < 0.85 ? vec3(0.24, 0.21, 0.18) : vec3(0.47, 0.25, 0.09));
+        c = bark > 0.5 ? mix(vec3(0.22, 0.18, 0.14), vec3(0.13, 0.10, 0.08), h2)
+          : (h2 < 0.35 ? vec3(0.16, 0.09, 0.045) : h2 < 0.65 ? vec3(0.24, 0.16, 0.08) : h2 < 0.85 ? vec3(0.10, 0.085, 0.07) : vec3(0.30, 0.15, 0.06));
         c *= 0.7 + 0.35 * h1;`, 120);
   // tufts of grass and sedge coming up through the litter
   const tufts = scatter(scene, LOW ? 60 : 92, 1.15, (g) => {
@@ -126,7 +126,7 @@ function buildBeachLife(scene) {
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   }, /* glsl */`
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));        // long grass all over the cape
-        s = (0.3 + 0.5 * h1) * (1.0 + 0.8 * headland) * step(h3, mix(0.34, 0.95, headland)) * step(0.92, mk.r) * (1.0 - smoothstep(0.45, 0.8, mk.g)) * step(1.2, hgt);
+        s = (0.3 + 0.5 * h1) * (1.0 + 0.8 * headland) * step(h3, mix(0.035, 0.95, headland)) * step(0.92, mk.r) * (1.0 - smoothstep(0.45, 0.8, mk.g)) * step(1.2, hgt);
         lp = position + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK;
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(vec3(0.20, 0.32, 0.11), vec3(0.52, 0.50, 0.24), step(0.6, h2)) * (0.55 + 0.6 * aK) * (0.8 + 0.4 * h4);`, 200);
