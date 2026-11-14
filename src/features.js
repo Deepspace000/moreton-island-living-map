@@ -13,6 +13,7 @@ const WALLS = [[.93, .90, .83], [.90, .84, .70], [.84, .77, .62], [.95, .94, .91
 const ROOFS = [[.70, .72, .72], [.38, .52, .44], [.68, .27, .18], [.78, .73, .62], [.28, .40, .54], [.86, .86, .84], [.52, .54, .55], [.74, .36, .24], [.58, .65, .60]];
 function buildBuildings(F, g, occ, casters, lights) {
   const R = rng(11); let nl = 0;
+  const cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p;
   for (const b of F.buildings) {
     let pts = b.p; const n = pts.length; if (n < 3 || b.lh || b.k === 'ship') continue;      // outlines of wrecked ships are not houses: see the Bulwer wrecks
     let A2 = 0, cx = 0, cz = 0;
@@ -25,7 +26,9 @@ function buildBuildings(F, g, occ, casters, lights) {
     occ.add(cellKey(cx, cz, 6));
     let h = b.ht > 0 ? b.ht : b.lv > 0 ? b.lv * 3.1 : area < 45 ? 2.5 : area < 300 ? (R() < 0.3 ? 5.6 : 3.0) : area < 900 ? (R() < 0.5 ? 6.2 : 3.6) : 7.6;
     h *= VEX * 0.9;
-    const y0 = base - 1.5, y1 = hi + h, wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
+    let wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
+    if (cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350) { wall = [.94, .93, .89]; roof = [.50, .52, .54]; }       // the lighthouse keepers' cottages and sheds: white walls, grey roofs
+    const y0 = base - 1.5, y1 = hi + h;
     const win = area > 30 ? 1 : 0;
     casters.push({ pts, y: hi, h: h + Math.min(Math.sqrt(area) * 0.12, 2) * VEX });
     if (area > 55 && nl < 230 && R() < 0.7) { nl++; const q = pts[(R() * n) | 0]; lights.add([q[0] + (q[0] - cx) * 0.15, hi + 2.4 * VEX, q[1] + (q[1] - cz) * 0.15], [1, .74, .42], 0, 1, 0, 0.75); }
@@ -193,8 +196,8 @@ function crown(detail, blobs, trunk) {
   }
   return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), idx };
 }
-// The parts of a tree, all placed and bent by the tree shader: crown clumps (unit spheres), a trunk
-// tube up to the fork, and a few limb tubes from the fork out to the clumps.
+// The parts of a tree, all placed and bent by the tree shader: clumps of leaves (unit spheres), a trunk
+// tube up to the fork, a few limb tubes from the fork, and thin twigs from the limbs out to the other clumps.
 function speciesTree(K, B) {
   const ico = new THREE.IcosahedronGeometry(1, 0), P = ico.attributes.position, pos = [], nrm = [], idx = [], part = [], blob = [];
   const ix = ico.index ? Array.from(ico.index.array) : Array.from({ length: P.count }, (_, i) => i);
@@ -210,7 +213,68 @@ function speciesTree(K, B) {
   };
   tube(3, 5, 1, 0);
   for (let i = 0; i < B; i++) tube(2, 4, 2, i);
+  for (let k = B; k < K; k++) tube(2, 3, 3, k);          // a twig out to every clump that does not sit on a limb end
   return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), blob: new THREE.Float32BufferAttribute(blob, 1), idx, K, B };
+}
+// Grass trees (Xanthorrhoea): a black trunk, a ball of long thin leaves, green above with a skirt of dead brown ones
+// hanging round the trunk, and on some a flower spike standing far above. One plant is modelled here; the shader
+// sets its height, lean and whether it carries a spike.
+function buildGrassTrees(scene) {
+  const pos = [], col = [], pt = [], idx = [], R = rng(606);
+  for (let k = 0; k <= 1; k++) for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, r = k ? 0.11 : 0.15; pos.push(Math.cos(a) * r, k, Math.sin(a) * r); col.push(0.035, 0.033, 0.035); pt.push(0, k); }
+  for (let i = 0; i < 5; i++) { const j = (i + 1) % 5; idx.push(i, 5 + i, j, j, 5 + i, 5 + j); }
+  const NB = 26;
+  for (let i = 0; i < NB; i++) {
+    const az = i * 2.39996, el = 1.4 - 2.6 * (i / (NB - 1)), L = 0.9 + 0.35 * R(), dead = el < -0.15, base = pos.length / 3;
+    const g = dead ? [0.40 + R() * 0.1, 0.29 + R() * 0.06, 0.17] : [0.17 + R() * 0.06, 0.30 + R() * 0.08, 0.15];
+    for (let j = 0; j <= 2; j++) {
+      const u = j / 2, out = L * u * Math.cos(el), y = L * u * Math.sin(el) - 0.4 * u * u * L * (dead ? 0.6 : 1), w = 0.045 * (1 - u) + 0.006;
+      for (const sd of [-1, 1]) { pos.push(Math.cos(az) * out - Math.sin(az) * w * sd, y, Math.sin(az) * out + Math.cos(az) * w * sd); const f = 0.75 + 0.5 * u; col.push(g[0] * f, g[1] * f, g[2] * f); pt.push(1, u); }
+      if (j) { const q = base + j * 2; idx.push(q - 2, q - 1, q, q, q - 1, q + 1); }
+    }
+  }
+  const sb = pos.length / 3;
+  for (const [y, r] of [[0.1, 0.02], [1.5, 0.02], [1.55, 0.045], [3.1, 0.035], [3.2, 0.0]]) for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; pos.push(Math.cos(a) * r, y, Math.sin(a) * r); col.push(...(y > 1.5 ? [0.17, 0.12, 0.08] : [0.33, 0.36, 0.2])); pt.push(2, y / 3.2); }
+  for (let k = 0; k < 4; k++) for (let i = 0; i < 3; i++) { const j = (i + 1) % 3, q = sb + k * 3; idx.push(q + i, q + 3 + i, q + j, q + j, q + 3 + i, q + 3 + j); }
+  const n = LOW ? 44 : 64, cs = 6.5, cells = new Float32Array(n * n * 2); let k = 0;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
+  const g = new THREE.InstancedBufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aPT', new THREE.Float32BufferAttribute(pt, 2)); g.setIndex(idx);
+  g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+  const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
+  const mat = makeMat({
+    uniforms: uni, side: THREE.DoubleSide,
+    vs: /* glsl */`
+      attribute vec2 iCell, aPT; attribute vec3 aCol; uniform vec2 uCentre, uWindDir; uniform float uCS, uRange; varying vec3 vCol, vW;
+      void main(){
+        vec2 cell = uCentre + iCell;
+        float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
+        vec2 xz = (cell + vec2(h1, h2)) * uCS, uv = worldUV(xz);
+        vec3 mk = texture2D(uMask, uv).rgb, ov = texture2D(uOver, uv).rgb; float hgt = texture2D(uHeight, uv).r;
+        // on the heath and under open forest, in clumps (thick in some places, none in others)
+        float thick = smoothstep(0.35, 0.6, texture2D(uNoise, xz / 260.0).r);
+        float on = step(0.92, mk.r) * step(1.8, hgt) * (1.0 - smoothstep(0.35, 0.7, mk.g)) * (1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b))) * step(h3, 0.03 + 0.22 * thick);
+        on *= 1.0 - smoothstep(uRange * 0.75, uRange * 0.97, length(xz - (uCentre + 0.5) * uCS));
+        if(on <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+        float trunkH = 0.25 + 2.0 * h4 * h4, size = (0.8 + 0.5 * h1) * 1.25, spike = step(0.72, h2), part = aPT.x;
+        vec3 lp = position;
+        if(part < 0.5) lp.y *= trunkH; else lp.y += trunkH;
+        if(part > 1.5 && spike < 0.5) lp = vec3(0.0, trunkH, 0.0);
+        if(part > 0.5 && part < 1.5) lp.xz += uWindDir * aPT.y * aPT.y * (0.05 + 0.04 * sin(uTime * 2.3 + h1 * 30.0 + position.y * 3.0));       // the leaves shiver in the wind
+        if(part > 1.5) lp.xz += vec2(h1 - 0.5, fract(h3 * 9.0) - 0.5) * 0.12 * aPT.y * aPT.y * 3.2;                                              // spikes are never quite straight
+        lp.xz += vec2(cos(h2 * 6.2832), sin(h2 * 6.2832)) * (h3 * 20.0 - floor(h3 * 20.0) - 0.3) * 0.25 * lp.y * lp.y / max(trunkH + 1.0, 1.0);   // trunks lean and bend
+        float ca = cos(h1 * 6.2832), sa = sin(h1 * 6.2832);
+        lp = vec3(lp.x * ca - lp.z * sa, lp.y, lp.x * sa + lp.z * ca) * size * on;
+        vec3 wp = vec3(xz.x, groundY(xz), xz.y) + lp;
+        float lit = part > 0.5 && part < 1.5 ? 0.35 + 0.5 * max(uLightDir.y, 0.0) : 0.2 + 0.6 * max(uLightDir.y, 0.0);
+        vCol = aCol * (0.8 + 0.4 * h2) * (uLightCol * lit * cloudShadow(wp) + uAmbSky * 0.9); vW = wp;
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+        ${LOGV}
+      }`,
+    fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`,
+  });
+  const m = new THREE.Mesh(g, mat); m.name = 'grassTrees'; m.frustumCulled = false; scene.add(m);
+  return (target, camDist) => { m.visible = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
 }
 function buildTrees(F, scene) {
   const rings = [];
@@ -219,12 +283,12 @@ function buildTrees(F, scene) {
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
     const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
     geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); geo.instanceCount = n * n; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
-    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 } };
+    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 } };       // (scrub sets its own porosity per bush)
     const mat = makeMat({
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
         attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
-        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; uniform float uPorous;
+        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; varying vec2 vBark; uniform float uPorous;
         #ifdef SPECIES
         attribute float aBlob;            // crown: which clump; limb: which limb
         // a point along a limb, in units of the tree's height: from the fork P to its end E, bowed up by arch and kinked sideways
@@ -253,10 +317,13 @@ function buildTrees(F, scene) {
           float sp = hs < 0.6 ? 0.0 : hs < 0.82 ? 2.0 : 1.0;                         // dune forest: scribbly gum and bloodwood, banksia, forest she-oak
           if(hgt < 5.5 && shoreD > 260.0) sp = hs < 0.6 ? 3.0 : hs < 0.8 ? 1.0 : 0.0;     // swampy flats: paperbark
           if(shoreD < 170.0 && hgt < 22.0) sp = hs < 0.7 ? 1.0 : 2.0;                     // behind the beach: coastal she-oak and coast banksia
+          float swept = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));          // on the cape the wind shapes everything
+          if(swept > 0.5){ sp = hs < 0.82 ? 2.0 : 1.0; dens *= 0.55; }
           if(hgt < 1.7 && shoreD < 130.0){                                               // dark growth at the tide line: mangroves
             sp = 4.0; dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - sandm);
           }
           #endif
+          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * 0.82 * step(0.51, mk.b);       // scrub fills the country between the trees
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
@@ -270,54 +337,66 @@ function buildTrees(F, scene) {
           vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
           c = mix(c, vec3(lum * 1.15, lum * 1.8, lum * 0.75), 0.28) * (0.9 + 0.5 * h2);
           c = mix(c, c * vec3(1.25, 1.1, 0.7), step(0.8, h3) * 0.5);
-          float ao; vec3 lp; vPor = uPorous;
+          float ao; vec3 lp; vPor = uPorous; vBark = vec2(0.0);
           #ifdef SPECIES
             // Each kind of tree has its own build, and each tree its own form: where the trunk forks, how far the limbs
             // spread and bow, how much it leans and wanders. form picks between the distinct forms of a kind.
             float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), form = hash12(cell * 3.1 + 11.0);
-            float H, tr, lean, wig, fork, spread, top0, arch, kink, fill, rbK; vec3 sc = vec3(1.0), bark, tint;
-            if(sp < 0.5){ H = 15.0; tr = 0.011; vPor = 0.64; rbK = 0.17; sc.y = 0.8; fill = 0.0;                      // eucalypt: pale scribbly gum or dark rough bloodwood
+            float H, tr, lean, wig, fork, spread, top0, arch, kink, twig, rbK, hang = 0.2; vec3 sc = vec3(1.0), bark, tint;
+            if(sp < 0.5){ H = 14.0; tr = 0.011; vPor = 0.67; rbK = 0.115; sc.y = 1.05; twig = 0.2;                      // eucalypt: pale scribbly gum or dark rough bloodwood
               bark = hs2 < 0.45 ? vec3(0.62, 0.60, 0.54) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
-              if(form < 0.38){ fork = 0.5; spread = 0.22; top0 = 0.8; arch = 0.10; kink = 0.04; lean = 0.10; wig = 0.035; }           // tall, forking high
-              else if(form < 0.74){ fork = 0.25; spread = 0.36; top0 = 0.68; arch = 0.22; kink = 0.07; lean = 0.08; wig = 0.05; }     // forking low into wide, twisting limbs
-              else { fork = 0.38; spread = 0.27; top0 = 0.72; arch = 0.13; kink = 0.08; lean = 0.36; wig = 0.08; } }                 // leaning and crooked
-            else if(sp < 1.5){ H = 12.0; tr = 0.010; vPor = 0.72; rbK = 0.13; sc.y = 1.6; fill = 0.8; bark = vec3(0.21, 0.18, 0.15); tint = vec3(0.70, 0.80, 0.72);    // she-oak: slender, wispy, grey-green
-              top0 = 0.84; arch = -0.03; kink = 0.03; wig = 0.035;
-              if(form < 0.5){ fork = 0.55; spread = 0.07; lean = 0.07; }                // one straight-ish stem
-              else if(form < 0.8){ fork = 0.22; spread = 0.16; lean = 0.08; }           // two or three stems from low down
-              else { fork = 0.45; spread = 0.1; lean = 0.4; } }                        // bent over by the sea wind
-            else if(sp < 2.5){ H = 6.0; tr = 0.022; vPor = 0.52; rbK = 0.28; sc.y = 0.72; fill = 0.0; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
-              fork = 0.18 + 0.2 * form; spread = 0.42; top0 = 0.6; arch = 0.07; kink = 0.12; lean = 0.28; wig = 0.1; }
-            else if(sp < 3.5){ H = 10.0; tr = 0.016; vPor = 0.6; rbK = 0.16; sc.y = 1.15; fill = 0.6; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
+              if(form < 0.38){ fork = 0.46; spread = 0.24; top0 = 0.76; arch = 0.12; kink = 0.09; lean = 0.16; wig = 0.07; }           // tall, forking high
+              else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
+              else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.48; wig = 0.13; } }                 // leaning and crooked
+            else if(sp < 1.5){ H = 11.0; tr = 0.011; vPor = 0.75; rbK = 0.085; sc = vec3(0.85, 2.1, 0.85); twig = 0.17; hang = -0.8;                               // she-oak (casuarina): slender dark stems,
+              bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.66, 0.78, 0.70); top0 = 0.72; arch = 0.1; kink = 0.07; wig = 0.05;                                      // grey-green tassels of needles hanging from the twig ends
+              if(form < 0.55){ fork = 0.16; spread = 0.22; lean = 0.1; }               // the classic form: several stems rising from low down
+              else if(form < 0.8){ fork = 0.4; spread = 0.14; lean = 0.08; }           // one stem, branching higher
+              else { fork = 0.3; spread = 0.16; lean = 0.42; } }                       // bent over by the sea wind
+            else if(sp < 2.5){ H = 6.0; tr = 0.022; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
+              fork = 0.14 + 0.2 * form; spread = 0.46; top0 = 0.55; arch = 0.1; kink = 0.2; lean = 0.38; wig = 0.14; }
+            else if(sp < 3.5){ H = 10.0; tr = 0.016; vPor = 0.62; rbK = 0.13; sc.y = 1.15; twig = 0.09; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
               fork = 0.1 + 0.3 * form; spread = 0.18; top0 = 0.8; arch = 0.04; kink = 0.05; lean = 0.12; wig = 0.05; }
-            else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.36; sc.y = 0.7; fill = 0.0; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
+            else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
-            vec2 ld = vec2(cos(h2 * 6.2832), sin(h2 * 6.2832)) * lean * (0.4 + 0.6 * h3);
+            if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
+            vec2 ld = (swept > 0.5 ? normalize(vec2(-0.8, -0.6) + (vec2(h2, h1) - 0.5) * 0.7) : vec2(cos(h2 * 6.2832), sin(h2 * 6.2832))) * lean * (0.4 + 0.6 * h3);
             float wph = h1 * 6.2832;
             // centre of the trunk at fraction t of the way up to the fork: it leans and wanders
             #define TRUNK(t) vec3(ld.x * (t) * (t) * fork + sin((t) * 4.7 + wph) * wig * (t), (t) * fork, ld.y * (t) * (t) * fork + cos((t) * 3.9 + wph) * wig * (t))
             vec3 P = TRUNK(1.0);
-            float li = aPart > 1.5 ? aBlob : mod(aBlob, NLIMB);                         // the limb this vertex belongs to, or the limb its clump sits on
+            float li = (aPart > 1.5 && aPart < 2.5) ? aBlob : mod(aBlob, NLIMB);          // the limb this vertex belongs to, or the limb its clump and twig grow from
             float hb = hash12(cell + li * 13.7), hb2 = hash12(cell * 1.3 + li * 5.1 + 2.0), la = 6.2832 * (li / NLIMB + 0.3 * hb + h1), reach = spread * (0.55 + 0.6 * hb);
             vec3 E = vec3(P.x + cos(la) * reach, mix(top0, 0.98, hb2), P.z + sin(la) * reach);
             E.xz += ld * (E.y - fork);                                                  // the crown carries on the lean
-            if(aPart > 1.5){                 // limb
+            // the clump of leaves this vertex belongs to (for a twig: the clump it carries). One sits at the end of each limb;
+            // the rest hang out on twigs that leave the limbs every which way, and some twigs have lost their leaves.
+            float k = aBlob, sec = step(NLIMB - 0.5, k), hk = hash12(cell + k * 7.9 + 3.0), hk2 = hash12(cell * 0.9 + k * 3.3 + 1.0), hk3 = hash12(cell * 1.9 + k * 2.1 + 6.0);
+            vec3 Q = limbAt(P, E, 1.0 - sec * (0.25 + 0.5 * hk), arch, kink);
+            vec3 tw = normalize(vec3(cos(hk * 6.2832 + la), 0.35 + 1.1 * (hk2 - 0.35), sin(hk * 6.2832 + la))) * twig * (0.6 + 0.8 * hk3);
+            vec3 bc = Q + sec * tw;
+            // some country has burnt: trunks there are charred black from the ground up
+            float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, xz / 900.0).b) * step(sp, 3.5), mott = (sp < 0.5 && hs2 < 0.45) || (sp > 2.5 && sp < 3.5) ? 1.0 : 0.3;
+            if(aPart > 2.5){                 // twig
+              float u = position.y;
+              vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.14 * length(tw), 0.0), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
+              vec3 ax = normalize(cross(dir, vec3(0.31, 0.0, 0.95))), ay = cross(dir, ax), ring = ax * position.x + ay * position.z;
+              lp = (c0 + ring * tr * mix(0.22, 0.07, u)) * H * s; nrm = ring;
+              c = bark * (0.7 + 0.5 * h2); ao = 0.7; vBark = vec2(mott, burnt * 0.1);
+            } else if(aPart > 1.5){          // limb
               float u = position.y;
               vec3 c0 = limbAt(P, E, u, arch, kink), dir = normalize(limbAt(P, E, u + 0.06, arch, kink) - c0);
               vec3 ax = normalize(cross(dir, vec3(0.31, 0.0, 0.95))), ay = cross(dir, ax), ring = ax * position.x + ay * position.z;
               lp = (c0 + ring * tr * mix(0.62, 0.2, u)) * H * s; nrm = ring;
-              c = bark * (0.75 + 0.5 * h2); ao = 0.6 + 0.3 * u;
+              c = bark * (0.75 + 0.5 * h2); ao = 0.6 + 0.3 * u; vBark = vec2(mott, burnt * 0.25 * (1.0 - u));
             } else if(aPart > 0.5){          // trunk
               float t = position.y;
               lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.66, t) * (1.0 + 0.6 * (1.0 - t) * (1.0 - t))) * H * s;
-              c = bark * (0.75 + 0.5 * h2); ao = 0.5 + 0.35 * t;
-            } else {                         // crown clump: one at the end of each limb, the others beside it or back along it
-              float k = aBlob, sec = step(NLIMB - 0.5, k), hk = hash12(cell + k * 7.9 + 3.0), hk2 = hash12(cell * 0.9 + k * 3.3 + 1.0);
-              float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.25 * sec);
-              vec3 bc = limbAt(P, E, 1.0 - sec * fill * (0.3 + 0.45 * hk), arch, kink);
-              bc += sec * (1.0 - fill) * vec3(cos(hk * 6.2832), 0.5 * (hk2 - 0.3), sin(hk * 6.2832)) * rb * 0.9;
-              bc.y += rb * sc.y * 0.3;
+              c = bark * (0.75 + 0.5 * h2); ao = 0.5 + 0.35 * t; vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));
+            } else {                         // clump of leaves
+              float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16));
+              bc.y += rb * sc.y * hang;
               vec3 ol = bc + q * rb * sc;
               lp = ol * H * s;
               c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.4);
@@ -332,6 +411,7 @@ function buildTrees(F, scene) {
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : q * vec3(1.0, sq, 1.0) * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
+            if(uMode > 2.5){ float inLeaf = step(0.5, h2 + (lum - 0.1) * 2.0); c = mix(vec3(0.30, 0.25, 0.20), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
             ao = aPart > 0.5 ? 0.45 + 0.3 * position.y : 0.42 + 0.58 * smoothstep(-0.9, 0.9, nrm.y + (position.y - 0.2) * 0.5);
             vObj = position * 2.6 + vec3(h1, h2, h3) * 9.0;
@@ -344,13 +424,17 @@ function buildTrees(F, scene) {
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
-      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor;
+      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; varying vec2 vBark;
         void main(){
           ${LOGF}
           vec3 col = vCol; float alpha = 1.0;
           #ifdef LEAFY
           if(vTrunk < 0.5){
+            #ifdef SPECIES
+            float n = texture2D(uNoise, vec2(vObj.x * 0.5 + vObj.z * 0.42, vObj.y * 0.085)).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;     // long hanging leaves: streaks that run downward
+            #else
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
+            #endif
             float rim = 1.0 - abs(dot(normalize(vN), -vDir));
             alpha = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.3 + (n2 - 0.5) * 0.3);   // clusters of leaves with gaps, thinner toward the outline
             if(alpha < 0.03) discard;
@@ -359,17 +443,31 @@ function buildTrees(F, scene) {
             col += vCol * 0.7 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
           }
           #endif
+          #ifdef SPECIES
+          if(vTrunk > 0.5){              // bark: blotched and streaked, creamy patches where it has shed, soot where fire has been
+            float b1 = texture2D(uNoise, vObj.xy * vec2(0.13, 0.5)).r, b2 = texture2D(uNoise, vObj.zy * vec2(0.3, 0.8) + 0.4).b;
+            col *= 0.7 + 0.6 * b1;
+            col = mix(col, col * vec3(1.3, 1.16, 0.82), smoothstep(0.5, 0.7, b2) * vBark.x);
+            col = mix(col, col * vec3(0.62, 0.64, 0.7), smoothstep(0.62, 0.8, b1) * vBark.x);
+            col = mix(col, vCol * 0.07, clamp(vBark.y * (0.75 + 0.5 * b2), 0.0, 1.0));
+          }
+          #endif
           gl_FragColor = vec4(mix(col, fogColor(vDir), vFog), alpha);
         }`,
     });
     mat.alphaToCoverage = !!leafy;
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
   };
-  const n = +(Q.get('trees') || (LOW ? 120 : 200));
-  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 4 : 6, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
+  const n = +(Q.get('trees') || (LOW ? 120 : 180));
+  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 8, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
   ring(n, 30, 7, 13, 0.7, 15000, n * 11 * 0.42, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.7]]), false, 1);   // canopy clumps beyond them
   ring(LOW ? 90 : 160, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(0, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
-  return (target, camDist) => { for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; } };
+  ring(LOW ? 70 : 110, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(0, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
+  const grass = buildGrassTrees(scene);
+  return (target, camDist) => {
+    for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; if (r.mode === 3) r.m.visible = camDist < 1400; }
+    grass(target, camDist);
+  };
 }
 
 // ---------------------------------------------------------------- palms and pandanus
@@ -589,10 +687,10 @@ function buildStructures(F, g, lights, scene, casters) {
   const beams = [];
   for (const l of F.lights) {
     const x = l.p[0], z = l.p[1], y = meshY(x, z) - 1, big = /Cape/.test(l.n || '');
-    const H = (big ? 23 : 9) * VEX * 1.15, r0 = big ? 3.6 : 1.8, r1 = big ? 2.5 : 1.3, bands = big ? 7 : 1;
+    const H = (big ? 23 : 9) * VEX * 1.15, r0 = big ? 3.6 : 1.8, r1 = big ? 2.5 : 1.3, bands = big ? 5 : 1, STONE = [.74, .66, .52];        // Cape Moreton: sandstone with two broad red bands
     for (let i = 0; i < bands; i++) {
       const a = i / bands, b = (i + 1) / bands;
-      g.cyl(x, y + H * a, z, r0 + (r1 - r0) * a, r0 + (r1 - r0) * b, H / bands, 14, big && (i === 2 || i === 5) ? RED : W);
+      g.cyl(x, y + H * a, z, r0 + (r1 - r0) * a, r0 + (r1 - r0) * b, H / bands, 14, big ? (i === 1 || i === 3 ? RED : STONE) : W);
     }
     g.cyl(x, y + H, z, r1 + 1.0, r1 + 1.0, 0.5 * VEX, 14, [.3, .3, .3], [.3, .3, .3]);
     g.cyl(x, y + H + 0.5 * VEX, z, r1 * 0.72, r1 * 0.72, 2.6 * VEX, 10, [.85, .9, .9]);
@@ -601,7 +699,7 @@ function buildStructures(F, g, lights, scene, casters) {
     const ly = y + H + 1.8 * VEX;
     lights.add([x, ly, z], [1, .95, .75], 0, 1, 0, big ? 5 : 2.2);
     if (big) beams.push({ x, y: ly, z });
-    if (big) { g.box(x + 14, y, z + 6, 12, 4.2 * VEX, 8, W, [.6, .2, .15]); g.box(x - 13, y, z - 9, 10, 4 * VEX, 7, W, [.6, .2, .15]); }
+    if (big) U.uCape.value.set(x, z, 750, 0);
   }
   // sweeping lighthouse beams
   const cone = new THREE.CylinderGeometry(42, 2.5, 2600, 24, 1, true); cone.rotateZ(-Math.PI / 2); cone.translate(1300, 0, 0);     // narrow at the lamp, widening outward

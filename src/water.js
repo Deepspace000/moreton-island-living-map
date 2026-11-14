@@ -75,9 +75,9 @@ export function buildWater(scene) {
         // surf: where the water gets about as shallow as the swell is high, the waves stand up into breakers that roll
         // in to the sand (only near the middle of the mesh, where it is fine enough to carry them; foam is drawn at any distance)
         if(depth < 6.0 && depth > 0.0){
-          float oe = seaward(wp.xz, expo), sv = uSurf * (0.18 + 0.82 * oe * oe), db = 1.25 * sv;
-          float crest = pow(0.5 + 0.5 * sin(6.2832 * (depth / 0.62 + uTime / 7.0)), 3.0);
-          y += 0.42 * sv * crest * smoothstep(db * 1.9, db * 0.9, depth) * smoothstep(0.05, db * 0.35, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz)));
+          float oe = seaward(wp.xz, expo), sv = uSurf * (0.18 + 0.82 * oe * oe), db = 2.0 * sv;
+          float crest = pow(0.5 + 0.5 * sin(6.2832 * (depth / 0.9 + uTime / 7.0)), 3.0);
+          y += 0.42 * sv * crest * smoothstep(db * 1.3, db * 0.5, depth) * smoothstep(0.05, db * 0.2, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz)));
         }
         vWaveH = y; vSlope = sl * uVex;
         wp.y = uSeaM * uVex + y * uVex * fade;
@@ -147,11 +147,11 @@ export function buildWater(scene) {
         float z = depth / surf;
         float foam = 0.0;
         // surf zone: lines of broken water roll in toward the beach (in step with the breakers of the vertex stage), each trailing a lace of foam
-        if(z < 1.6){
-          float nearF = 1.0 - smoothstep(1800.0, 6500.0, dist);                    // separate lines only where they can be resolved
-          float db = 1.25 * surf;                                                  // waves break where the water is about as deep as they are high
-          float s = fract(depth / 0.62 + t / 7.0 - 0.25 + (fn - 0.5) * 0.3);         // 0 on a crest, rising seaward behind it
-          float zone = smoothstep(db, db * 0.6, depth) * smoothstep(0.0, 0.1, depth);
+        if(z < 2.2){
+          float nearF = 1.0 - smoothstep(5000.0, 14000.0, dist);                   // separate lines only where they can be resolved
+          float db = 2.0 * surf;                                                   // the outer bar: the first waves break well out, then reform and break again
+          float s = fract(depth / 0.9 + t / 7.0 - 0.25 + (fn - 0.5) * 0.3);         // 0 on a crest, rising seaward behind it
+          float zone = smoothstep(db, db * 0.3, depth) * smoothstep(0.0, 0.1, depth);
           float band = smoothstep(0.6, 0.0, s), edge = smoothstep(0.9, 1.0, s);
           float lace = smoothstep(0.3, 0.72, ff * 0.7 + fg * 0.5 - (1.0 - band) * 0.6);
           float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));

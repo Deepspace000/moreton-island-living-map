@@ -24,7 +24,7 @@ export const U = {
   uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(1), uCirrus: f(0.6), uWalk: f(0),
   uHeight: { value: null }, uOver: { value: null }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
-  uSeaM: f(0), uVex: f(VEX),
+  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
   uCloudTex: { value: null }, uCloudRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCloudAlt: f(2000), uCloudStr: f(0.7),
   uWindDir: { value: new THREE.Vector2(1, 0) }, uChop: f(0.5), uSurf: f(1.2), uWhitecap: f(0), uRain: f(0), uSwell: f(1),
   uWaves: { value: Array.from({ length: 6 }, () => new THREE.Vector4(1, 0, 0, 100)) },
@@ -36,7 +36,7 @@ uniform float uTime, uFogDens, uNight, uOvercast, uSeaM, uVex, uCloudAlt, uCloud
 uniform vec3 uSunDir, uMoonDir, uLightDir, uLightCol, uSunCol, uAmbSky, uAmbGnd, uFogCol, uFogSun, uZenith, uHorizon, uSunGlow;
 uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, uDetail;
 uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
-uniform vec4 uWorld, uCloudRect;
+uniform vec4 uWorld, uCloudRect, uCape;
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }
 float sat(float x){ return clamp(x, 0.0, 1.0); }
