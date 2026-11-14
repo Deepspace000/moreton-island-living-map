@@ -132,10 +132,14 @@ export function objectMat(opts = {}) {
           float r1 = texture2D(uNoise, vW.xz / 9.0 + vW.y * 0.07).r;
           float r2 = texture2D(uNoise, vec2(vW.x + vW.z, vW.y * 1.7) / 5.0).b;
           float streak = texture2D(uNoise, vec2((vW.x + vW.z) * 0.31, vW.y * 0.035)).g;                        // rain-washed vertical streaks
+          #ifdef DRYRUST        // hulks rusted right through on a beach: red-brown all over, flaking lighter and darker, no growth
+          alb *= 0.6 + 1.0 * r1 * r1 + 0.3 * streak; alb = mix(alb, vec3(0.11, 0.04, 0.02), smoothstep(0.55, 0.85, r2) * 0.4); alb = mix(alb, vec3(0.45, 0.17, 0.05), smoothstep(0.6, 0.9, r1) * 0.5);
+          #else
           alb *= 0.3 + 1.7 * r1 * r1 + 0.5 * streak; alb = mix(alb, vec3(0.03, 0.018, 0.012), smoothstep(0.45, 0.8, r2) * 0.8); alb = mix(alb, vec3(0.30, 0.13, 0.045), smoothstep(0.62, 0.9, r1) * 0.5);
           float wl = (vW.y - uSeaM * uVex) / uVex;       // metres above the sea
           alb = mix(alb, vec3(0.02, 0.04, 0.018), smoothstep(1.3, -0.2, wl) * 0.75);
           alb = mix(alb, vec3(0.20, 0.27, 0.16), smoothstep(-0.1, -0.8, wl));       // pale weed and barnacle growth below the surface   // weed and barnacles at the waterline
+          #endif
         #endif
         #ifdef WINDOWS
           if(vFx.x > 0.5){

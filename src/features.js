@@ -14,7 +14,7 @@ const ROOFS = [[.70, .72, .72], [.38, .52, .44], [.68, .27, .18], [.78, .73, .62
 function buildBuildings(F, g, occ, casters, lights) {
   const R = rng(11); let nl = 0;
   for (const b of F.buildings) {
-    let pts = b.p; const n = pts.length; if (n < 3 || b.lh) continue;
+    let pts = b.p; const n = pts.length; if (n < 3 || b.lh || b.k === 'ship') continue;      // outlines of wrecked ships are not houses: see the Bulwer wrecks
     let A2 = 0, cx = 0, cz = 0;
     for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n]; A2 += p[0] * q[1] - q[0] * p[1]; cx += p[0]; cz += p[1]; }
     if (A2 < 0) pts = pts.slice().reverse();
@@ -469,12 +469,77 @@ function buildPalms(F, scene, occ) {
   add(frondPlant({ h: 2.8, r: 0.12, bend: 0.1, rings: 2, roots: 5, heads: [{ at: [0, 0.2, 0], n: 10, L: 1.5, W: 0.07, up: 1.2, down: -0.2, droop: 0.95, seg: 3, vee: 0.3 }, { at: [0.9, -0.5, 0.3], n: 9, L: 1.35, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }, { at: [-0.6, -0.7, -0.7], n: 9, L: 1.3, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }] }), pands, mat(0, [0.20, 0.36, 0.15], [0.40, 0.35, 0.27]));
 }
 
+// ---------------------------------------------------------------- the Bulwer wrecks
+// Three hulks were scuttled off Bulwer in the 1930s to shelter small boats. They have rusted down to open
+// shells and ribs, red-brown all over. The map data holds the outline of each hull (traced from aerial
+// photographs), so the walls here follow those outlines exactly: two hulls lie across the beach, the
+// southern one long, low and broken, and the third lies along the shore, awash, with only its boiler,
+// a leaning plate and a few frames standing clear.
+const BULWER = [-2450.8, -11947.1];
+function buildBulwerWrecks(F, g) {
+  const TONES = [[.60, .29, .16], [.47, .21, .11], [.70, .36, .18], [.54, .24, .12]];
+  const tone = (R, k = 1) => { const b = TONES[(R() * TONES.length) | 0], f = (0.85 + R() * 0.3) * k; return [b[0] * f, b[1] * f, b[2] * f]; };
+  // Stand a rusted hull wall along an outline. top: height of the upper edge above mean sea level (m); show: least height
+  // above the sand; gaps: share of plating rusted away; rag: how ragged the upper edge is; ribs: share of frames still standing.
+  const shell = (outline, seed, o) => {
+    const R = rng(seed), pts = [];
+    let cx = 0, cz = 0; for (const p of outline) { cx += p[0]; cz += p[1]; } cx /= outline.length; cz /= outline.length;
+    for (let i = 0; i < outline.length; i++) {                 // a point about every 1.6 m round the hull
+      const a = outline[i], b = outline[(i + 1) % outline.length], n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.6));
+      for (let k = 0; k < n; k++) pts.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+    }
+    const N = pts.length, far = Math.max(...pts.map(p => Math.hypot(p[0] - cx, p[1] - cz)));
+    const P = pts.map((p, i) => {
+      const q = pts[(i + 1) % N], r = pts[(i + N - 1) % N]; let nx = -(q[1] - r[1]), nz = q[0] - r[0]; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+      if (nx * (cx - p[0]) + nz * (cz - p[1]) < 0) { nx = -nx; nz = -nz; }                    // nx, nz point into the hull
+      const gy = meshY(p[0], p[1]), mid = 1 - Math.hypot(p[0] - cx, p[1] - cz) / far;           // mid: 0 at the ends, towards 1 amidships
+      const t = R() < o.gaps ? -99 : Math.max(o.top + (R() - 0.5) * o.rag - (o.sag || 0) * mid, gy / VEX + o.show * (0.6 + 0.8 * R()));
+      return { x: p[0], z: p[1], nx, nz, gy, t: t * VEX };
+    });
+    for (let i = 0; i < N; i++) {
+      const a = P[i], b = P[(i + 1) % N], col = tone(R), inner = [col[0] * .6, col[1] * .6, col[2] * .62], TH = 0.16, lo = Math.min(a.gy, b.gy) - 1.6;
+      if (a.t > a.gy + 0.25 && b.t > b.gy + 0.25) {             // a panel of plating still standing out of the sand or the water
+        const A = [a.x + a.nx * 0.5, lo, a.z + a.nz * 0.5], B = [b.x + b.nx * 0.5, lo, b.z + b.nz * 0.5], C = [b.x, b.t, b.z], D = [a.x, a.t, a.z];
+        const Ai = [A[0] + a.nx * TH, lo, A[2] + a.nz * TH], Bi = [B[0] + b.nx * TH, lo, B[2] + b.nz * TH], Ci = [b.x + b.nx * TH, b.t - 0.05, b.z + b.nz * TH], Di = [a.x + a.nx * TH, a.t - 0.05, a.z + a.nz * TH];
+        g.quad(A, B, C, D, col); g.quad(Bi, Ai, Di, Ci, inner); g.quad(D, C, Ci, Di, [col[0] * 1.12, col[1] * 1.08, col[2]]);
+      }
+      // a frame at each station: where the plating has gone, the bare rib is all that stands
+      if (R() < o.ribs) { const h = Math.max(a.t, (o.top - 0.7 + R() * 1.0) * VEX); if (h > a.gy + 0.3) g.box(a.x + a.nx * 0.34, a.gy - 0.8, a.z + a.nz * 0.34, 0.24, h - a.gy + 0.8, 0.24, tone(R, 0.8)); }
+    }
+    // low down, the stumps of floors and bulkheads cross from side to side
+    for (let i = 3; i < N / 2 - 2; i += 4) {
+      const a = P[i]; let best = null, bd = 1e9;
+      for (let j = 0; j < N; j++) { const b = P[j], dx = b.x - a.x, dz = b.z - a.z, along = Math.abs(dx * a.nz - dz * a.nx), across = dx * a.nx + dz * a.nz; if (across > 2 && along < bd) { bd = along; best = b; } }
+      if (!best || R() < 0.25) continue;
+      const y = Math.max(Math.min(a.gy, best.gy), -1.3 * VEX) - 0.2, h = 0.5 + R() * 0.6, w = 0.12, col = tone(R, 0.75), tx = a.nz * w, tz = -a.nx * w;
+      g.quad([a.x - tx, y, a.z - tz], [best.x - tx, y, best.z - tz], [best.x - tx, y + h, best.z - tz], [a.x - tx, y + h, a.z - tz], col);
+      g.quad([best.x + tx, y, best.z + tz], [a.x + tx, y, a.z + tz], [a.x + tx, y + h, a.z + tz], [best.x + tx, y + h, best.z + tz], col);
+      g.quad([a.x - tx, y + h, a.z - tz], [best.x - tx, y + h, best.z - tz], [best.x + tx, y + h, best.z + tz], [a.x + tx, y + h, a.z + tz], col);
+    }
+  };
+  const hulls = F.buildings.filter(b => b.k === 'ship' && Math.hypot(b.p[0][0] - BULWER[0], b.p[0][1] - BULWER[1]) < 300);
+  for (const b of hulls) {
+    const xs = b.p.map(p => p[0]), zs = b.p.map(p => p[1]), wide = Math.max(...xs) - Math.min(...xs), tall = Math.max(...zs) - Math.min(...zs), seed = Math.round(xs[0] * 7 + zs[0]);
+    if (tall > wide) shell(b.p, seed, { top: 0.15, show: -9, gaps: 0.5, rag: 1.2, ribs: 0.45 });                    // lying along the shore: the third hull, awash
+    else if (wide < 40) shell(b.p, seed, { top: 2.3, show: 1.3, gaps: 0.07, rag: 0.7, ribs: 0.9 });                 // the northern hull, the most complete
+    else shell(b.p, seed, { top: 1.8, show: 1.0, gaps: 0.26, rag: 1.0, ribs: 0.9, sag: 0.5 });                      // the southern hull: long, low and broken
+  }
+  if (!hulls.length) return;
+  // the pieces of the third hull that still show: its boiler, a leaning plate, a clump of frames
+  const R = rng(75), y0 = (x, z) => meshY(x, z);
+  g.at(new THREE.Matrix4().makeRotationZ(Math.PI / 2).setPosition(-2455.5, y0(-2457.3, -11962.0) + 1.7, -11962.0)); g.cyl(0, 0, 0, 1.7, 1.7, 3.6, 12, tone(R), tone(R, 0.8)); g.at(null);
+  g.at(new THREE.Matrix4().makeRotationY(-1.35).multiply(new THREE.Matrix4().makeRotationX(0.5)).setPosition(-2455.5, y0(-2455.5, -11946.1) - 0.3, -11946.1)); g.box(0, 0, 0, 6.2, 2.4 * VEX, 0.14, tone(R)); g.at(null);
+  for (let i = 0; i < 5; i++) { const x = -2452.6 + (R() - .5) * 1.2, z = -11936.6 + i * 1.1; g.box(x, y0(x, z) - 0.5, z, 0.2, (1.6 + R() * 1.0) * VEX + 0.5, 0.26, tone(R, 0.85)); }
+  g.at(new THREE.Matrix4().makeRotationY(-1.3).multiply(new THREE.Matrix4().makeRotationX(-0.35)).setPosition(-2451.6, y0(-2451.6, -11922.5) - 0.3, -11922.5)); g.box(0, 0, 0, 5.5, 1.9 * VEX, 0.14, tone(R)); g.at(null);
+}
+
 // ---------------------------------------------------------------- wrecks
 const RUST = [[.42, .24, .14], [.37, .21, .13], [.46, .28, .16], [.33, .20, .14], [.40, .27, .20]];
 function buildWrecks(F, g) {
   const R = rng(2024), list = [];
   F.wrecks.forEach((w) => {
     let L, B, th, cx = w.c[0], cz = w.c[1];
+    if (Math.hypot(cx - BULWER[0], cz - BULWER[1]) < 200) return;       // the Bulwer wrecks are modelled on their own, below
     if (w.p && w.p.length > 3) {
       // principal axis of the charted outline
       let sxx = 0, szz = 0, sxz = 0; const pts = w.p;
@@ -721,6 +786,8 @@ export function buildFeatures(scene, F, flyTo) {
   const solid = new THREE.Mesh(g.build(), objectMat({ side: THREE.DoubleSide, defines: { WINDOWS: 1 } })); solid.frustumCulled = false; scene.add(solid);
   const gw = new GB(); const wrecks = buildWrecks(F, gw);
   const wm = new THREE.Mesh(gw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1 } })); wm.frustumCulled = false; scene.add(wm);
+  const gbw = new GB(); buildBulwerWrecks(F, gbw);
+  const bwm = new THREE.Mesh(gbw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1, DRYRUST: 1 } })); bwm.name = 'bulwerWrecks'; bwm.frustumCulled = false; scene.add(bwm);
   const fl = buildFloaters(st.floaters, scene, lights);
   buildLakes(F, scene);
   const trees = buildTrees(F, scene);
@@ -739,6 +806,7 @@ export function buildFeatures(scene, F, flyTo) {
     P('Cape Moreton Lighthouse', find(F.lights, /Cape/), 1300, 200, 72),
     P('Blue Lagoon', find(F.lakes, /Blue Lagoon/), 2600, 300, 62),
     P('Bulwer', find(F.places, /Bulwer/), 1700, 80, 64),
+    P('Bulwer Wrecks', find(F.views, /^Ship Wrecks/), 380, 75, 66),
     P('Cowan Cowan', find(F.places, /Cowan/), 1500, 80, 64),
     P('Big Sandhills', find(F.sandnames, /Big Sand/), 4200, 60, 64),
     P('Kooringal', find(F.places, /Kooringal/), 2000, 30, 62),

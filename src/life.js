@@ -379,7 +379,7 @@ function buildBirds(scene, F) {
       }`,
     fs: LIT_FS,
   });
-  const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wrk = F.views.find(v => /Tangalooma Wrecks/.test(v.n || ''))?.c, others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
+  const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wv = F.views.find(v => /Tangalooma Wrecks/.test(v.n || '')), wrk = wv && (wv.c || wv.p), others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
   const spots = [...(tgl ? [[[tgl[0] - 230, tgl[1] + 340], 3]] : []), ...(wrk ? [[[wrk[0] + 60, wrk[1]], 2]] : []), ...others];
   const pel = new GB(), PINK = [.92, .68, .6];
   pel.box(0, 0.02, 0, 0.8, 0.34, 0.42, WHITE); pel.box(-0.12, 0.3, 0, 0.5, 0.1, 0.44, BLACK); pel.box(0.34, 0.3, 0, 0.12, 0.42, 0.12, WHITE);      // body low in the water, black along the wings, neck
