@@ -131,9 +131,9 @@ body.ui-off #walkHint, body.ui-off #dot, body.ui-off #stick { display: none !imp
 /* riding in a 4WD: the cabin drawn round the view */
 #ride { position: fixed; inset: 0; display: none; pointer-events: none; overflow: hidden; }
 #ride .cab { position: absolute; left: -40vw; top: 0; width: 180vw; height: 100vh; will-change: transform; }
-#ride .shell { position: absolute; inset: 0; width: 100%; height: 100%; }
-#ride .hat { position: absolute; left: calc(50% - 47vmin); top: calc(60vh - 6.5vmin); width: 22vmin; }
-#ride .screen { box-shadow: 0 0 0 0.3vmin #050606, 0 0.8vmin 1.6vmin rgba(0,0,0,.6), inset 0 0 2vmin rgba(60,120,160,.12); position: absolute; left: calc(50% - 10.5vmin); top: 64vh; width: 21vmin; height: 31vh; min-height: 24vmin; box-sizing: border-box; background: #06080a; border: 0.5vmin solid #2c3035; border-radius: 2vmin; padding: 1vmin; color: #dfe9ee; font: 600 1.7vmin/1.25 system-ui, sans-serif; text-align: center; overflow: hidden; }
+#ride .shell { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleY(1.24); transform-origin: 50% 42%; }      /* tall windows: the roof and the dash are pushed toward the edges of the view */
+#ride .hat { position: absolute; left: calc(50% - 47vmin); top: calc(64.5vh - 6.5vmin); width: 22vmin; }
+#ride .screen { box-shadow: 0 0 0 0.3vmin #050606, 0 0.8vmin 1.6vmin rgba(0,0,0,.6), inset 0 0 2vmin rgba(60,120,160,.12); position: absolute; left: calc(50% - 10.5vmin); top: 69vh; width: 21vmin; height: 28vh; min-height: 24vmin; box-sizing: border-box; background: #06080a; border: 0.5vmin solid #2c3035; border-radius: 2vmin; padding: 1vmin; color: #dfe9ee; font: 600 1.7vmin/1.25 system-ui, sans-serif; text-align: center; overflow: hidden; }
 #ride .screen .cam { height: 26%; border-radius: 1vmin; background: linear-gradient(#6fa9cf 0 44%, #e6d6a2 45% 100%); position: relative; }
 #ride .screen .cam::after { content: ''; position: absolute; left: 30%; right: 30%; top: 45%; bottom: 0; background: linear-gradient(90deg, transparent 0 10%, rgba(255,255,255,.7) 10% 14%, transparent 14% 86%, rgba(255,255,255,.7) 86% 90%, transparent 90%); clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%); }
 #ride .screen .spd b { font-size: 6.4vmin; line-height: 1.05; display: block; margin-top: 0.8vmin; font-variant-numeric: tabular-nums; }
@@ -143,17 +143,21 @@ body.ui-off #walkHint, body.ui-off #dot, body.ui-off #stick { display: none !imp
 #ride .screen .near { margin-top: 0.8vmin; color: #9fb4bd; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #ride .screen .knobs { position: absolute; left: 0; right: 0; bottom: 1vmin; display: flex; justify-content: center; gap: 2.4vmin; }
 #ride .screen .knobs i { width: 2.4vmin; height: 2.4vmin; border-radius: 50%; background: radial-gradient(#555b61, #15181b); }
-#ride .dials { position: absolute; left: calc(50% + 32.5vmin); top: calc(64vh + 1vmin); width: 15vmin; color: #cfe7ff; font: 500 1.5vmin system-ui, sans-serif; text-align: center; opacity: .85; }
+#ride .dials { position: absolute; left: calc(50% + 32.5vmin); top: calc(69vh + 1vmin); width: 15vmin; color: #cfe7ff; font: 500 1.5vmin system-ui, sans-serif; text-align: center; opacity: .85; }
 #ride .dials b { font-size: 3.4vmin; display: block; }
-#ride .wheel { position: absolute; left: calc(50% + 19vmin); top: calc(64vh - 3vmin); width: 42vmin; }
+#ride .wheel { position: absolute; left: calc(50% + 19vmin); top: calc(69vh - 3vmin); width: 42vmin; }
 #ride .cab::before, #ride .cab::after { content: ''; position: absolute; left: 0; right: 0; height: 40vh; background: #0b0c0d; }
 #ride .cab::before { bottom: 100%; } #ride .cab::after { top: 100%; }
 #ride .rear { position: absolute; top: 0; height: 100vh; width: 212vw; }
-#ride .rear.l { right: calc(100% - 0.4vw); } #ride .rear.r { left: calc(100% - 0.4vw); }
-#ride .rear svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#ride .rear.l { right: calc(100% - 2vw); } #ride .rear.r { left: calc(100% - 2vw); }
+#veil { position: fixed; inset: 0; background: #02080c; opacity: 0; pointer-events: none; z-index: 40; }
+#veil.dip { animation: veildip .55s ease-out; }
+@keyframes veildip { 0% { opacity: 1; } 100% { opacity: 0; } }
+#ride:not(.steering) .helm { background: rgba(8, 28, 40, .4); border-color: rgba(255,255,255,.09); }
+#ride .rear svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleY(1.24); transform-origin: 50% 42%; }
 #ride .rear::before, #ride .rear::after { content: ''; position: absolute; left: 0; right: 0; height: 40vh; background: #0b0c0d; }
 #ride .rear::before { bottom: 100%; } #ride .rear::after { top: 100%; }
-#ride .seat { position: absolute; bottom: -4vh; width: 34vmin; height: 20vh; background: radial-gradient(120% 90% at 50% 0%, #34383d, #15171a 55%, #08090a); border-radius: 9vmin 9vmin 0 0; box-shadow: inset 0 0.6vmin 0 rgba(255,255,255,.08), 0 -1vmin 2vmin rgba(0,0,0,.5); overflow: hidden; }
+#ride .seat { position: absolute; bottom: -4vh; width: 34vmin; height: 17vh; background: radial-gradient(120% 90% at 50% 0%, #34383d, #15171a 55%, #08090a); border-radius: 9vmin 9vmin 0 0; box-shadow: inset 0 0.6vmin 0 rgba(255,255,255,.08), 0 -1vmin 2vmin rgba(0,0,0,.5); overflow: hidden; }
 #ride .seat i { position: absolute; inset: 1.6vmin 2vmin 0; border-radius: 7vmin 7vmin 0 0; border: 1px dashed rgba(201,138,42,.55); border-bottom: 0; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.05) 0 0.5px, transparent 1px) 0 0 / 1.1vmin 1.1vmin; }
 #ride .seat.l { left: calc(50% - 54vmin); } #ride .seat.r { left: calc(50% + 22vmin); }
 #rideExit { position: absolute; left: 12px; top: 12px; pointer-events: auto; background: rgba(8, 28, 40, .7); color: #fff; }

@@ -71,7 +71,7 @@ const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : [])
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
-  camera.aspect = w / h; camera.fov = ride.active ? (w < h ? 82 : 66) : walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
+  camera.aspect = w / h; camera.fov = ride.active ? (ride.car ? (w < h ? 82 : 66) : (w < h ? 84 : 70)) : walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
 
@@ -149,10 +149,13 @@ function enterRide(hit) {
   if (ride.active) exitRide();
   if (walk.active) exitWalk();
   fly = null; controls.enabled = false; controls.autoRotate = false; $('btSpin').classList.remove('on');
-  ride.enter(hit); document.body.classList.add('riding');
+  ride.enter(hit); document.body.classList.add('riding'); dip();
 }
+// stepping into or out of a ride, the view comes up out of the dark instead of cutting
+const veil = document.createElement('div'); veil.id = 'veil'; document.body.appendChild(veil);
+const dip = () => { veil.classList.remove('dip'); void veil.offsetWidth; veil.classList.add('dip'); };
 function exitRide() {
-  if (!ride.active) return;
+  if (!ride.active) return; dip();
   const m = (ride.car || ride.boat || ride.bird).m, yaw = m.rotation.y, far = ride.boat ? Math.max(140, (ride.boat.len || 12) * 6) : ride.bird ? 70 : 110; ride.exit(); controls.enabled = true; document.body.classList.remove('riding');
   controls.target.set(m.position.x, m.position.y, m.position.z);
   camera.position.set(m.position.x - Math.cos(yaw) * far, m.position.y + far * 0.55, m.position.z + Math.sin(yaw) * far);

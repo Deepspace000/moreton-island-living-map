@@ -283,7 +283,11 @@ function buildCars(scene, F, lights) {
   for (const c of cars) c.setDrive = (on) => {
     if (on) { c.drive = { turn: 0, throttle: clamp(c.sp / 15, 0.2, 1), v: c.sp }; c.parked = false; return; }
     c.drive = null; let bi = 1, bd = 1e9; for (let i = 1; i < c.p.length; i++) { const d = Math.hypot(c.p[i][0] - c.m.position.x, c.p[i][1] - c.m.position.z); if (d < bd) { bd = d; bi = i; } }
-    if (bd < 45) { c.s = clamp(c.cum[bi], 41, c.len - 41); c.i = bi; c.parked = false; const fwd = Math.cos(c.m.rotation.y) * (c.p[bi][0] - c.p[bi - 1][0]) - Math.sin(c.m.rotation.y) * (c.p[bi][1] - c.p[bi - 1][1]); c.dir = fwd >= 0 ? 1 : -1; c.lane = Math.abs(c.lane) * c.dir; } else c.parked = true;
+    if (bd < 45) {
+      c.s = clamp(c.cum[bi], 41, c.len - 41); c.i = bi; c.parked = false; const sx = c.p[bi][0] - c.p[bi - 1][0], sz = c.p[bi][1] - c.p[bi - 1][1], sl = Math.hypot(sx, sz) || 1, fwd = Math.cos(c.m.rotation.y) * sx - Math.sin(c.m.rotation.y) * sz; c.dir = fwd >= 0 ? 1 : -1; c.lane = Math.abs(c.lane) * c.dir;
+      // it does not jump back onto its lane: it starts from where you left it and works its way over
+      const tx = sx / sl * c.dir, tz = sz / sl * c.dir; c.laneS = clamp((c.m.position.x - c.p[bi][0]) * tz - (c.m.position.z - c.p[bi][1]) * tx, -50, 50);
+    } else c.parked = true;
   };
   // fresh tyre marks: each car lays two ribbons of tread behind it, which fade over a couple of minutes and wash out near the water
   const NT = 110, tp = new Float32Array(cars.length * NT * 4 * 3), td = new Float32Array(cars.length * NT * 4 * 3), ti = [];
@@ -333,7 +337,7 @@ function buildCars(scene, F, lights) {
       const y = Math.max(meshY(x, z), U.uSeaM.value * VEX - 0.2), yf = meshY(x + tx * 3, z + tz * 3), yb = meshY(x - tx * 3, z - tz * 3);
       c.y += (y - c.y) * Math.min(1, dt * 8);
       c.m.position.set(x, c.y, z);
-      const hd = Math.atan2(-tz, tx); let d = ((hd - c.m.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      const hd = Math.atan2(-tz, tx); let d = hd - c.m.rotation.y; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2));
       // the wheel is turned in and taken off gradually, so the turning speed never jumps; the nose rises and dips over the sand without snatching
       c.w = (c.w ?? 0) + (clamp(d * 2.2, -1.5, 1.5) - (c.w ?? 0)) * (1 - Math.exp(-dt * 5));
       const ptT = Math.atan2(yf - yb, 6 * S); c.pt = (c.pt ?? ptT) + (ptT - (c.pt ?? ptT)) * (1 - Math.exp(-dt * 5));
@@ -844,7 +848,7 @@ function buildLizards(scene) {
 // hinged wings), so one can be followed, and flown: when it is, it goes where it is steered, and settles on the water if brought down to it.
 export const flyers = [];
 function buildPelicans(scene, F) {
-  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.9;
+  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.6;
   const homes = [...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] - 500, p.p[1]]), ...F.views.filter(v => /Wrecks/.test(v.n || '')).map(v => [(v.c || v.p)[0] - 200, (v.c || v.p)[1]])];
   const N = MOBILE ? 9 : 16;
   const make = (bodyG, wingG, scale, sh, o) => {
@@ -880,10 +884,10 @@ function buildPelicans(scene, F) {
         p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : eagle ? 0.9 : 1.2));
         flap = c.climb > 0.1 || p.y < sea + 3;
       } else {                          // on its own: a wide circle off the shore, in line astern, rising and falling a little
-        p.afloat = false; p.v = p.sp; p.ang += p.way * p.sp / p.rad * dt;
+        p.afloat = false; p.v = (p.v ?? p.sp) + (p.sp - (p.v ?? p.sp)) * (1 - Math.exp(-dt * 1.2)); p.ang += p.way * p.v / p.rad * dt;       // left to itself on the water, it gathers way and lifts off; it does not leap to full speed
         const tx = p.home[0] + Math.cos(p.ang) * p.rad, tz = p.home[1] + Math.sin(p.ang) * p.rad * (p.round ? 1 : 1.6), want = Math.atan2(-(tz - p.z), tx - p.x);
-        let d = ((want - p.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI; const turn = clamp(d, -dt * 0.9, dt * 0.9); p.hd += turn; bank = -turn / Math.max(dt, 1e-3) * 0.5;
-        p.x += Math.cos(p.hd) * p.sp * dt; p.z -= Math.sin(p.hd) * p.sp * dt;
+        let d = want - p.hd; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2)); const turn = clamp(d, -dt * 0.9, dt * 0.9); p.hd += turn; bank = -turn / Math.max(dt, 1e-3) * 0.5;
+        p.x += Math.cos(p.hd) * p.v * dt; p.z -= Math.sin(p.hd) * p.v * dt;
         // a pelican keeps its height; a sea eagle rides the rising air up in its circles until it is a speck, then slides all the way down again to treetop height
         const swing = 0.5 - 0.5 * Math.cos(t * 0.045 + p.ph), goalAlt = p.kind === 'eagle' ? 14 + (p.alt * 3.2 - 14) * swing * swing : p.alt + Math.sin(t * 0.13 + p.ph) * 2.5;
         const goal = Math.max(sea + goalAlt, meshY(p.x, p.z) + 6); p.vy = (p.vy ?? 0) + (clamp((goal - p.y) * 0.25, -6, 6) - (p.vy ?? 0)) * (1 - Math.exp(-dt * 0.8)); p.y += p.vy * dt;

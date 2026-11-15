@@ -144,13 +144,13 @@ function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm
   g.box(stern.x - 0.55, 0.12, 0, 1.1, 0.08, 3.4, TEAK); g.box(bow.xd - 0.4, bow.yd + 0.02, 0, 0.6, 0.11, 0.25, [.2, .2, .22]);       // swim platform, anchor
   for (const x of [-2.5, 0.5, 3.0]) g.cyl(x, 0.5, 2.42, 0.15, 0.15, 0.7, 8, WHITE, WHITE);                                             // fenders
   for (const z of [-1.7, 1.7]) for (const f of [1, 0.55]) rod(g, [-2.8, 3.25 + 0.8 * f, z], [1.4, 3.25 + 0.8 * f, z], 0.014, METAL);   // rails round the flybridge
-  g.cyl(-1.6, 5.05, 0, 0.36, 0.26, 0.22, 10, WHITE, WHITE);                                                                            // radar dome on the hardtop
+  g.cyl(-1.6, 5.6, 0, 0.36, 0.26, 0.22, 10, WHITE, WHITE);                                                                            // radar dome on the hardtop
   house(g, 0.2, 1.5, 0, 7.6, 1.5, 3.7, WHITE, 0.6, 0.34, 0.78);                                            // saloon and its windows
   house(g, 4.0, 1.5, 0, 3.0, 0.8, 3.0, WHITE, 1.3);                                                                // foredeck cabin
   g.box(-0.6, 3.0, 0, 4.6, 0.25, 3.5, WHITE); g.box(0.9, 3.25, 0, 1.2, 0.75, 2.6, WHITE); g.box(1.5, 3.5, 0, 0.1, 0.6, 2.4, GLASS);       // flybridge deck, helm, screen
-  for (const [x, z] of [[1.2, 1.5], [1.2, -1.5], [-2.4, 1.5], [-2.4, -1.5]]) g.box(x, 3.25, z, 0.08, 1.7, 0.08, [.82, .82, .84]);
-  g.box(-0.6, 4.95, 0, 4.2, 0.1, 3.4, WHITE);                                                              // hardtop
-  g.box(-5.2, 1.5, 0, 3.2, 0.12, 3.9, [.6, .5, .4]); g.cyl(-0.6, 5.05, 0, 0.05, 0.03, 2.2, 4, [.8, .8, .8]);  // cockpit sole, aerial
+  for (const [x, z] of [[1.2, 1.5], [1.2, -1.5], [-2.4, 1.5], [-2.4, -1.5]]) g.box(x, 3.25, z, 0.07, 2.25, 0.07, [.82, .82, .84]);
+  g.box(-0.6, 5.5, 0, 4.2, 0.1, 3.4, WHITE);                                                               // hardtop, high enough to stand under and see out all round
+  g.box(-5.2, 1.5, 0, 3.2, 0.12, 3.9, [.6, .5, .4]); g.cyl(-0.6, 5.6, 0, 0.05, 0.03, 1.7, 4, [.8, .8, .8]);  // cockpit sole, aerial
   return finish(g);
 }
 function jetski(col) {       // a jet ski and its rider
@@ -197,7 +197,7 @@ export function buildBoats(scene, F) {
   const pick = (a) => a[(R() * a.length) | 0];
   // where you stand when you go aboard each kind of boat (metres forward of midships, and above the keel line)
   const EYES = new Map(); const eyes = (list, e) => [].concat(list).forEach(g => EYES.set(g, e));
-  eyes(geo.sail, [-4.5, 3.3]); eyes(geo.moor, [-4.5, 3.3]); eyes(geo.cru, [-3.9, 3.1]); eyes(geo.fly, [0.2, 4.75]); eyes(geo.tin, [-1.9, 1.65]); eyes(geo.jet, [0.3, 1.72]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
+  eyes(geo.sail, [-4.5, 3.3]); eyes(geo.moor, [-4.5, 3.3]); eyes(geo.cru, [-3.9, 3.1]); eyes(geo.fly, [0.2, 4.55]); eyes(geo.tin, [-1.9, 1.65]); eyes(geo.jet, [0.3, 1.72]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
   const boats = [], lights = makeLights(260);
   const mk = (g, x, z, o = {}) => {
     const m = new THREE.Mesh(g, mat); m.rotation.order = 'YZX'; m.scale.setScalar(S * (o.scale || 1)); m.frustumCulled = false; scene.add(m);
@@ -360,9 +360,9 @@ export function buildBoats(scene, F) {
             b.m.scale.z = S * (side > 0 ? 1 : -1);                                    // boom and sails set to leeward
           }
           turn(b, want, b.sail ? 0.16 : b.jet ? 1.0 : 0.3, dt);
-          if (b.jet) roll = clamp(((want - b.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI, -1, 1) * 0.45;      // a jet ski leans hard into its turns
+          if (b.jet) roll = clamp(((want - b.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI, -1, 1) * 0.32;      // a jet ski leans hard into its turns
           if (helm) {
-            b.hd -= helm.turn * (b.sail ? 0.3 : b.jet ? 0.8 : 0.45) * dt * clamp(b.sp / 3, 0.25, 1); if (b.jet) roll = helm.turn * 0.45; else if (!b.sail) roll = helm.turn * 0.08;
+            b.hd -= helm.turn * (b.sail ? 0.3 : b.jet ? 0.8 : 0.45) * dt * clamp(b.sp / 3, 0.25, 1); if (b.jet) roll = helm.turn * 0.32; else if (!b.sail) roll = helm.turn * 0.08;
             if (depth(b.x + Math.cos(b.hd) * 9, b.z - Math.sin(b.hd) * 9) < (b.sail ? 1.5 : 0.6)) { cruise = 0; b.sp *= Math.max(0, 1 - dt * 3); }      // she takes the ground in the shallows
           }
           b.sp += (cruise * 1.6 - b.sp) * Math.min(1, dt * 0.4);

@@ -77,45 +77,45 @@ const CABIN = /* html */`
        window with its wiper and the spare wheel beyond it, and the top of the seat you are sitting on with its head rests. One drawing, used on both sides. -->
   <template id="rdRearT"><svg viewBox="0 0 2000 1000" preserveAspectRatio="none">
     <path class="rs" fill="url(#rdRoof)" fill-rule="evenodd" d="M -50,-50 H 2050 V 1050 H -50 Z
-      M 130,262 L 440,250 Q 470,249 470,280 L 462,560 Q 460,596 426,598 L 150,610 Q 116,612 118,578 Z
-      M 578,270 Q 580,252 600,252 L 700,256 Q 720,257 720,278 L 716,520 Q 715,548 690,548 L 596,546 Q 572,545 572,520 Z
-      M 830,268 Q 1000,246 1170,268 Q 1200,272 1200,300 L 1196,520 Q 1195,552 1164,552 Q 1000,540 836,552 Q 805,552 804,520 L 800,300 Q 800,272 830,268 Z
-      M 1422,270 Q 1420,252 1400,252 L 1300,256 Q 1280,257 1280,278 L 1284,520 Q 1285,548 1310,548 L 1404,546 Q 1428,545 1428,520 Z
-      M 1870,262 L 1560,250 Q 1530,249 1530,280 L 1538,560 Q 1540,596 1574,598 L 1850,610 Q 1884,612 1882,578 Z"/>
+      M 52,258 L 462,246 Q 492,245 492,276 L 484,564 Q 482,600 448,602 L 70,616 Q 38,618 40,584 Z
+      M 526,266 Q 528,248 548,248 L 724,254 Q 744,255 744,276 L 740,524 Q 739,552 714,552 L 544,550 Q 520,549 520,524 Z
+      M 816,262 Q 1000,240 1184,262 Q 1214,266 1214,294 L 1210,524 Q 1209,556 1178,556 Q 1000,544 822,556 Q 791,556 790,524 L 786,294 Q 786,266 816,262 Z
+      M 1474,266 Q 1472,248 1452,248 L 1276,254 Q 1256,255 1256,276 L 1260,524 Q 1261,552 1286,552 L 1456,550 Q 1480,549 1480,524 Z
+      M 1948,258 L 1538,246 Q 1508,245 1508,276 L 1516,564 Q 1518,600 1552,602 L 1930,616 Q 1962,618 1960,584 Z"/>
     <path fill="url(#rdCloth)" fill-rule="evenodd" d="M -50,-50 H 2050 V 1050 H -50 Z
-      M 130,262 L 440,250 Q 470,249 470,280 L 462,560 Q 460,596 426,598 L 150,610 Q 116,612 118,578 Z
-      M 578,270 Q 580,252 600,252 L 700,256 Q 720,257 720,278 L 716,520 Q 715,548 690,548 L 596,546 Q 572,545 572,520 Z
-      M 830,268 Q 1000,246 1170,268 Q 1200,272 1200,300 L 1196,520 Q 1195,552 1164,552 Q 1000,540 836,552 Q 805,552 804,520 L 800,300 Q 800,272 830,268 Z
-      M 1422,270 Q 1420,252 1400,252 L 1300,256 Q 1280,257 1280,278 L 1284,520 Q 1285,548 1310,548 L 1404,546 Q 1428,545 1428,520 Z
-      M 1870,262 L 1560,250 Q 1530,249 1530,280 L 1538,560 Q 1540,596 1574,598 L 1850,610 Q 1884,612 1882,578 Z"/>
+      M 52,258 L 462,246 Q 492,245 492,276 L 484,564 Q 482,600 448,602 L 70,616 Q 38,618 40,584 Z
+      M 526,266 Q 528,248 548,248 L 724,254 Q 744,255 744,276 L 740,524 Q 739,552 714,552 L 544,550 Q 520,549 520,524 Z
+      M 816,262 Q 1000,240 1184,262 Q 1214,266 1214,294 L 1210,524 Q 1209,556 1178,556 Q 1000,544 822,556 Q 791,556 790,524 L 786,294 Q 786,266 816,262 Z
+      M 1474,266 Q 1472,248 1452,248 L 1276,254 Q 1256,255 1256,276 L 1260,524 Q 1261,552 1286,552 L 1456,550 Q 1480,549 1480,524 Z
+      M 1948,258 L 1538,246 Q 1508,245 1508,276 L 1516,564 Q 1518,600 1552,602 L 1930,616 Q 1962,618 1960,584 Z"/>
     <!-- the glass: a tint across the top of each pane, heater lines and the wiper on the back window, the spare wheel hanging outside it -->
     <path fill="url(#rdTint)" d="M 830,268 Q 1000,246 1170,268 Q 1200,272 1200,300 L 1200,340 Q 1000,318 800,340 L 800,300 Q 800,272 830,268 Z"/>
-    <path d="M 884,552 Q 1000,430 1116,552 Z" fill="rgba(8,9,10,0.9)"/><path d="M 918,552 Q 1000,468 1082,552" fill="none" stroke="#2a2d31" stroke-width="10"/>
-    <g fill="none" stroke="rgba(190,120,60,0.28)" stroke-width="1.5"><path vector-effect="non-scaling-stroke" d="M 812,330 Q 1000,312 1188,330 M 810,370 Q 1000,352 1190,370 M 808,410 Q 1000,392 1192,410 M 808,450 Q 1000,432 1192,450 M 806,490 Q 1000,472 1194,490"/></g>
+    <path d="M 900,556 Q 1000,462 1100,556 Z" fill="rgba(8,9,10,0.9)"/><path d="M 928,556 Q 1000,492 1072,556" fill="none" stroke="#2a2d31" stroke-width="8"/>
+    <g fill="none" stroke="rgba(190,120,60,0.16)" stroke-width="1"><path vector-effect="non-scaling-stroke" d="M 812,330 Q 1000,312 1188,330 M 810,370 Q 1000,352 1190,370 M 808,410 Q 1000,392 1192,410 M 808,450 Q 1000,432 1192,450 M 806,490 Q 1000,472 1194,490"/></g>
     <path d="M 1000,548 Q 1090,500 1170,536" fill="none" stroke="#0a0b0c" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
     <rect x="950" y="252" width="100" height="12" rx="6" fill="#3a1414"/>
     <g fill="none" stroke="#050606" stroke-width="8" vector-effect="non-scaling-stroke">
-      <path d="M 130,262 L 440,250 Q 470,249 470,280 L 462,560 Q 460,596 426,598 L 150,610 Q 116,612 118,578 Z"/>
-      <path d="M 578,270 Q 580,252 600,252 L 700,256 Q 720,257 720,278 L 716,520 Q 715,548 690,548 L 596,546 Q 572,545 572,520 Z"/>
-      <path d="M 830,268 Q 1000,246 1170,268 Q 1200,272 1200,300 L 1196,520 Q 1195,552 1164,552 Q 1000,540 836,552 Q 805,552 804,520 L 800,300 Q 800,272 830,268 Z"/>
-      <path d="M 1422,270 Q 1420,252 1400,252 L 1300,256 Q 1280,257 1280,278 L 1284,520 Q 1285,548 1310,548 L 1404,546 Q 1428,545 1428,520 Z"/>
-      <path d="M 1870,262 L 1560,250 Q 1530,249 1530,280 L 1538,560 Q 1540,596 1574,598 L 1850,610 Q 1884,612 1882,578 Z"/></g>
+      <path d="M 52,258 L 462,246 Q 492,245 492,276 L 484,564 Q 482,600 448,602 L 70,616 Q 38,618 40,584 Z"/>
+      <path d="M 526,266 Q 528,248 548,248 L 724,254 Q 744,255 744,276 L 740,524 Q 739,552 714,552 L 544,550 Q 520,549 520,524 Z"/>
+      <path d="M 816,262 Q 1000,240 1184,262 Q 1214,266 1214,294 L 1210,524 Q 1209,556 1178,556 Q 1000,544 822,556 Q 791,556 790,524 L 786,294 Q 786,266 816,262 Z"/>
+      <path d="M 1474,266 Q 1472,248 1452,248 L 1276,254 Q 1256,255 1256,276 L 1260,524 Q 1261,552 1286,552 L 1456,550 Q 1480,549 1480,524 Z"/>
+      <path d="M 1948,258 L 1538,246 Q 1508,245 1508,276 L 1516,564 Q 1518,600 1552,602 L 1930,616 Q 1962,618 1960,584 Z"/></g>
     <!-- grab handles and coat hooks over the doors, the light in the roof, seat belts down the pillars, door tops with their pulls and switches -->
     <path d="M 210,206 Q 290,180 370,200" fill="none" stroke="#3b3f44" stroke-width="12" stroke-linecap="round"/><path d="M 1790,206 Q 1710,180 1630,200" fill="none" stroke="#3b3f44" stroke-width="12" stroke-linecap="round"/>
     <rect x="930" y="110" width="140" height="62" rx="20" fill="#2c3033" stroke="#15171a" stroke-width="3"/><rect x="946" y="122" width="108" height="38" rx="12" fill="#e9e2c4" opacity="0.45"/>
-    <path d="M 518,236 Q 530,470 500,740" fill="none" stroke="#3d4146" stroke-width="16" stroke-linecap="round"/><path d="M 1482,236 Q 1470,470 1500,740" fill="none" stroke="#3d4146" stroke-width="16" stroke-linecap="round"/>
-    <rect x="506" y="226" width="26" height="34" rx="6" fill="#15171a"/><rect x="1468" y="226" width="26" height="34" rx="6" fill="#15171a"/>
-    <path d="M 90,640 L 440,622 Q 470,620 472,650 L 466,790 H 80 Z" fill="#202326"/><path d="M 1910,640 L 1560,622 Q 1530,620 1528,650 L 1534,790 H 1920 Z" fill="#202326"/>
+    <path d="M 506,236 Q 514,470 496,740" fill="none" stroke="#3d4146" stroke-width="16" stroke-linecap="round"/><path d="M 1494,236 Q 1486,470 1504,740" fill="none" stroke="#3d4146" stroke-width="16" stroke-linecap="round"/>
+    <rect x="494" y="222" width="24" height="30" rx="6" fill="#15171a"/><rect x="1482" y="222" width="24" height="30" rx="6" fill="#15171a"/>
+    <path d="M 20,646 L 440,622 Q 470,620 472,650 L 466,790 H 10 Z" fill="#202326"/><path d="M 1980,646 L 1560,622 Q 1530,620 1528,650 L 1534,790 H 1990 Z" fill="#202326"/>
     <rect x="200" y="672" width="170" height="26" rx="13" fill="#0c0d0e"/><rect x="1630" y="672" width="170" height="26" rx="13" fill="#0c0d0e"/>
     <g fill="#5a6066"><rect x="220" y="680" width="22" height="10" rx="3"/><rect x="250" y="680" width="22" height="10" rx="3"/><rect x="1730" y="680" width="22" height="10" rx="3"/><rect x="1760" y="680" width="22" height="10" rx="3"/></g>
     <!-- the load space sill under the small windows, and the back of your own seat: padded leather with a line of stitching and three head rests on their posts -->
     <path d="M 540,566 L 800,572 L 800,640 L 520,640 Z M 1460,566 L 1200,572 L 1200,640 L 1480,640 Z" fill="#17191c"/>
-    <g stroke="#7d848b" stroke-width="7"><path d="M 668,640 V 720 M 742,640 V 720 M 963,632 V 712 M 1037,632 V 712 M 1258,640 V 720 M 1332,640 V 720"/></g>
-    <g fill="#24272b" stroke="#0c0d0e" stroke-width="4"><rect x="620" y="548" width="170" height="124" rx="46"/><rect x="915" y="540" width="170" height="124" rx="46"/><rect x="1210" y="548" width="170" height="124" rx="46"/></g>
-    <g fill="url(#rdGrain)"><rect x="620" y="548" width="170" height="124" rx="46"/><rect x="915" y="540" width="170" height="124" rx="46"/><rect x="1210" y="548" width="170" height="124" rx="46"/></g>
-    <path d="M 420,740 Q 1000,668 1580,740 L 1640,1050 H 360 Z" fill="#1b1e21"/><path d="M 420,740 Q 1000,668 1580,740 L 1640,1050 H 360 Z" fill="url(#rdGrain)"/>
-    <path d="M 450,764 Q 1000,694 1550,764" fill="none" stroke="#c98a2a" stroke-width="2" stroke-dasharray="9 7" opacity="0.75" vector-effect="non-scaling-stroke"/>
-    <path d="M 805,730 Q 800,900 790,1050 M 1195,730 Q 1200,900 1210,1050" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="5" vector-effect="non-scaling-stroke"/>
+    <g stroke="#7d848b" stroke-width="8"><path d="M 650,660 V 720 M 750,660 V 720 M 968,660 V 700 M 1032,660 V 700 M 1250,660 V 720 M 1350,660 V 720"/></g>
+    <g fill="#24272b" stroke="#0c0d0e" stroke-width="4"><rect x="585" y="524" width="230" height="166" rx="60"/><rect x="910" y="580" width="180" height="104" rx="40"/><rect x="1185" y="524" width="230" height="166" rx="60"/></g>
+    <g fill="url(#rdGrain)"><rect x="585" y="524" width="230" height="166" rx="60"/><rect x="910" y="580" width="180" height="104" rx="40"/><rect x="1185" y="524" width="230" height="166" rx="60"/></g>
+    <path d="M 400,700 Q 1000,640 1600,700 L 1660,1050 H 340 Z" fill="#1b1e21"/><path d="M 400,700 Q 1000,640 1600,700 L 1660,1050 H 340 Z" fill="url(#rdGrain)"/>
+    <path d="M 430,724 Q 1000,666 1570,724" fill="none" stroke="#c98a2a" stroke-width="2" stroke-dasharray="9 7" opacity="0.75" vector-effect="non-scaling-stroke"/>
+    <path d="M 805,690 Q 800,900 790,1050 M 1195,690 Q 1200,900 1210,1050" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="5" vector-effect="non-scaling-stroke"/>
   </svg></template>
   <div class="rear l"></div><div class="rear r"></div>
 </div>
@@ -143,7 +143,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   let fov0 = 38, near0 = 3, uiT = 0, shake = 0, drag = null, steer = 0, gas = 0, sm = {};
   // Smooth following. A value eases toward its target at a rate that does not depend on the frame time, so nothing the eye rides on
   // (height, pitch, roll, heading) can jump from one frame to the next; angles go the short way round.
-  const ease = (key, to, rate, dt, ang) => { let v0 = sm[key]; if (v0 === undefined || !(dt >= 0)) return (sm[key] = to); let d0 = to - v0; if (ang) d0 = ((d0 + Math.PI * 3) % (Math.PI * 2)) - Math.PI; return (sm[key] = v0 + d0 * (1 - Math.exp(-dt * rate))); };
+  const ease = (key, to, rate, dt, ang) => { let v0 = sm[key]; if (v0 === undefined || !(dt >= 0)) return (sm[key] = to); let d0 = to - v0; if (ang) d0 -= Math.PI * 2 * Math.round(d0 / (Math.PI * 2)); return (sm[key] = v0 + d0 * (1 - Math.exp(-dt * rate))); };
   const point = (ang) => COMPASS[(Math.round(((ang * 180 / Math.PI) + 360) % 360 / 45)) % 8];
   // what is under a tap: the nearest 4WD or boat whose place on the screen is within about its own size (and never less than a fingertip)
   R.pick = (cx, cy) => {
@@ -187,9 +187,9 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   };
   // the hands on the wheel: applied before the vehicles move this frame
   R.control = (dt) => {
-    if (R.car && R.car.drive) { const c = R.car; c.drive.turn += (steer - c.drive.turn) * Math.min(1, dt * 5); c.drive.throttle = clamp(c.drive.throttle + gas * dt * 0.7, -0.4, 1.6); }
-    if (R.bird && R.bird.ctl) { const p = R.bird; p.ctl.turn += (steer - p.ctl.turn) * Math.min(1, dt * 4); p.ctl.climb += (gas - p.ctl.climb) * Math.min(1, dt * 4); }
-    if (R.boat && R.boat.helm) { const b = R.boat; b.helm.turn += (steer - b.helm.turn) * Math.min(1, dt * 4); b.helm.throttle = clamp(b.helm.throttle + gas * dt * 0.6, 0, 1.5); }
+    if (R.car && R.car.drive) { const c = R.car; c.drive.turn += (steer - c.drive.turn) * (1 - Math.exp(-dt * 3.5)); c.drive.throttle = clamp(c.drive.throttle + gas * dt * 0.7, -0.4, 1.6); }
+    if (R.bird && R.bird.ctl) { const p = R.bird; p.ctl.turn += (steer - p.ctl.turn) * (1 - Math.exp(-dt * 3)); p.ctl.climb += (gas - p.ctl.climb) * (1 - Math.exp(-dt * 3)); }
+    if (R.boat && R.boat.helm) { const b = R.boat; b.helm.turn += (steer - b.helm.turn) * (1 - Math.exp(-dt * 3)); b.helm.throttle = clamp(b.helm.throttle + gas * dt * 0.6, 0, 1.5); }
   };
   // the eye: placed after everything has moved this frame, so the view never trails the thing you ride by a frame
   R.update = (dt, t) => {
@@ -200,7 +200,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
       shake += dt * c.sp; const bump = Math.sin(shake * 1.9) * 0.008 + Math.sin(shake * 0.53 + 1.0) * 0.016;
       const cy = ease('cy', m.position.y, 7, dt), pitch = ease('cp', m.rotation.z, 4, dt), cyaw = ease('cyaw', yaw, 9, dt, true);
       camera.position.set(m.position.x - fx * 0.95 * S, cy + 1.44 * S + bump, m.position.z - fz * 0.95 * S);
-      camera.rotation.set(R.tilt + pitch * 0.7 - 0.03, cyaw - Math.PI / 2 - R.look, Math.sin(shake * 0.8) * 0.003, 'YXZ');
+      camera.rotation.set(R.tilt + pitch * 0.7 * Math.cos(R.look) - 0.03, cyaw - Math.PI / 2 - R.look, -pitch * 0.7 * Math.sin(R.look) + Math.sin(shake * 0.8) * 0.003, 'YXZ');      // looking out of the side, the car's nose-up shows as a tilt of the horizon, not a nod
       camera.updateMatrixWorld();
       // the wheel in the driver's hands: turned as far as the car is turning, never quite still on the sand, and spinning back as the car straightens
       if (dt > 0) {
@@ -210,9 +210,9 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
         wheelEl.style.transform = `rotate(${R.wheel.toFixed(1)}deg)`; $('hmWheel').style.transform = wheelEl.style.transform;
       }
       // the cabin stays with the car: as the head turns one way it slides the other, all the way round (the back of the cabin is drawn on both sides)
-      const hf = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), rw = Math.max(60, Math.PI * 2 / hf * 100 - 180);
+      const hf = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), rw = Math.max(110, Math.PI * 2 / hf * 100 - 180);
       if (Math.abs(rw - rearW) > 0.2) { rearW = rw; for (const r of rears) r.style.width = rw.toFixed(1) + 'vw'; }
-      cab.style.transform = `translate(${(-R.look / hf * 100).toFixed(2)}vw, ${(R.tilt / (camera.fov * Math.PI / 180) * 100 + bump * 30).toFixed(2)}vh)`;
+      cab.style.transform = `translate(${Math.round(-R.look / hf * innerWidth)}px, ${Math.round((R.tilt / (camera.fov * Math.PI / 180) + bump * 0.3) * innerHeight)}px)`;
       uiT -= dt; if (uiT <= 0) {
         uiT = 0.3; const kmh = Math.round(c.sp * 3.6);
         $('rdSpeed').textContent = kmh; $('rdSpeed2').textContent = kmh; $('rdHead').textContent = point(Math.atan2(fx, -fz)); $('rdBeach').textContent = c.side > 0 ? 'Eastern Beach' : 'Western Beach';
@@ -222,8 +222,9 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     }
     if (R.bird) {            // following a bird: just behind and above it, swinging round after it as it turns and rising and falling a little after it
       const p = R.bird, sea = env.sea ? env.sea() : 0; R.pos.copy(p.m.position);
-      const by = ease('by', p.y, 3.2, dt), yawB = ease('byaw', Math.atan2(-Math.cos(p.hd), Math.sin(p.hd)), 3.5, dt, true);
-      const yawC = yawB - R.look, fx = -Math.sin(yawC), fz = -Math.cos(yawC), back = p.afloat ? 5 : p.kind === 'eagle' ? 6 : 7.5;
+      let by = ease('by', p.y, 3.2, dt); by = sm.by = clamp(by, p.y - 1.5, p.y + 1.5);        // it may lag the bird a little, never lose it
+      const yawB = ease('byaw', Math.atan2(-Math.cos(p.hd), Math.sin(p.hd)), 3.5, dt, true);
+      const yawC = yawB - R.look, fx = -Math.sin(yawC), fz = -Math.cos(yawC), back = ease('bk', p.afloat ? 5 : p.kind === 'eagle' ? 6 : 7.5, 2, dt);
       camera.position.set(p.x - fx * back, Math.max(by + 2.3 - R.tilt * 7, sea + 0.4), p.z - fz * back); v.set(p.x + fx * 4, by + 0.7, p.z + fz * 4); camera.up.set(0, 1, 0); camera.lookAt(v); camera.updateMatrixWorld();
       if (p.ctl) $('hmWheel').style.transform = `rotate(${(p.ctl.turn * 60).toFixed(1)}deg)`;
       uiT -= dt; if (uiT <= 0) {
@@ -238,7 +239,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     v.set(eye[0], eye[1], 0); m.localToWorld(v); q.set(eye[0] + 20, eye[1] - 0.8, 0); m.localToWorld(q); q.sub(v).normalize();
     camera.position.copy(v);
     const pit = ease('bp', Math.asin(clamp(q.y, -1, 1)), 5, dt), rol = ease('br', m.rotation.x, 5, dt);
-    camera.rotation.set(pit * 0.6 + R.tilt, Math.atan2(-q.x, -q.z) - R.look, -rol * 0.6 * Math.cos(R.look), 'YXZ');
+    camera.rotation.set((pit * Math.cos(R.look) - rol * Math.sin(R.look)) * 0.6 + R.tilt, Math.atan2(-q.x, -q.z) - R.look, -(rol * Math.cos(R.look) + pit * Math.sin(R.look)) * 0.6, 'YXZ');       // looking abeam, her pitching tilts the horizon and her rolling lifts and drops it
     camera.updateMatrixWorld();
     if (b.helm) $('hmWheel').style.transform = `rotate(${(b.helm.turn * 110).toFixed(1)}deg)`;
     uiT -= dt; if (uiT <= 0) {
@@ -250,7 +251,9 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   canvas.addEventListener('pointerdown', (e) => { if (R.active) drag = { x: e.clientX, y: e.clientY }; });
   addEventListener('pointermove', (e) => {
     if (!R.active || !drag) return;
-    R.look += (e.clientX - drag.x) * 0.0035; R.look = ((R.look + Math.PI * 3) % (Math.PI * 2)) - Math.PI;      // all the way round, in a car as on a boat R.tilt = clamp(R.tilt - (e.clientY - drag.y) * 0.0025, R.car ? -0.2 : -0.6, R.car ? 0.16 : 0.5); drag.x = e.clientX; drag.y = e.clientY;
+    // all the way round, in a car as on a boat
+    R.look += (e.clientX - drag.x) * 0.0035; R.look -= Math.PI * 2 * Math.round(R.look / (Math.PI * 2));
+    R.tilt = clamp(R.tilt - (e.clientY - drag.y) * 0.0025, R.car ? -0.2 : -0.6, R.car ? 0.16 : 0.5); drag.x = e.clientX; drag.y = e.clientY;
   });
   addEventListener('pointerup', () => { drag = null; }); addEventListener('pointercancel', () => { drag = null; });
   // the helm: buttons you hold, or the keys
