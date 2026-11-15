@@ -139,6 +139,22 @@ export function objectMat(opts = {}) {
       }`,
     fs: /* glsl */`
       varying vec3 vW, vN, vC, vFx; uniform vec3 uWaterDeep;
+      #ifdef BOAT
+      // one stencilled figure (0-9) in a cell, built from seven strokes like the figures painted on a hull or sewn on a sail
+      float figure7(vec2 q, float d){
+        float m = d < 0.5 ? 63.0 : d < 1.5 ? 6.0 : d < 2.5 ? 91.0 : d < 3.5 ? 79.0 : d < 4.5 ? 102.0 : d < 5.5 ? 109.0 : d < 6.5 ? 125.0 : d < 7.5 ? 7.0 : d < 8.5 ? 127.0 : 111.0;
+        float inx = step(0.18, q.x) * step(q.x, 0.78), iny = step(0.04, q.y) * step(q.y, 0.96), lft = step(q.x, 0.31), rgt = step(0.65, q.x), up = step(0.5, q.y);
+        float on = 0.0;
+        on += mod(m, 2.0) >= 1.0 ? step(0.85, q.y) : 0.0;                              // top
+        on += mod(floor(m / 2.0), 2.0) >= 1.0 ? rgt * up : 0.0;                        // upper right
+        on += mod(floor(m / 4.0), 2.0) >= 1.0 ? rgt * (1.0 - up) : 0.0;                // lower right
+        on += mod(floor(m / 8.0), 2.0) >= 1.0 ? step(q.y, 0.15) : 0.0;                 // bottom
+        on += mod(floor(m / 16.0), 2.0) >= 1.0 ? lft * (1.0 - up) : 0.0;               // lower left
+        on += mod(floor(m / 32.0), 2.0) >= 1.0 ? lft * up : 0.0;                       // upper left
+        on += mod(floor(m / 64.0), 2.0) >= 1.0 ? step(abs(q.y - 0.5), 0.055) : 0.0;    // middle
+        return min(on, 1.0) * inx * iny;
+      }
+      #endif
       void main(){
         ${LOGF}
         float nn = dot(vN, vN); vec3 N = nn > 1e-8 ? vN * inversesqrt(nn) : vec3(0.0, 1.0, 0.0); if(!gl_FrontFacing) N = -N;
@@ -283,26 +299,102 @@ export function objectMat(opts = {}) {
             float bn = texture2D(uNoise, L * 0.11 + zone * 0.37).r, streak = texture2D(uNoise, vec2(L.x * 0.17, L.y * 0.03)).g;
             if(zone < 0.5){                      // paint and gelcoat: a boot stripe above the water, weeping streaks below the deck edge
               shine = 0.5;
-              if(face < 0.5){
-                vec3 acc = dot(alb, vec3(0.333)) > 0.35 ? vec3(0.02, 0.05, 0.16) : vec3(0.72, 0.72, 0.68);
-                alb = mix(alb, acc, smoothstep(0.1, 0.13, L.y) * smoothstep(0.29, 0.26, L.y));
-                alb *= 1.0 - 0.07 * smoothstep(0.6, 0.9, streak) * smoothstep(0.1, 0.9, L.y);
+              if(face > 2.5){                    // the side of a hull. L.x: metres aft of the bow; L.y: 0 at the waterline, 1 at the gunwale
+                float xb = L.x, hv = L.y, fine = 1.0 - smoothstep(0.02, 0.07, fwidth(hv)), pale = step(0.35, dot(alb, vec3(0.333)));
+                vec3 base = alb, acc = pale > 0.5 ? vec3(0.02, 0.05, 0.16) : vec3(0.76, 0.75, 0.70);
+                float figs = 0.0, fx0 = 1.5, fw = 0.2, fy0 = 0.33, fh = 0.2;               // the registration figures on the bow
+                if(face < 3.5){                  // yacht: boot stripe, a gold cove line under the gunwale, round ports with bright rims
+                  alb = mix(alb, acc, smoothstep(0.07, 0.09, hv) * smoothstep(0.2, 0.18, hv));
+                  alb = mix(alb, vec3(0.60, 0.46, 0.16), smoothstep(0.80, 0.815, hv) * smoothstep(0.87, 0.855, hv) * step(0.7, xb) * (0.4 + 0.6 * fine));
+                  vec2 pq = vec2((fract((xb - 3.5) / 1.45) - 0.5) * 1.45, (hv - 0.6) * 0.95); float pr = length(pq), has = step(3.5, xb) * step(xb, 9.3);
+                  alb = mix(alb, vec3(0.80, 0.79, 0.74), has * smoothstep(0.165, 0.15, pr));
+                  float pane = has * smoothstep(0.12, 0.105, pr); alb = mix(alb, vec3(0.012, 0.018, 0.026), pane); shine = mix(shine, 1.7, pane);
+                  em += vec3(1.0, 0.8, 0.5) * pane * uNight * 0.7 * step(0.5, hash12(vec2(floor((xb - 3.5) / 1.45), 3.0)));
+                } else if(face < 4.5){           // motor cruiser: boot stripe, a broad sheer stripe sweeping aft from the bow with a pin line under it, two ports forward
+                  alb = mix(alb, acc, smoothstep(0.06, 0.075, hv) * smoothstep(0.16, 0.145, hv));
+                  float sw = 0.60 + 0.10 * smoothstep(0.0, 4.0, xb);
+                  alb = mix(alb, acc, smoothstep(sw, sw + 0.012, hv) * smoothstep(0.83, 0.818, hv) * smoothstep(0.35, 0.8, xb));
+                  alb = mix(alb, vec3(0.62, 0.08, 0.06), smoothstep(sw - 0.07, sw - 0.06, hv) * smoothstep(sw - 0.03, sw - 0.04, hv) * smoothstep(0.35, 0.8, xb) * (0.4 + 0.6 * fine));
+                  vec2 pq = vec2((fract((xb - 2.3) / 1.3) - 0.5) * 1.3, (hv - 0.47) * 1.3); float bx = max(abs(pq.x) - 0.26, abs(pq.y) - 0.07), has = step(2.3, xb) * step(xb, 4.9);
+                  alb = mix(alb, vec3(0.74, 0.74, 0.72), has * smoothstep(0.035, 0.02, bx)); float pane = has * smoothstep(0.004, -0.008, bx); alb = mix(alb, vec3(0.012, 0.018, 0.026), pane); shine = mix(shine, 1.7, pane);
+                  fy0 = 0.24; fh = 0.17; fx0 = 0.9;
+                } else if(face < 5.5){           // aluminium dinghy: bare metal, pressed strakes along its length, a rib every half metre, scratches, big black figures
+                  float ln = abs(fract(hv * 3.0 + 0.5) - 0.5) / 3.0;
+                  alb *= 1.0 - 0.3 * smoothstep(0.022, 0.006, ln) * fine + 0.18 * smoothstep(0.03, 0.02, abs(ln - 0.035)) * fine;
+                  alb *= 1.0 - 0.12 * smoothstep(0.03, 0.01, abs(fract(xb / 0.55) - 0.5) * 0.55) * fine;
+                  alb *= 0.82 + 0.3 * texture2D(uNoise, vec2(xb * 0.9, hv * 0.12)).r; shine = 0.9;
+                  alb = mix(alb, vec3(0.86, 0.88, 0.9), 0.5 * step(0.8, texture2D(uNoise, vec2(xb * 2.4, hv * 0.4) + 0.3).g) * fine);
+                  fx0 = 0.75; fw = 0.15; fy0 = 0.42; fh = 0.4;
+                } else if(face < 6.5){           // steel work boat: plates and their welded seams, a band at the water, rust weeping from every scupper, draught marks at the bow
+                  alb = mix(alb, pale > 0.5 ? vec3(0.03, 0.06, 0.14) : vec3(0.04, 0.04, 0.045), smoothstep(0.1, 0.11, hv) * smoothstep(0.22, 0.21, hv));
+                  float seam = max(smoothstep(0.03, 0.008, abs(fract(xb / 2.6) - 0.5) * 2.6), smoothstep(0.02, 0.006, abs(hv - 0.56)));
+                  alb *= 1.0 - 0.22 * seam * fine; alb *= 0.9 + 0.16 * texture2D(uNoise, vec2(floor(xb / 2.6) * 0.37, step(0.56, hv) * 0.5)).r;
+                  float sid = floor(xb / 2.6), dx = (fract(xb / 2.6) - 0.5) * 2.6 + 0.04 * sin(hv * 17.0 + sid), len = 0.35 + 0.6 * hash12(vec2(sid, 9.0));
+                  alb = mix(alb, vec3(0.30, 0.13, 0.05), 0.62 * smoothstep(0.11, 0.0, abs(dx)) * smoothstep(1.0 - len, 1.0, hv) * (0.5 + 0.5 * streak));
+                  float tick = step(abs(xb - 1.4), 0.16) * step(abs(fract(hv * 5.0) - 0.5), 0.07) * step(0.2, hv) * step(hv, 0.9);
+                  alb = mix(alb, vec3(0.85), tick * fine); fx0 = 3.0; fw = 0.5; fy0 = 0.62; fh = 0.26;
+                } else {                         // jet ski and the rest: a dark lower half and two raked flashes of colour
+                  alb = mix(alb, vec3(0.035, 0.035, 0.04), smoothstep(0.52, 0.48, hv + 0.1 * sin(xb * 2.2)));
+                  float fl = fract((xb + hv * 0.5) / 1.1); alb = mix(alb, vec3(0.9), step(0.5, hv) * step(0.42, fl) * step(fl, 0.56));
+                  fx0 = -9.0;
+                }
+                // registration figures, both bows
+                vec2 fq = vec2((xb - fx0) / fw, (hv - fy0) / fh);
+                if(fq.x > 0.0 && fq.x < 6.0 && fq.y > 0.0 && fq.y < 1.0 && fx0 > -1.0){
+                  float fid = floor(fq.x); figs = figure7(vec2(fract(fq.x), fq.y), floor(hash12(vec2(fid * 3.7, face)) * 9.99)) * (1.0 - smoothstep(0.25, 0.7, fwidth(fq.x)));
+                  alb = mix(alb, dot(base, vec3(0.333)) > 0.3 ? vec3(0.03, 0.03, 0.04) : vec3(0.9), figs);
+                }
+                if(face < 4.5 || face > 6.5){     // glass fibre: weeping streaks below each scupper, long scrapes where she has lain along a jetty, a tide mark
+                  float sid = floor(xb / 1.9), dx = (fract(xb / 1.9) - 0.3 - 0.4 * hash12(vec2(sid, 5.0))) * 1.9 + 0.02 * sin(hv * 23.0 + sid), len = 0.25 + 0.5 * hash12(vec2(sid, 9.0));
+                  alb *= 1.0 - 0.26 * smoothstep(0.05, 0.0, abs(dx)) * smoothstep(1.0 - len, 1.0, hv) * (1.0 - smoothstep(0.93, 1.0, hv)) * (0.4 + 0.6 * streak);
+                  alb *= 1.0 - 0.13 * smoothstep(0.6, 0.8, texture2D(uNoise, vec2(xb * 0.07, hv * 2.6)).b) * smoothstep(0.75, 0.3, hv);
+                }
+                float tide = smoothstep(0.13 + 0.07 * texture2D(uNoise, vec2(xb * 0.21, 0.4)).r, 0.0, hv);
+                alb = mix(alb, vec3(0.30, 0.29, 0.17), tide * 0.45);       // the yellow-brown stain the harbour leaves just above the water
+                face = 0.0;
               }
               alb *= 0.94 + 0.08 * bn;
+              if(face < 1.5){                     // sunlight thrown up off the water plays over the topsides in moving bands
+                float hw = (vW.y - uSeaM * uVex) / uVex;
+                float rp = texture2D(uNoise, vec2(L.x * 0.23 + uTime * 0.05, hw * 0.5 - uTime * 0.12)).r * texture2D(uNoise, vec2(L.x * 0.15 - uTime * 0.04, hw * 0.36 - uTime * 0.07) + 0.4).g;
+                em += uLightCol * alb * smoothstep(0.17, 0.4, rp) * smoothstep(1.9, 0.15, hw) * step(0.0, hw) * 0.55 * clamp(uLightDir.y * 3.0, 0.0, 1.0) * cloudShadow(vW);
+              }
             } else if(zone < 1.5){               // bottom paint: scum at the waterline, weed further down
               alb = mix(alb * (0.75 + 0.5 * bn), vec3(0.06, 0.10, 0.045), smoothstep(-0.6, 0.05, L.y) * (0.25 + 0.55 * bn));
+              alb = mix(alb, vec3(0.62, 0.6, 0.5), step(0.8, texture2D(uNoise, L * 2.3).r) * smoothstep(-0.5, 0.0, L.y) * 0.5);        // barnacles in a band below the waterline
             } else if(zone < 2.5){               // a band of windows: dark panes with frames between them, some lit at night
               float pane = step(abs(fract(L.x / 1.3 + 0.5) - 0.5), 0.445), id = floor(L.x / 1.3 + 0.5);
-              alb = mix(vec3(0.55, 0.55, 0.53), vec3(0.012, 0.018, 0.024), pane); shine = mix(0.4, 1.7, pane);
+              alb = mix(vec3(0.55, 0.55, 0.53), vec3(0.012, 0.018, 0.024) + 0.035 * step(0.78, fract((L.x + L.y) * 1.3)), pane); shine = mix(0.4, 1.7, pane);       // dark panes with a slanting gleam, pale frames
+              alb = mix(alb, vec3(0.03), pane * step(abs(fract(L.x / 1.3 + 0.5) - 0.5), 0.445) * step(0.415, abs(fract(L.x / 1.3 + 0.5) - 0.5)));                    // the rubber the glass is set in
               em = vec3(1.0, 0.8, 0.5) * pane * uNight * 0.9 * step(0.45, hash12(vec2(id, floor(vW.x * 0.02))));
             } else if(zone < 3.5){               // a laid deck: planks running fore and aft, dark seams, butt joints
               float kf = 1.0 - smoothstep(0.3, 1.0, fwidth(L.y) / 0.16), row = floor(L.y / 0.16);
-              alb *= 1.0 - 0.5 * kf * smoothstep(0.12, 0.04, fract(L.y / 0.16));
-              alb *= 1.0 - 0.4 * kf * smoothstep(0.012, 0.004, abs(fract(L.x / 2.4 + row * 0.37) - 0.5));
+              if(alb.r - alb.b > 0.05){            // timber: planks, seams, butts, and the grain running along each plank, greyed by the weather
+                alb *= 1.0 - 0.5 * kf * smoothstep(0.12, 0.04, fract(L.y / 0.16));
+                alb *= 1.0 - 0.4 * kf * smoothstep(0.012, 0.004, abs(fract(L.x / 2.4 + row * 0.37) - 0.5));
+                alb *= 0.86 + 0.24 * texture2D(uNoise, vec2(L.x * 0.6, L.y * 9.0 + row * 0.31)).r;
+                alb = mix(alb, vec3(dot(alb, vec3(0.3333))) * 1.05, 0.3 * texture2D(uNoise, L * 0.35).g);
+              } else {                             // painted or bare metal: a non-skid pattern of small raised diamonds
+                vec2 dq = vec2(L.x + L.y, L.x - L.y) * 9.0;
+                alb *= 1.0 - 0.14 * step(0.3, sin(dq.x) * sin(dq.y)) * (1.0 - smoothstep(0.3, 1.2, fwidth(dq.x)));
+              }
               alb *= 0.82 + 0.34 * bn;
             } else {                             // sailcloth: seams between the panels, and the sun glowing through
-              alb *= 1.0 - 0.16 * smoothstep(0.05, 0.015, abs(fract((L.y + L.x * 0.12) / 0.95) - 0.5));
+              float seamS = smoothstep(0.035, 0.012, abs(fract((L.y + L.x * 0.12) / 0.95) - 0.5) * 0.95);
+              alb *= 1.0 - 0.3 * seamS; alb *= 0.93 + 0.1 * step(0.5, fract((L.y + L.x * 0.12) / 1.9));          // stitched seams between the panels, alternate panels a shade apart
               alb *= 0.9 + 0.14 * bn;
+              alb *= 1.0 - 0.05 * step(0.88, max(fract(L.x * 9.0), fract(L.y * 9.0))) * (1.0 - smoothstep(0.2, 0.8, fwidth(L.x * 9.0)));     // the ripstop grid of the cloth
+              float jib = step(1.43, L.x), leech = -3.8 + 0.404 * (L.y - 2.45);                  // where the after edge of the mainsail runs at this height
+              // mainsail: four stiff battens in from the leech, a tape down the luff, a class badge high up; jib: a strip of blue sun-cover down its after edge
+              float bat = (1.0 - jib) * (1.0 - smoothstep(0.02, 0.05, abs(fract((L.y - 3.2) / 2.6) - 0.5) * 2.6)) * step(leech, L.x + 0.3) * step(L.x, leech + 1.7) * step(3.5, L.y) * step(L.y, 13.5);
+              alb *= 1.0 - 0.3 * bat;
+              alb *= 1.0 - 0.14 * (1.0 - jib) * step(1.18, L.x);
+              float bd = length(L - vec2(leech + 1.25, 11.0) + vec2(0.0, 0.0)) ; bd = jib > 0.5 ? 9.0 : length(L - vec2(-3.8 + 0.404 * 8.55 + 1.25, 11.0));
+              alb = mix(alb, vec3(0.62, 0.07, 0.06), step(bd, 0.46) * step(0.3, bd));
+              { vec2 sq = vec2((L.x + 1.75) / 0.62, (L.y - 8.4) / 1.0);                 // sail number under the badge, and two dark draft stripes across the cloth
+                if(jib < 0.5 && sq.x > 0.0 && sq.x < 4.0 && sq.y > 0.0 && sq.y < 1.0) alb = mix(alb, vec3(0.05, 0.05, 0.07), figure7(vec2(fract(sq.x), sq.y), floor(hash12(vec2(floor(sq.x) * 5.3, 2.0)) * 9.99)));
+                alb = mix(alb, vec3(0.08, 0.08, 0.1), (1.0 - jib) * (step(abs(L.y - 6.3), 0.035) + step(abs(L.y - 10.2), 0.035)) * step(leech + 0.5, L.x) * step(L.x, 1.0) * step(0.3, fract(L.x * 0.9))); }
+              alb = mix(alb, vec3(0.05, 0.10, 0.30), jib * step(L.x, 1.45 - (13.4 - L.y) * 0.047 + 0.42) * step(1.9, L.y));
               em = alb * uLightCol * max(dot(-N, uLightDir), 0.0) * 0.32 * cloudShadow(vW);
             }
             alb *= 0.78 + 0.22 * smoothstep(-0.2, 1.3, (vW.y - uSeaM * uVex) / uVex);      // grime toward the waterline

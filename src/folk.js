@@ -165,6 +165,15 @@ function buildSigns(scene, posts) {
   for (const p of posts) {
     const y = meshY(p.x, p.z), Hb = 0.36 * K, gap = 0.06 * K, size = 0.2 * K, top = y + (2.0 + p.boards.length * 0.42) * K, pw = 0.07 * K;
     for (const [ax, az] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) { const bx = -az, bz = ax, P = (h, s) => [p.x + ax * pw + bx * pw * s, y - 0.4 + h, p.z + az * pw + bz * pw * s]; quad(P(0, -1), P(0, 1), P(top - y + 0.55, 1), P(top - y + 0.55, -1), INK, WOOD); }
+    if (heightAt(p.x, p.z) < 7 && p.boards.length) {      // down by the beach the track mouth is marked off with a row of weathered timber bollards
+      const d = p.boards[0].dir, sx = -d[1], sz = d[0], GREY = [0.27, 0.245, 0.21];
+      for (let k = 1; k <= 5; k++) {
+        const bx = p.x + sx * (1.4 + k * 1.9) + d[0] * Math.sin(k * 2.3) * 0.25, bz = p.z + sz * (1.4 + k * 1.9) + d[1] * Math.sin(k * 2.3) * 0.25, by = meshY(bx, bz), hh = (0.62 + 0.14 * Math.sin(k * 5.1)) * K, w = 0.085 * K;
+        const lean = [Math.sin(k * 3.7) * 0.05, Math.cos(k * 2.9) * 0.05], T = (ox, oz, h) => [bx + ox * w + lean[0] * h, by - 0.3 + h, bz + oz * w + lean[1] * h];
+        for (const [ax, az] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) { const ux = -az, uz = ax; quad(T(ax - ux, az - uz, 0), T(ax + ux, az + uz, 0), T(ax + ux, az + uz, hh + 0.3), T(ax - ux, az - uz, hh + 0.3), INK, GREY.map(v => v * (0.8 + 0.25 * Math.abs(ax)))); }
+        quad(T(-1, -1, hh + 0.3), T(1, -1, hh + 0.3), T(1, 1, hh + 0.3), T(-1, 1, hh + 0.3), INK, GREY.map(v => v * 1.25));
+      }
+    }
     p.boards.forEach((b, i) => {
       const y1 = top - i * (Hb + gap), y0 = y1 - Hb, tw = width(b.text, size), pad = 0.14 * K, s0 = -0.12 * K, s1 = pw + pad * 2 + tw, tip = Hb * 0.55, d = b.dir;
       const color = b.c === 2 ? [0.13, 0.065, 0.025] : b.c === 3 ? [0.015, 0.075, 0.17] : [0.012, 0.085, 0.04];        // brown for walking tracks, blue along the beach, green for vehicle tracks

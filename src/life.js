@@ -103,11 +103,12 @@ function buildBeachLife(scene) {
         float logK = step(h3, 0.012), stick = (1.0 - logK) * step(h3, 0.3);
         float len = logK > 0.5 ? 1.8 + 2.6 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.07 + 0.08 * h2 : 0.01 + 0.022 * h2;
         float taper = 1.0 - 0.5 * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * 0.3;
-        s = (logK + stick) * ${WOODED};
+        s = (logK + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
         lp = vec3(position.x * len, (position.y * taper + 0.8) * rad, position.z * rad * taper + crook * len);
         nrm = vec3(0.0, position.y, position.z);
         float grain = texture2D(uNoise, vec2(position.x * len * 0.35 + h1, aK * 0.07 + h2)).r;
-        c = mix(mix(vec3(0.26, 0.21, 0.16), vec3(0.14, 0.10, 0.07), smoothstep(0.3, 0.7, h4)), vec3(0.04, 0.035, 0.03), step(0.82, h1) * 0.85) * (0.65 + 0.6 * grain);`, 300);
+        c = mix(mix(vec3(0.26, 0.21, 0.16), vec3(0.14, 0.10, 0.07), smoothstep(0.3, 0.7, h4)), vec3(0.04, 0.035, 0.03), step(0.82, h1) * 0.85) * (0.65 + 0.6 * grain);
+        c = mix(c, vec3(0.50, 0.48, 0.44) * (0.6 + 0.6 * grain), smoothstep(0.35, 0.65, mk.g));                      // out in the sun they bleach silver`, 300);
   // leaves and curls of bark: one small flat piece, long and narrow
   const litter = scatter(scene, LOW ? 84 : 128, 0.5, (g) => {
     attr(g, 'position', [-0.5, 0, 0, 0, 0, 0.5, 0.5, 0, 0, 0, 0, -0.5], 3); attr(g, 'aK', [0, 1, 0, 1], 1); g.setIndex([0, 1, 2, 0, 2, 3]);
@@ -565,7 +566,7 @@ function buildBirds(scene, F) {
       void main(){
         float way = iP.w < 0.5 ? 1.0 : -1.0, ang = iP.w * 40.0 + uTime * 0.22 / iP.z * way;
         vec2 c = iP.xy + vec2(cos(ang), sin(ang)) * iP.z, fwd = vec2(-sin(ang), cos(ang)) * way;
-        vec3 lp = position * 1.9 - vec3(0.0, 0.17, 0.0);                 // it sits in the water, not on it
+        vec3 lp = position * 1.9 - vec3(0.0, 0.29, 0.0);                 // it sits in the water, not on it
         vec3 wp = vec3(c.x + fwd.x * lp.x - fwd.y * lp.z, uSeaM * uVex + lp.y + sin(uTime * 1.3 + iP.w * 30.0) * 0.06, c.y + fwd.y * lp.x + fwd.x * lp.z);
         vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
         float ok = step(groundY(c), uSeaM * uVex - 0.5) * (1.0 - smoothstep(900.0, 1200.0, length(wp - cameraPosition)));
@@ -582,12 +583,18 @@ function buildBirds(scene, F) {
   // most of them toward the south end (Kooringal and the banks by the Big Sandhills), as the owner photographed them
   {
     const st = [], Rp = rng(9090), gh = (x, z) => heightAt(x, z);
-    const group = (x, z, n) => { for (let i = 0; i < n; i++) { const a = Rp() * 6.283, r = Math.sqrt(Rp()) * (1.5 + n * 0.45); st.push(x + Math.cos(a) * r, z + Math.sin(a) * r * 0.6, Rp(), 0.9 + Rp() * 0.22); } };
+    const group = (x, z, n) => {      // a loose knot of birds a wing-length apart, strung along the shore, each one on sand that stays dry
+      for (let i = 0, tries = 0; i < n && tries < n * 6; tries++) {
+        const a = Rp() * 6.283, r = Math.sqrt(Rp()) * (0.9 + n * 0.3), px = x + Math.cos(a) * r * 0.45, pz = z + Math.sin(a) * r, h = gh(px, pz);
+        if (h < 0.4 || h > 1.3) continue;
+        st.push(px, pz, Rp(), 0.9 + Rp() * 0.22); i++;
+      }
+    };
     let made = 0;
     for (const r of (F.beach || []).filter(q => q.side < 0)) for (let i = 6; i < r.p.length - 6 && made < (MOBILE ? 9 : 16); i += 5 + ((Rp() * 9) | 0)) {
       const p = r.p[i]; if (Rp() > (p[1] > 6000 ? 0.75 : 0.2)) continue;                 // far more of them in the south
-      let x = p[0], ok = false; for (let t = 0; t < 40 && !ok; t++) { x -= 3; const h = gh(x, p[1]); ok = h < 0.75 && h > 0.35; }      // down the beach to just above the water
-      if (ok) { group(x, p[1], 4 + ((Rp() * 9) | 0)); made++; }
+      let x = p[0], ok = false; for (let t = 0; t < 60 && !ok; t++) { x -= 2; const h = gh(x, p[1]); ok = h < 0.95 && h > 0.6; }      // down the beach to just above the water
+      if (ok) { group(x, p[1], 7 + ((Rp() * 9) | 0)); made++; }
     }
     const sg = PELICAN_STAND(), ig2 = new THREE.InstancedBufferGeometry();
     ig2.index = sg.index; for (const k of ['position', 'normal', 'color']) ig2.setAttribute(k, sg.attributes[k]);
@@ -686,6 +693,64 @@ function tubes(parts, S = 5) {
     for (let j = 0; j < S; j++) { const j2 = (j + 1) % S; idx.push(e0, base + j2, base + j, e0 + 1, base + (n - 1) * S + j, base + (n - 1) * S + j2); }
   }
   return (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); };
+}
+// Goat's-foot vine and beach bean: runners of round, bright green leaves creeping out over the sand from the foot of the scrub,
+// with a pink-purple or a yellow flower here and there (the owner's photo from the beach near Kooringal).
+function buildCreeper(scene) {
+  const R = rng(5150), pos = [], k = [], idx = [];
+  const fan = (cx, cy, cz, r, kk, dir, cup, lobes) => {      // a rounded leaf or flower: a centre and a rim, dished a little, notched at the tip like a goat's hoof
+    const b = pos.length / 3, N = 8; pos.push(cx, cy, cz); k.push(kk);
+    for (let i = 0; i < N; i++) { const a = i / N * 6.283, rr = r * (1 - lobes * Math.pow(Math.max(0, Math.cos(a)), 6) * 0.45) * (0.75 + 0.25 * Math.abs(Math.sin(a))), ca = Math.cos(a + dir), sa = Math.sin(a + dir); pos.push(cx + ca * rr, cy + cup * r, cz + sa * rr); k.push(kk); }
+    for (let i = 0; i < N; i++) idx.push(b, b + 1 + i, b + 1 + (i + 1) % N);
+  };
+  for (let arm = 0; arm < 3; arm++) {
+    const a0 = arm / 3 * 6.283 + R() * 0.8, bend = (R() - 0.5) * 1.6, len = 0.36 + R() * 0.2; let px = 0, pz = 0;
+    for (let j = 0; j < 5; j++) {
+      const a = a0 + bend * j / 5, nx = px + Math.cos(a) * len / 5, nz = pz + Math.sin(a) * len / 5, sx = -Math.sin(a) * 0.006, sz = Math.cos(a) * 0.006, b = pos.length / 3;
+      pos.push(px - sx, 0.006, pz - sz, px + sx, 0.006, pz + sz, nx + sx, 0.006, nz + sz, nx - sx, 0.006, nz - sz); k.push(1, 1, 1, 1); idx.push(b, b + 1, b + 2, b, b + 2, b + 3);       // the runner
+      const side = j % 2 ? 1 : -1, lx = nx - Math.sin(a) * 0.045 * side, lz = nz + Math.cos(a) * 0.045 * side;
+      fan(lx, 0.02 + R() * 0.02, lz, 0.036 + R() * 0.014, 0, a + side * 1.3, 0.3, 1);
+      px = nx; pz = nz;
+    }
+    if (arm < 2) fan(px * 0.6 + 0.02, 0.05, pz * 0.6, 0.026, 2, 0, 0.55, 0);
+  }
+  return scatter(scene, LOW ? 44 : 64, 1.5, (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); }, /* glsl */`
+        float edge = smoothstep(0.42, 0.68, mk.g) * (1.0 - smoothstep(0.9, 0.985, mk.g));
+        float here = step(0.9, mk.r) * smoothstep(1.3, 1.9, hgt) * (1.0 - smoothstep(5.0, 8.0, hgt)) * edge * step(h3, 0.34) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g)));
+        s = (1.7 + 1.8 * h2) * here;
+        lp = position; nrm = normalize(vec3(position.x * 0.6, 1.0, position.z * 0.6));
+        c = aK < 0.5 ? mix(vec3(0.10, 0.24, 0.055), vec3(0.20, 0.34, 0.08), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
+          : aK < 1.5 ? vec3(0.22, 0.13, 0.09)
+          : (h4 > 0.45 ? vec3(0.60, 0.24, 0.52) : vec3(0.86, 0.72, 0.10));
+        if(aK > 1.5 && fract(h1 * 9.0) > 0.45) s = 0.0;                    // not every runner is in flower`, 110);
+}
+// Fallen trees: where the sea and the wind eat a dune away, the trees on it come down and lie bleached silver on the sand,
+// root plate at one end, bare limbs at the other (as in the owner's photo by the Big Sandhills).
+function buildSnags(scene) {
+  const R = rng(4141), parts = [];
+  parts.push({ kk: 0, st: [[-0.5, 0.05, 0, 0.05], [-0.33, 0.04, 0.012, 0.04], [-0.1, 0.036, -0.016, 0.035], [0.14, 0.04, 0.006, 0.029], [0.36, 0.06, 0.03, 0.021], [0.56, 0.1, 0.02, 0.011]] });
+  for (let i = 0; i < 6; i++) {                       // the root plate: stubs splayed out from the butt, torn off short
+    const a = i / 6 * 6.283 + R() * 0.6, l = 0.09 + R() * 0.09, cy = Math.max(-0.02, Math.sin(a)), cz = Math.cos(a);
+    parts.push({ kk: 2, st: [[-0.47, 0.05, 0, 0.028], [-0.53, 0.05 + cy * l * 0.55, cz * l * 0.55, 0.017], [-0.55 - R() * 0.04, 0.05 + cy * l + 0.01, cz * l * (1 + R() * 0.3), 0.005]] });
+  }
+  for (let i = 0; i < 5; i++) {                       // limbs: each leaves the trunk, kinks, forks once and ends in a broken point
+    const x0 = -0.05 + i * 0.12 + R() * 0.05, sg = i % 2 ? 1 : -1, up = 0.06 + R() * 0.2, out = (0.1 + R() * 0.18) * sg, l = 0.16 + R() * 0.16, r0 = 0.02 - i * 0.002;
+    const a = [x0, 0.04, 0, r0], b = [x0 + l * 0.35, 0.04 + up * 0.5, out * 0.45, r0 * 0.75], c = [x0 + l * 0.6 + R() * 0.05, 0.04 + up * 0.72, out * 0.85, r0 * 0.5], d = [x0 + l, 0.04 + up + R() * 0.05, out * 1.15, 0.003];
+    parts.push({ kk: 1, st: [a, b, c, d] });
+    parts.push({ kk: 1, st: [b, [b[0] + l * 0.2, b[1] + 0.05 + R() * 0.07, b[2] - out * 0.25, r0 * 0.4], [b[0] + l * 0.42, b[1] + 0.1 + R() * 0.1, b[2] - out * 0.5, 0.003]] });
+  }
+  const tb = tubes(parts, 5), build = (g) => { tb(g); g.computeVertexNormals(); };
+  return scatter(scene, LOW ? 28 : 44, 12, build, /* glsl */`
+        float edgeBand = smoothstep(0.3, 0.5, mk.g) * (1.0 - smoothstep(0.84, 0.97, mk.g));                         // the ragged edge between bush and bare sand
+        float backBeach = smoothstep(0.9, 1.0, mk.g) * smoothstep(1.5, 2.2, hgt) * (1.0 - smoothstep(3.5, 5.5, hgt)) * step(h1, 0.4);
+        float here = step(0.9, mk.r) * step(1.2, hgt) * max(edgeBand, backBeach) * step(h3, 0.085) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g)));
+        float flip = h1 > 0.5 ? 1.0 : -1.0;
+        s = (4.5 + 5.5 * h2) * here;
+        lp = position * vec3(1.0, 0.7 + 0.6 * h1, flip); lp.y -= 0.012;                                           // half sunk in the sand
+        nrm = normal * vec3(1.0, 1.0, flip);
+        float grain = texture2D(uNoise, vec2(position.x * 2.6 + h1, position.y * 11.0 + position.z * 9.0 + h2)).r, check = texture2D(uNoise, position.xz * 21.0 + h2).g;
+        c = mix(vec3(0.64, 0.62, 0.58), vec3(0.34, 0.31, 0.28), smoothstep(0.42, 0.78, grain)) * (0.86 + 0.28 * check);     // silver wood, darker in the cracks
+        c *= aK > 1.5 ? 0.72 : 1.0; c *= 0.72 + 0.28 * smoothstep(-0.3, 0.5, normal.y);`, 520);
 }
 // wallabies in the scrub: mostly still, now and then a few hops along and back
 function buildWallabies(scene) {
@@ -792,7 +857,7 @@ function buildPelicans(scene, F) {
 
 export function buildLife(scene, F) {
   const lights = makeLights(64); scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
-  const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene), buildGnats(scene), buildWallabies(scene), ...buildLizards(scene)];
+  const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene), buildGnats(scene), buildWallabies(scene), ...buildLizards(scene), buildSnags(scene), buildCreeper(scene)];
   const cars = buildCars(scene, F, lights), snork = buildSnorkelers(scene, F), birds = buildBirds(scene, F);
   const pelicans = buildPelicans(scene, F);
   buildSeaLife(scene, F);

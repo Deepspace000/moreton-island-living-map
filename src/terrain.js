@@ -138,6 +138,36 @@ export function buildTerrain(scene) {
       uniform vec4 uHole;                   // xy: centre, zw: half size of the finer grid drawn on top of this one
       uniform vec3 uWaterDeep; uniform float uTurb, uRain; uniform vec2 uWindDir;
       float hAt(vec2 uv){ return texture2D(uHeight, clamp(uv, 0.0, 1.0)).r; }
+      // The shade of the trees. Every tree of the near forest stands where a hash of its grid cell puts it (the same reckoning the trees themselves
+      // use, see features.js), so each point of ground can ask: is there a crown, or a trunk, between me and the sun? The shadows swing round and
+      // lengthen with the hour, and the light comes through the leaves in moving flecks.
+      #define TREE_SHADE_FAR ${LOW ? '260.0' : '520.0'}
+      float treeShade(vec3 P, vec3 L, float dist){
+        if(L.y < 0.04 || dist > TREE_SHADE_FAR) return 0.0;
+        float ll = length(L.xz) + 1e-4, shade = 0.0, fade = 1.0 - smoothstep(TREE_SHADE_FAR * 0.62, TREE_SHADE_FAR, dist), close = 1.0 - smoothstep(25.0, 90.0, dist);
+        vec2 Ln = L.xz / ll, q = P.xz + L.xz / L.y * 6.5, c0 = floor(q / 11.0 - 0.5);
+        vec3 ax = normalize(cross(L, vec3(0.31, 0.0, 0.95))), ay = cross(L, ax);
+        for(int j = 0; j < 2; j++) for(int i = 0; i < 2; i++){
+          vec2 cell = c0 + vec2(float(i), float(j));
+          float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
+          vec2 t = (cell + vec2(h1, h2)) * 11.0, uv = worldUV(t);
+          vec3 mk = texture2D(uMask, uv).rgb; float lum = dot(texture2D(uAlbedo, uv).rgb, vec3(0.3, 0.55, 0.15)), hgt = texture2D(uHeight, uv).r;
+          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.4, hgt) * smoothstep(0.40, 0.20, lum);
+          if(h3 > dens * 1.15) continue;
+          float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), hc = 6.5 * (0.9 + 0.2 * h4), r = 3.5 * big;
+          vec3 d = vec3(t.x, hgt * uVex + hc, t.y) - P; float along = dot(d, L);
+          if(along < 0.0) continue;
+          vec3 off = d - along * L; float dd = length(off);
+          vec2 pq = vec2(dot(off, ax), dot(off, ay)) + vec2(sin(uTime * 0.7 + h2 * 6.0), cos(uTime * 0.55 + h1 * 6.0)) * 0.06;      // the crown stirs in the wind
+          float g1 = texture2D(uNoise, pq * 0.09 + h1 * 7.0).r, g2 = texture2D(uNoise, pq * 0.55 + h2 * 3.0).g;
+          float crown = (1.0 - smoothstep(0.5 * r, r * (0.8 + 0.5 * g1), dd)) * (0.6 + 0.4 * smoothstep(0.3, 0.55, g1));
+          crown *= 1.0 - 0.75 * close * smoothstep(0.56, 0.7, g2);                                 // sun flecks through the gaps between the leaves
+          vec2 e = t - P.xz; float al = dot(e, Ln), pr = abs(e.x * Ln.y - e.y * Ln.x), up = al * L.y / ll + P.y - hgt * uVex;       // the trunk's shadow: a dark bar from the foot of the tree
+          float trunk = step(0.0, al) * (1.0 - smoothstep(0.08, 0.2 + 0.004 * al, pr)) * step(up, hc) * (1.0 - smoothstep(60.0, 160.0, dist));
+          shade = max(shade, max(crown, trunk * 0.9));
+        }
+        return shade * fade;
+      }
       float duneShadow(vec3 p, vec3 L){
         if(L.y > 0.93) return 1.0;
         float res = 1.0, t = 26.0;
@@ -226,6 +256,28 @@ export function buildTerrain(scene) {
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
         sd *= 1.0 - 0.05 * rip * near - 0.025 * nD.b * near;
         sd = mix(sd, sd * vec3(0.95, 0.88, 0.74), smoothstep(0.06, 0.3, slope));              // slip faces
+        { // The high dunes (the Desert, the sandhills), as the owner photographed them: sand slides down the steep faces in tongues and leaves streaks
+          // that run straight down the slope, and the darker, damper sand under the pale crust shows through in ragged grey-brown patches.
+          // The streaks are laid along the nearest two of sixteen compass bearings and blended, so they hold still as the slope turns.
+          float steep = smoothstep(0.03, 0.15, slope) * smoothstep(5.0, 12.0, h), ang = atan(N.z, N.x + 1e-5) / 0.3927, q0 = floor(ang), fq = ang - q0, streak = 0.0;
+          for(int i = 0; i < 2; i++){
+            float a = (q0 + float(i)) * 0.3927; vec2 dn = vec2(cos(a), sin(a)), tg = vec2(-dn.y, dn.x);
+            float s1 = texture2D(uNoise, vec2(dot(vW.xz, tg) / 11.0, dot(vW.xz, dn) / 190.0) + a).r, s2 = texture2D(uNoise, vec2(dot(vW.xz, tg) / 2.6, dot(vW.xz, dn) / 70.0) + a * 1.7).g;
+            streak += (i == 0 ? 1.0 - fq : fq) * smoothstep(0.46, 0.72, s1 * 0.62 + s2 * 0.38);
+          }
+          float damp = smoothstep(0.5, 0.66, nB.g * 0.55 + nC.g * 0.3 + nD.r * 0.15);
+          sd = mix(sd, sd * vec3(0.80, 0.775, 0.73), steep * clamp(streak * 0.5 + damp * streak * 0.35 + damp * 0.12, 0.0, 1.0));
+          // The Big and Little Sandhills in the south are paler, close to white, and the wind sorts their heavy dark mineral grains into soft
+          // smoky wisps that lie along the hollows, with clean bright drifts beside them (the owner's photo from the top of the Big Sandhills).
+          float south = smoothstep(7000.0, 9500.0, vW.z) * smoothstep(5.0, 12.0, h);
+          sd = mix(sd, vec3(0.93, 0.905, 0.845) * (0.95 + 0.08 * nA.r), south * 0.8);
+          vec2 wq = vec2(dot(vW.xz, vec2(0.8, 0.6)), dot(vW.xz, vec2(-0.6, 0.8)));                   // laid along the prevailing south-easter
+          float w1 = texture2D(uNoise, vec2(wq.x / 330.0, wq.y / 64.0) + nB.rg * 0.22).r, w2 = texture2D(uNoise, vec2(wq.x / 90.0, wq.y / 17.0) + nC.rg * 0.12 + 0.31).g;
+          float dunes = smoothstep(6.0, 14.0, h) * (0.35 + 0.65 * south) * (1.0 - bayBeach);
+          float wisp = smoothstep(0.56, 0.74, w1 * 0.68 + w2 * 0.32) * (0.55 + 0.45 * w2) * dunes;
+          sd = mix(sd, vec3(0.30, 0.295, 0.30) * (0.8 + 0.4 * nD.g), wisp * 0.62);
+          sd = mix(sd, vec3(0.99, 0.975, 0.93), smoothstep(0.34, 0.2, w1 * 0.68 + w2 * 0.32) * dunes * 0.5);
+        }
         // wind-built dune forms: gradients of two noise scales bend the normal so bare sand shows relief from far away
         vec2 dA = vec2(texture2D(uNoise, vW.xz / 310.0 + vec2(0.01, 0.0)).r - nB.r, texture2D(uNoise, vW.xz / 310.0 + vec2(0.0, 0.01)).r - nB.r);
         vec2 dB = vec2(texture2D(uNoise, vW.xz / 47.0 + vec2(0.02, 0.0)).r - nC.r, texture2D(uNoise, vW.xz / 47.0 + vec2(0.0, 0.02)).r - nC.r);
@@ -295,6 +347,8 @@ export function buildTerrain(scene) {
         float depth = uSeaM - h;                       // metres of water above this point
         float sh = 1.0;
         if(mk.b > 0.33 && L.y > 0.0) sh = duneShadow(vec3(vW.x, max(max(vW.y, h * uVex), uSeaM * uVex), vW.z) + vec3(0.0, 1.5, 0.0), L);
+        float tsh = mk.b > 0.4 ? treeShade(vW, L, dist) : 0.0;
+        sh *= 1.0 - mix(0.6, 0.82, sand) * tsh;
         float cs = cloudShadow(vW);
         float vis = sh * cs;
         float nl = max(dot(Nn, L), 0.0);
@@ -310,8 +364,10 @@ export function buildTerrain(scene) {
           col = mix(col, uAmbSky * 0.55 + uLightCol * 0.05, pool * flatK * 0.55);
         }
         // wet sand just above the waterline
-        float wet = smoothstep(0.9, 0.0, -depth) * step(depth, 0.0);
-        col = mix(col, col * vec3(0.72, 0.66, 0.56), wet * 0.8);
+        // (the owner's photo of the southern tip: bright dry sand ends at a clean, wandering edge, and below it the wet sand is a warm tan)
+        float wetTop = 0.2 + 0.16 * texture2D(uNoise, vW.xz / 31.0).r + 0.05 * texture2D(uNoise, vW.xz / 5.0).g;
+        float wet = max(smoothstep(wetTop + 0.025, wetTop - 0.015, -depth), 0.3 * smoothstep(0.9, 0.0, -depth)) * step(depth, 0.0);
+        col = mix(col, col * vec3(0.80, 0.68, 0.50), wet * 0.9);
         { // wrack: dark seagrass cast up by the tide. A fresh, wavering line of it at the water's edge, an older broken line at the last high water, and
           // scraps scattered over the sand between; thickest on the sheltered shores where the seagrass grows
           float wv = texture2D(uNoise, vW.xz / 13.0).r - 0.5, hw = -depth + wv * 0.14;
@@ -338,7 +394,7 @@ export function buildTerrain(scene) {
           { vec2 q = vW.xz; float fineK = (1.0 - smoothstep(2.0, 14.0, dist)) * (1.0 - smoothstep(0.6, 1.6, fwidth(dot(q, vec2(11.0, 6.0)))));                       // close to: ripple marks a hand-span apart, branching and joining, and grit in the troughs
             float r2 = sin(dot(q, vec2(11.0, 6.0)) + 1.7 * sin(dot(q, vec2(-1.3, 2.1))) + 1.2 * sin(dot(q, vec2(0.37, 0.23)) + bB.g * 3.0));
             bed *= 1.0 - fineK * 0.07 * smoothstep(-0.2, 0.9, r2); }
-          float grass = smoothstep(0.46, 0.8, bA.g * 0.5 + bB.g * 0.36 + texture2D(uNoise, p / 17.0).b * 0.24) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
+          float grass = smoothstep(0.46, 0.8, bA.g * 0.36 + bB.g * 0.26 + texture2D(uNoise, p / 17.0).b * 0.2 + texture2D(uNoise, vec2(p.x / 46.0 + bA.r * 0.6, p.y / 520.0)).g * 0.3)     // the beds lie in long bands along the shore, in the gutters between the sand bars * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
           bed = mix(bed, vec3(0.03, 0.05, 0.035), grass * 0.88);                    // seagrass beds: near-black blotches through the clear water
           bed = mix(col * 0.8, bed, smoothstep(0.0, 0.9, depth));
           float c1 = texture2D(uWaterTex, p / 12.0 + uTime * vec2(0.031, 0.019)).b;
