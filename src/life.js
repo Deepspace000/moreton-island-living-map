@@ -124,7 +124,7 @@ function buildBeachLife(scene) {
           : (h2 < 0.35 ? vec3(0.16, 0.09, 0.045) : h2 < 0.65 ? vec3(0.24, 0.16, 0.08) : h2 < 0.85 ? vec3(0.10, 0.085, 0.07) : vec3(0.30, 0.15, 0.06));
         c *= 0.7 + 0.35 * h1;`, 120);
   // tufts of grass and sedge coming up through the litter
-  const tufts = scatter(scene, LOW ? 60 : 92, 1.15, (g) => {
+  const tuftGeo = (g) => {
     const pos = [], k = [], idx = [];
     for (let b = 0; b < 9; b++) {            // each blade rises, then bends over under its own weight
       const a = b * 0.71 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.2 + 0.55 * ((b * 37) % 10) / 10, tall = 0.75 + 0.35 * ((b * 13) % 7) / 6, q = pos.length / 3;
@@ -133,12 +133,24 @@ function buildBeachLife(scene) {
       idx.push(q, q + 1, q + 2, q + 2, q + 1, q + 3, q + 2, q + 3, q + 4, q + 4, q + 3, q + 5, q + 4, q + 5, q + 6);
     }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
-  }, /* glsl */`
+  };
+  const tufts = scatter(scene, LOW ? 60 : 92, 1.15, tuftGeo, /* glsl */`
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));        // long grass all over the cape
         s = (0.3 + 0.5 * h1) * (1.0 + 0.8 * headland) * step(h3, mix(0.035, 0.95, headland)) * step(0.92, mk.r) * (1.0 - smoothstep(0.45, 0.8, mk.g)) * step(1.2, hgt);
         lp = position * vec3(1.0, 0.7 + 0.6 * h2, 1.0) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK * aK;
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(vec3(0.22, 0.27, 0.12), vec3(0.50, 0.48, 0.28), step(0.4, h2)) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4);`, 200);
+  // The grass belt: between the open beach and the first trees there is nearly always a strip of dune grass (the owner's photo): green tussocks,
+  // and among them older ones gone to straw, grey-brown and lying over; thick by the scrub, thinning out onto the sand.
+  const belt = scatter(scene, LOW ? 64 : 110, 0.8, tuftGeo, /* glsl */`
+        float band = smoothstep(0.4, 0.55, mk.g) * (1.0 - smoothstep(0.72, 0.9, mk.g));                 // the map's sand value is mid-way here: neither bush nor bare beach
+        float dry = step(0.62, h2), thick = mix(0.75, 0.2, smoothstep(0.55, 0.85, mk.g));
+        s = (0.5 + 0.55 * h1) * step(h3, thick * band) * step(0.92, mk.r) * step(0.9, hgt) * (1.0 - smoothstep(0.02, 0.1, ov.r));
+        lp = position * mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.45 + 0.2 * h4, 1.5), dry) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry);
+        nrm = vec3(0.0, 1.0, 0.0);
+        vec3 green = mix(vec3(0.13, 0.25, 0.08), vec3(0.20, 0.30, 0.17), step(0.5, h4)), straw = mix(vec3(0.50, 0.46, 0.33), vec3(0.36, 0.33, 0.27), h1);
+        c = mix(green, straw, dry) * (0.45 + 0.7 * aK);
+        c = mix(c, straw, (1.0 - dry) * smoothstep(0.75, 1.0, aK) * 0.5);                               // green blades dry off toward their tips`, 130);
   // ferns: on the low wet flats they cover the ground knee to waist high, each a ring of arching fronds
   const ferns = scatter(scene, LOW ? 70 : 104, 1.0, (g) => {
     const pos = [], k = [], idx = [];
@@ -172,7 +184,7 @@ function buildBeachLife(scene) {
         lp = position * vec3(1.0, 0.85, 1.0) + vec3(walk.x * ca + walk.y * sa, 0.0, -walk.x * sa + walk.y * ca) / max(s, 0.0005);
         nrm = normalize(vec3(position.x, 0.7, position.z));
         c = aK > 0.5 ? vec3(0.50, 0.38, 0.46) * (0.6 + 0.6 * position.y) : mix(vec3(0.30, 0.20, 0.38), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
-  return [shells, wood, sticks, litter, tufts, ferns, crabs];
+  return [shells, wood, sticks, litter, tufts, belt, ferns, crabs];
 }
 
 // ---------------------------------------------------------------- 4WDs on the beach
