@@ -87,11 +87,11 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     else camera.fov = innerWidth < innerHeight ? 84 : 70;
     camera.updateProjectionMatrix();
     cab.style.display = R.car ? 'block' : 'none'; helmEl.style.display = 'flex'; el.classList.toggle('incar', !!R.car);
-    $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? 'Leave the boat' : 'Leave the pelican';
+    $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? (R.boat.jet ? 'Leave the jet ski' : R.boat.sail ? 'Leave the yacht' : 'Leave the boat') : 'Leave the ' + (R.bird.kind || 'bird');
     $('hmUnit').textContent = R.boat ? 'kn' : 'km/h'; $('hmDepthL').textContent = R.boat ? 'depth' : 'height';
     const b = R.boat, can = canSteer(); $('hmTake').style.display = can ? '' : 'none';
-    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? 'Drag to look around · fly it yourself to steer, climb and land' : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor';
-    sync(); if (b && b.jet) take(true);                 // a jet ski is yours to ride as soon as you are on it
+    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor';
+    sync(); if (hit.control === true || (b && b.jet && hit.control !== false)) take(true);       // a jet ski is yours to ride as soon as you are on it (unless you asked only to watch)
     el.style.display = 'block'; uiT = 0; R.update(0, 0);
   };
   const canSteer = () => !!(R.car || R.bird || (R.boat && R.boat.move && !R.boat.ferry));
@@ -129,7 +129,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     }
     if (R.bird) {            // following a pelican: just behind and above it, turning as it turns
       const p = R.bird, sea = env.sea ? env.sea() : 0; R.pos.copy(p.m.position);
-      const yawC = Math.atan2(-Math.cos(p.hd), Math.sin(p.hd)) - R.look, fx = -Math.sin(yawC), fz = -Math.cos(yawC), back = p.afloat ? 5 : 7.5;
+      const yawC = Math.atan2(-Math.cos(p.hd), Math.sin(p.hd)) - R.look, fx = -Math.sin(yawC), fz = -Math.cos(yawC), back = p.afloat ? 5 : p.kind === 'eagle' ? 6 : 7.5;
       camera.position.set(p.x - fx * back, Math.max(p.y + 2.3 - R.tilt * 7, sea + 0.4), p.z - fz * back); v.set(p.x + fx * 4, p.y + 0.7, p.z + fz * 4); camera.up.set(0, 1, 0); camera.lookAt(v); camera.updateMatrixWorld();
       if (p.ctl) { p.ctl.turn += (steer - p.ctl.turn) * Math.min(1, dt * 4); p.ctl.climb += (gas - p.ctl.climb) * Math.min(1, dt * 4); $('hmWheel').style.transform = `rotate(${(p.ctl.turn * 60).toFixed(1)}deg)`; }
       uiT -= dt; if (uiT <= 0) {
@@ -167,5 +167,6 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'KeyH') return take(!R.helm); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
   addEventListener('keyup', (e) => { const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
   $('rideExit').onclick = () => R.onExit && R.onExit();
+  R.take = take; R.canSteer = canSteer;
   return R;
 }

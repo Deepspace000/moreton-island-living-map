@@ -44,7 +44,9 @@ function buildHouse(g, pts, base, hi, st, R) {
   const C = [[0, 0], [1, 0], [1, 1], [0, 1]]; let along = 0;
   for (let i = 0; i < 4; i++) {
     const [s0, t0] = C[i], [s1, t1] = C[(i + 1) % 4], len = i % 2 ? Wd : L, f0 = (yLow - yF) / K, f1 = st.wallH;
-    g.quad(P(s1, t1, yLow), P(s0, t0, yLow), P(s0, t0, yT), P(s1, t1, yT), st.wall, [cl, along + len, f0], [cl, along, f0], [cl, along, f1], [cl, along + len, f1]);
+    const yE = yT - 0.5 * K, fE = f1 - 0.5, shade = [st.wall[0] * 0.74, st.wall[1] * 0.74, st.wall[2] * 0.78];       // under the eave the wall is in shadow
+    g.quad(P(s1, t1, yLow), P(s0, t0, yLow), P(s0, t0, yE), P(s1, t1, yE), st.wall, [cl, along + len, f0], [cl, along, f0], [cl, along, fE], [cl, along + len, fE]);
+    g.quad(P(s1, t1, yE), P(s0, t0, yE), P(s0, t0, yT), P(s1, t1, yT), shade, [cl, along + len, fE], [cl, along, fE], [cl, along, f1], [cl, along + len, f1]);
     along += len + 1.3;
   }
   if (high) {            // stumps, the dark underside of the floor, and sometimes a room built in underneath

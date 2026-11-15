@@ -159,6 +159,37 @@ function exitRide() {
   resize();
 }
 ride.onExit = exitRide;
+// ---------- the Travel menu: go along with the nearest 4WD, boat, yacht, jet ski, pelican or sea eagle, watching or in control ----------
+const TRAVEL = {
+  car: () => rideable.map(o => ({ kind: 'car', obj: o })),
+  boat: () => boats.boats.filter(b => b.move && !b.sail && !b.jet && !b.ferry).map(o => ({ kind: 'boat', obj: o })),
+  yacht: () => boats.boats.filter(b => b.move && b.sail).map(o => ({ kind: 'boat', obj: o })),
+  jetski: () => boats.boats.filter(b => b.jet).map(o => ({ kind: 'boat', obj: o })),
+  pelican: () => flyers.filter(p => p.kind === 'pelican').map(o => ({ kind: 'bird', obj: o })),
+  eagle: () => flyers.filter(p => p.kind === 'eagle').map(o => ({ kind: 'bird', obj: o })),
+};
+const riding = () => (ride.active ? ride.car || ride.boat || ride.bird : null);
+const travelKind = () => { const o = riding(); return !o ? '' : ride.car ? 'car' : ride.bird ? o.kind : o.jet ? 'jetski' : o.sail ? 'yacht' : o.ferry || o.anchor ? '' : 'boat'; };
+function travel(kind, control) {
+  if (!boats) return; const list = TRAVEL[kind](); if (!list.length) return;
+  const cur = riding(), at = list.findIndex(h => h.obj === cur);
+  if (at >= 0 && ride.helm !== control) { ride.take(control); return syncTravel(); }        // already with one of these: just take or give back control
+  let pick;
+  if (at >= 0) pick = list[(at + 1) % list.length];                                          // asked again: on to the next one
+  else { const from = ride.active ? ride.pos : walk.active ? walk.pos : controls.target; pick = list.reduce((a, h) => (h.obj.m.position.distanceToSquared(from) < a.obj.m.position.distanceToSquared(from) ? h : a)); }
+  enterRide({ ...pick, control }); syncTravel();
+}
+function syncTravel() {
+  const k = travelKind();
+  for (const row of document.querySelectorAll('#travel .tv-row')) { const on = row.dataset.kind === k; row.classList.toggle('on', on); for (const b of row.querySelectorAll('button')) b.classList.toggle('on', on && (b.dataset.ctl === '1') === ride.helm); }
+}
+for (const b of document.querySelectorAll('#travel .tv-row button')) b.onclick = () => travel(b.parentElement.dataset.kind, b.dataset.ctl === '1');
+$('tvBack').onclick = () => { exitRide(); syncTravel(); };
+// the left-hand column stacks: title, then Travel, then Places, whatever size each is just now
+function layoutLeft() {
+  const t = $('title'), tv = $('travel'), pl = $('places'), tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
+  tv.style.top = top + 'px'; const b = tv.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px'; pl.style.maxHeight = `calc(100vh - ${Math.round(b + 86)}px)`;
+}
 { let down = null;                 // a tap (not a drag) on a 4WD, a boat or a pelican in flight
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
@@ -190,7 +221,7 @@ for (const w of document.querySelectorAll('.win')) {
   b.className = 'win-min'; b.innerHTML = `<span>${name}</span><i></i>`;
   const set = (m) => { w.classList.toggle('min', m); b.title = (m ? 'Show ' : 'Minimise ') + name; b.setAttribute('aria-expanded', String(!m)); };
   let saved = null; try { saved = localStorage.getItem(key); } catch (e) { /* storage can be blocked */ }
-  set(saved === '1');
+  set(saved === null ? w.dataset.min === '1' : saved === '1');          // the Travel menu starts as a chip; the rest start open
   b.onclick = () => { const m = !w.classList.contains('min'); set(m); try { localStorage.setItem(key, m ? '1' : '0'); } catch (e) { /* not remembered then */ } };
   w.append(b);
 }
@@ -335,6 +366,6 @@ function frame() {
   bloom.strength = lerp(0.5, 0.2, sky.day);
   composer.render();
 
-  uiT -= dt; if (uiT < 0) { uiT = 0.25; refreshClock(); $('wxTide').textContent = (wx.tide >= 0 ? '+' : '') + wx.tide.toFixed(1); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
+  uiT -= dt; if (uiT < 0) { uiT = 0.25; layoutLeft(); syncTravel(); refreshClock(); $('wxTide').textContent = (wx.tide >= 0 ? '+' : '') + wx.tide.toFixed(1); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
 }
 boot().catch((e) => { console.error(e); msg('Could not load the map: ' + e.message); });

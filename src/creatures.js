@@ -155,15 +155,20 @@ function bird(build, colours) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(d.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(d.nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(d.idx);
   return g;
 }
-// Australian pelican: a big white bird low in the water, black along the folded wings, the neck in an S, a long pink bill with its pouch
+// Australian pelican at rest on the water: a big white bird sitting low, the neck folded back in an S so the head rides over the
+// shoulders, the long pink bill and its pouch angled down onto the breast, the wings folded along the flanks with the black
+// flight feathers crossing over the tail
 export const PELICAN = () => bird((m) => {
-  m.body([[0.44, 0.01, 0.02, 0.2], [0.38, 0.09, 0.11, 0.17], [0.22, 0.17, 0.2, 0.13], [0.0, 0.2, 0.235, 0.11], [-0.22, 0.18, 0.2, 0.13], [-0.4, 0.1, 0.11, 0.18], [-0.52, 0.01, 0.02, 0.24]], { NR: 14, NS: 12, belly: 0.75 });
-  for (const sd of [-1, 1]) m.leaf([0.12, 0.25, sd * 0.13], [-1, 0.02, sd * 0.1], [0, -0.72, sd * 0.69], 0.66, 0.12, { part: 1, flex: () => 0, curl: [0, -0.08, sd * -0.06] });
-  m.tube((t) => [0.3 + 0.075 * Math.sin(t * 3.4) - 0.03 * t, 0.2 + 0.55 * t, 0, 0.068 - 0.022 * t], 10, 8, 0);                                    // neck
-  m.tube((t) => [0.27 + 0.22 * t, 0.755 + 0.01 * Math.sin(t * PI), 0, 0.012 + 0.062 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);     // head
-  m.tube((t) => [0.45 + 0.5 * t, 0.745 - 0.16 * t - 0.03 * t * t, 0, 0.03 - 0.02 * t], 8, 6, 2);                                                   // upper bill
-  m.tube((t) => [0.44 + 0.46 * t, 0.705 - 0.15 * t, 0, 0.008 + 0.042 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                  // pouch
-  m.tube((t) => [0.415 + 0.012 * t, 0.775, 0, 0.074 * Math.sin(PI * t)], 3, 6, 4);                                                                 // eye ring (a dark band round the head)
+  m.body([[0.44, 0.01, 0.02, 0.2], [0.38, 0.1, 0.12, 0.17], [0.22, 0.18, 0.21, 0.14], [0.0, 0.21, 0.245, 0.13], [-0.22, 0.19, 0.21, 0.155], [-0.42, 0.11, 0.12, 0.21], [-0.58, 0.01, 0.02, 0.29]], { NR: 14, NS: 12, belly: 0.75 });
+  for (const sd of [-1, 1]) {
+    m.leaf([0.2, 0.25, sd * 0.15], [-1, 0.05, sd * 0.1], [0, -0.74, sd * 0.67], 0.6, 0.17, { part: 0, flex: () => 0, curl: [0, -0.06, sd * -0.04], tip: 0.6 });       // white coverts: a half shell over the flank
+    m.leaf([-0.08, 0.27, sd * 0.2], [-1, 0.12, sd * -0.2], [0, -0.6, sd * 0.8], 0.56, 0.1, { part: 1, flex: () => 0, curl: [0, -0.05, 0], tip: 0.55 });               // black primaries, meeting over the tail
+  }
+  m.tube((t) => [0.3 + 0.11 * Math.sin(t * PI) - 0.17 * t, 0.2 + 0.37 * t, 0, 0.078 - 0.022 * t], 10, 8, 0);                                        // neck, folded back
+  m.tube((t) => [0.09 + 0.22 * t, 0.59 - 0.025 * t, 0, 0.012 + 0.064 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);                  // head, over the shoulders
+  m.tube((t) => [0.27 + 0.36 * t, 0.565 - 0.27 * t - 0.03 * t * t, 0, 0.031 - 0.021 * t], 8, 6, 2);                                                 // the bill, down on the breast
+  m.tube((t) => [0.26 + 0.32 * t, 0.53 - 0.25 * t, 0, 0.008 + 0.042 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                    // pouch
+  m.tube((t) => [0.235 + 0.012 * t, 0.59, 0, 0.076 * Math.sin(PI * t)], 3, 6, 4);                                                                   // the yellow ring round the eye
 }, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2]]);
 // the same bird on the wing: neck folded back so the head rides on the shoulders, the long bill out ahead, feet trailing
 export const PELICAN_FLY = () => bird((m) => {
@@ -180,12 +185,26 @@ export const PELICAN_WING = () => bird((m) => {
   m.leaf([0.1, 0, 0.02], [-0.08, 0.02, 1], [1, 0, 0.04], 1.28, 0.17, { part: 0, flex: () => 0, curl: [-0.28, -0.1, 0], ns: 12, tip: 0.6 });
   m.leaf([-0.12, -0.005, 0.02], [-0.1, 0.02, 1], [1, 0, 0.0], 1.36, 0.2, { part: 1, flex: () => 0, curl: [-0.34, -0.1, 0], ns: 12, tip: 0.55 });
 }, [[.93, .93, .9], [.04, .04, .045]]);
-// little pied / pied cormorant: black above, low in the water, the thin neck up and the hooked bill tilted
+// white-bellied sea eagle on the wing: white head, breast and wedge of tail, slate-grey back and broad wings held in a shallow V
+export const EAGLE_FLY = () => bird((m) => {
+  m.body([[0.3, 0.008, 0.012, 0.0], [0.24, 0.05, 0.055, 0.004], [0.1, 0.085, 0.095, 0.0], [-0.1, 0.09, 0.1, 0.0], [-0.3, 0.06, 0.07, 0.005], [-0.44, 0.012, 0.03, 0.01]], { NR: 12, NS: 10 });
+  m.tube((t) => [0.2 + 0.16 * t, 0.03 + 0.02 * Math.sin(t * PI), 0, 0.01 + 0.052 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);       // head
+  m.tube((t) => [0.345 + 0.075 * t, 0.03 - 0.045 * t * t, 0, 0.02 - 0.016 * t], 5, 5, 2);                                                         // hooked bill
+  m.leaf([0.12, 0.085, 0], [-1, 0.0, 0], [0, 0, 1], 0.5, 0.1, { part: 1, flex: () => 0, curl: [0, -0.05, 0] });                                   // the grey mantle along the back
+  m.leaf([-0.4, 0.012, 0], [-1, 0.02, 0], [0, 0, 1], 0.24, 0.13, { part: 0, flex: () => 0, tip: 1.3 });                                           // short white wedge of a tail
+  for (const sd of [-1, 1]) m.tube((t) => [-0.12 - 0.2 * t, -0.07 - 0.02 * t, sd * 0.045, 0.02 - 0.006 * t], 3, 5, 3);                              // feet tucked back
+}, [[.93, .93, .9], [.15, .16, .18], [.5, .52, .55], [.8, .75, .4]]);
+export const EAGLE_WING = () => bird((m) => {
+  m.leaf([0.08, 0, 0.02], [-0.04, 0.03, 1], [1, 0, 0.03], 1.08, 0.15, { part: 0, flex: () => 0, curl: [-0.16, -0.04, 0], ns: 12, tip: 0.5 });
+  m.leaf([-0.1, -0.004, 0.02], [-0.05, 0.03, 1], [1, 0, 0.0], 1.16, 0.19, { part: 1, flex: () => 0, curl: [-0.2, -0.04, 0], ns: 12, tip: 0.42 });
+}, [[.2, .21, .23], [.05, .05, .055]]);
+// pied cormorant swimming: the back all but awash, the snaky neck stretched forward at an angle, the thin hooked bill tilted up
 export const CORMORANT = () => bird((m) => {
-  m.body([[0.3, 0.01, 0.015, 0.07], [0.24, 0.05, 0.07, 0.06], [0.1, 0.08, 0.1, 0.04], [-0.08, 0.08, 0.1, 0.04], [-0.24, 0.05, 0.06, 0.05], [-0.42, 0.01, 0.03, 0.05]], { NR: 12, NS: 10, belly: 0.8 });
-  m.tube((t) => [0.2 + 0.07 * Math.sin(t * 3.2) + 0.04 * t, 0.07 + 0.36 * t, 0, 0.036 - 0.012 * t], 9, 7, 0);
-  m.tube((t) => [0.21 + 0.13 * t, 0.435 + 0.03 * t, 0, 0.008 + 0.03 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 6, 7, 0);
-  m.tube((t) => [0.32 + 0.13 * t, 0.46 + 0.035 * t - 0.03 * t * t * t, 0, 0.013 - 0.008 * t], 6, 5, 1);
+  m.body([[0.3, 0.01, 0.015, 0.05], [0.24, 0.045, 0.07, 0.045], [0.1, 0.07, 0.1, 0.03], [-0.08, 0.07, 0.1, 0.03], [-0.26, 0.045, 0.06, 0.035], [-0.48, 0.008, 0.03, 0.03]], { NR: 12, NS: 10, belly: 0.8 });
+  m.tube((t) => [0.2 + 0.24 * t + 0.03 * Math.sin(t * PI), 0.05 + 0.36 * t, 0, 0.036 - 0.014 * t], 9, 7, 0);
+  m.tube((t) => [0.42 + 0.13 * t, 0.4 + 0.045 * t, 0, 0.007 + 0.027 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 6, 7, 0);
+  m.tube((t) => [0.53 + 0.14 * t, 0.44 + 0.06 * t - 0.035 * t * t * t, 0, 0.011 - 0.007 * t], 6, 5, 1);
+  m.leaf([-0.4, 0.035, 0], [-1, 0.0, 0], [0, 0, 1], 0.2, 0.06, { part: 0, flex: () => 0 });                                                         // stiff tail lying on the water
 }, [[.05, .05, .06], [.75, .6, .2]]);
 
 // ---------------------------------------------------------------- how each kind is painted

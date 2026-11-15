@@ -7,7 +7,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
-import { swimmers, PAINT, PELICAN, CORMORANT, PELICAN_FLY, PELICAN_WING, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
+import { swimmers, PAINT, PELICAN, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const LIT_FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
@@ -706,13 +706,23 @@ function buildPelicans(scene, F) {
   const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.9;
   const homes = [...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] - 500, p.p[1]]), ...F.views.filter(v => /Wrecks/.test(v.n || '')).map(v => [(v.c || v.p)[0] - 200, (v.c || v.p)[1]])];
   const N = MOBILE ? 9 : 16;
-  for (let i = 0; i < N && homes.length; i++) {
-    const h = homes[(i / 3 | 0) % homes.length], g = new THREE.Group(), b = new THREE.Mesh(body, mat), wl = new THREE.Mesh(wing, mat), wr = new THREE.Mesh(wing, mat);
-    wl.position.set(0.06, 0.1, 0.12); wr.position.set(0.06, 0.1, -0.12); wr.scale.z = -1; g.add(b, wl, wr); g.scale.setScalar(S); g.rotation.order = 'YZX';
+  const make = (bodyG, wingG, scale, sh, o) => {
+    const g = new THREE.Group(), b = new THREE.Mesh(bodyG, mat), wl = new THREE.Mesh(wingG, mat), wr = new THREE.Mesh(wingG, mat);
+    wl.position.set(sh[0], sh[1], sh[2]); wr.position.set(sh[0], sh[1], -sh[2]); wr.scale.z = -1; g.add(b, wl, wr); g.scale.setScalar(scale); g.rotation.order = 'YZX';
     for (const m of [b, wl, wr]) m.frustumCulled = false;
     scene.add(g);
-    const lead = i % 3 === 0;
-    flyers.push({ m: g, wl, wr, home: h, rad: 260 + ((i / 3 | 0) * 97) % 240, ang: (lead ? R() * 6.283 : flyers[i - 1].ang - 0.045), way: (i / 3 | 0) % 2 ? 1 : -1, alt: 5 + ((i / 3 | 0) * 3.7) % 9 + (i % 3) * 0.6, sp: 11.5, ph: R() * 6.283, x: h[0], z: h[1], y: 8, hd: 0, ctl: null, afloat: false, len: 5 });
+    const p = { m: g, wl, wr, ph: R() * 6.283, x: o.home[0], z: o.home[1], y: 8, hd: 0, ctl: null, afloat: false, len: 5, way: 1, ...o }; flyers.push(p); return p;
+  };
+  for (let i = 0; i < N && homes.length; i++) {
+    const h = homes[(i / 3 | 0) % homes.length], lead = i % 3 === 0;
+    make(body, wing, S, [0.06, 0.1, 0.12], { kind: 'pelican', home: h, rad: 260 + ((i / 3 | 0) * 97) % 240, ang: (lead ? R() * 6.283 : flyers[flyers.length - 1].ang - 0.045), way: (i / 3 | 0) % 2 ? 1 : -1, alt: 5 + ((i / 3 | 0) * 3.7) % 9 + (i % 3) * 0.6, sp: 11.5, glide: 0.06, beats: 0.25, rate: 7.0, sweep: 0.55 });
+  }
+  // white-bellied sea eagles: singly or in pairs, soaring in slow circles high over the headlands and the wooded hills, hardly beating a wing
+  const eb = EAGLE_FLY(), ew = EAGLE_WING(), cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p, peaks = F.peaks.slice(0, 3).map(q => q.p);
+  const roosts = [cape, ...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] + 500, p.p[1] - 300]), ...peaks].filter(Boolean);
+  for (let i = 0; i < (MOBILE ? 5 : 8) && roosts.length; i++) {
+    const h = roosts[i % roosts.length];
+    make(eb, ew, 1.55, [0.04, 0.06, 0.08], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
   }
   return (dt, t) => {
     const sea = U.uSeaM.value * VEX;
@@ -721,24 +731,25 @@ function buildPelicans(scene, F) {
       if (p.ctl) {                      // flown by hand: turn, climb and sink; down on the water it folds its wings and paddles
         const c = p.ctl; p.hd -= c.turn * 0.85 * dt; bank = c.turn * 0.5;
         p.y += c.climb * 5 * dt; const floor = sea + 0.25;
-        if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
+        if (p.kind !== 'pelican') { p.y = Math.max(p.y, floor + 1.6); p.afloat = false; }       // only a pelican settles on the water
+        else if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
         p.y = Math.min(p.y, sea + 160); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
         const nx = p.x + Math.cos(p.hd) * p.v * dt, nz = p.z - Math.sin(p.hd) * p.v * dt; if (Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { p.x = nx; p.z = nz; }
         p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : 1.2));
         flap = c.climb > 0.1 || p.y < sea + 3;
       } else {                          // on its own: a wide circle off the shore, in line astern, rising and falling a little
         p.afloat = false; p.v = p.sp; p.ang += p.way * p.sp / p.rad * dt;
-        const tx = p.home[0] + Math.cos(p.ang) * p.rad, tz = p.home[1] + Math.sin(p.ang) * p.rad * 1.6, want = Math.atan2(-(tz - p.z), tx - p.x);
+        const tx = p.home[0] + Math.cos(p.ang) * p.rad, tz = p.home[1] + Math.sin(p.ang) * p.rad * (p.round ? 1 : 1.6), want = Math.atan2(-(tz - p.z), tx - p.x);
         let d = ((want - p.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI; const turn = clamp(d, -dt * 0.9, dt * 0.9); p.hd += turn; bank = -turn / Math.max(dt, 1e-3) * 0.5;
         p.x += Math.cos(p.hd) * p.sp * dt; p.z -= Math.sin(p.hd) * p.sp * dt;
         const goal = Math.max(sea + p.alt + Math.sin(t * 0.13 + p.ph) * 2.5, meshY(p.x, p.z) + 6); p.y += (goal - p.y) * Math.min(1, dt * 0.6);
-        flap = Math.sin(t * 0.21 + p.ph * 3) > 0.25;       // beats in bursts, glides between
+        flap = Math.sin(t * 0.21 + p.ph * 3) > p.beats;     // beats in bursts, glides between (an eagle hardly beats at all)
       }
       p.beat = (p.beat ?? 0) + ((flap ? 1 : 0) - (p.beat ?? 0)) * Math.min(1, dt * 2.5);
-      const w = p.afloat ? 1.25 : 0.1 + p.beat * Math.sin(t * 7.0 + p.ph) * 0.55 + (1 - p.beat) * 0.06;      // wings folded to the body, beating, or held out in the glide
+      const w = p.afloat ? 1.25 : 0.1 + p.beat * Math.sin(t * p.rate + p.ph) * p.sweep + (1 - p.beat) * p.glide;      // wings folded to the body, beating, or held out in the glide
       p.fold = (p.fold ?? 0) + ((p.afloat ? 1 : 0) - (p.fold ?? 0)) * Math.min(1, dt * 3);
       p.wl.rotation.set(-w * (1 - p.fold) - 0.2 * p.fold, -1.25 * p.fold, 0); p.wr.rotation.set(w * (1 - p.fold) + 0.2 * p.fold, 1.25 * p.fold, 0);
-      p.m.position.set(p.x, p.y + (p.afloat ? 0 : p.beat * Math.sin(t * 7.0 + p.ph + 1.2) * 0.12), p.z);
+      p.m.position.set(p.x, p.y + (p.afloat ? 0 : p.beat * Math.sin(t * p.rate + p.ph + 1.2) * 0.12), p.z);
       p.roll = (p.roll ?? 0) + (bank - (p.roll ?? 0)) * Math.min(1, dt * 3);
       p.m.rotation.set(p.roll, p.hd, p.ctl && !p.afloat ? p.ctl.climb * 0.18 : 0);
     }

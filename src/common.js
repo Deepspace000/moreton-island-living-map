@@ -145,6 +145,7 @@ export function objectMat(opts = {}) {
         vec3 alb = pow(vC, vec3(2.0));
         vec3 em = vec3(0.0);
         #ifdef RUST
+          float inside = gl_FrontFacing ? 1.0 : 0.3;       // the inside of a hull is in its own shade: holes in the plating show dark
           float r1 = texture2D(uNoise, vW.xz / 9.0 + vW.y * 0.07).r;
           float r2 = texture2D(uNoise, vec2(vW.x + vW.z, vW.y * 1.7) / 5.0).b;
           float streak = texture2D(uNoise, vec2((vW.x + vW.z) * 0.31, vW.y * 0.035)).g;                        // rain-washed vertical streaks
@@ -162,11 +163,15 @@ export function objectMat(opts = {}) {
           alb = mix(alb, vec3(0.02, 0.04, 0.018), smoothstep(1.3, -0.2, wl) * 0.75);
           { // below the surface a wreck is a reef: turf algae, pink coralline crust, orange sponge and pale barnacles over the dark rust
             float g1 = texture2D(uNoise, vW.xz / 2.3 + vW.y * 0.31).r, g2 = texture2D(uNoise, vec2(vW.x + vW.y * 0.7, vW.z + vW.y * 0.4) / 2.6).g, g3 = texture2D(uNoise, vW.xz / 5.5 - vW.y * 0.11).b;
-            vec3 grow = mix(vec3(0.10, 0.065, 0.04), vec3(0.15, 0.25, 0.09), smoothstep(0.35, 0.6, g1));
-            grow = mix(grow, vec3(0.50, 0.24, 0.30), smoothstep(0.6, 0.7, g3));
-            grow = mix(grow, vec3(0.78, 0.42, 0.10), smoothstep(0.34, 0.42, g1 * g3));
+            float hb = (vW.y - groundY(vW.xz)) / uVex;                                    // metres above the sand: scoured bare low down, thickest growth above, brightest on what faces up to the light
+            float zone = smoothstep(0.3, 1.4, hb), upf = smoothstep(0.2, 0.8, N.y);
+            vec3 grow = mix(vec3(0.07, 0.05, 0.035), vec3(0.11, 0.17, 0.08), smoothstep(0.25, 0.75, g1) * zone);
+            grow = mix(grow, vec3(0.34, 0.20, 0.23), smoothstep(0.55, 0.85, g3) * zone * 0.7);
+            grow = mix(grow, vec3(0.50, 0.30, 0.10), smoothstep(0.36, 0.5, g1 * g3) * zone * 0.6);
+            grow *= 0.75 + 0.6 * upf;
             grow = mix(grow, vec3(0.70, 0.68, 0.55), smoothstep(0.66, 0.8, g2) * 0.4) * (0.7 + 0.6 * g2);
             alb = mix(alb, grow, smoothstep(-0.05, -0.6, wl)); }
+          alb *= inside;
           #endif
         #endif
         vec3 gloss = vec3(0.0);
