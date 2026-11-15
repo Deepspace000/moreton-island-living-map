@@ -209,6 +209,22 @@ export const EAGLE_WING = () => bird((m) => {
     m.leaf([0.15 - 0.1 * i, 0.0, 0.86], a, [a[2], 0, -a[0]], 0.5 - 0.035 * Math.abs(i - 1.5), 0.045, { part: 1, flex: () => 0, ns: 6, tip: 0.8 });
   }
 }, [[.36, .38, .42], [.09, .09, .11]]);
+// The same eagle perched, as the owner photographed a pair in a dead tree: sitting bolt upright, white head and breast, the folded slate-grey wings
+// wrapping the flanks and crossing over the back, the white wedge of the tail hanging below the perch, big yellow feet gripping it.
+export const EAGLE_PERCH = () => {
+  const g = bird((m) => {
+    m.body([[0.3, 0.01, 0.015, 0.0], [0.24, 0.07, 0.075, 0.0], [0.08, 0.118, 0.128, 0.0], [-0.14, 0.122, 0.132, 0.0], [-0.36, 0.085, 0.095, 0.0], [-0.52, 0.02, 0.04, 0.0]], { NR: 12, NS: 10 });
+    m.tube((t) => [0.22 + 0.2 * t, 0.05 + 0.03 * Math.sin(t * PI), 0, 0.012 + 0.072 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);          // head, with the shaggy nape
+    m.tube((t) => [0.4 + 0.1 * t, 0.06 - 0.075 * t * t, 0, 0.028 - 0.023 * t], 5, 5, 2);                                                              // hooked bill
+    for (const sd of [-1, 1]) {
+      m.leaf([0.17, 0.05, sd * 0.118], [-1, -0.05, sd * 0.02], [0, 1, sd * 0.3], 0.82, 0.135, { part: 1, flex: () => 0, curl: [0, -0.02, sd * -0.05], tip: 0.6 });    // a folded wing down each flank
+      m.tube((t) => [-0.2 - 0.2 * t, -0.085 - 0.09 * t, sd * 0.06, 0.03 - 0.008 * t], 4, 6, 3);                                                       // feathered leg and foot
+    }
+    m.leaf([0.18, 0.122, 0], [-1, 0.0, 0], [0, 0, 1], 0.7, 0.135, { part: 1, flex: () => 0, curl: [0, -0.07, 0] });                                   // the back
+    m.leaf([-0.46, 0.0, 0], [-1, -0.06, 0], [0, 0, 1], 0.36, 0.11, { part: 0, flex: () => 0, tip: 1.5 });                                             // tail
+  }, [[.94, .94, .91], [.21, .22, .25], [.3, .32, .34], [.8, .74, .45]]);
+  g.rotateZ(1.2); g.computeBoundingBox(); g.translate(0, -g.boundingBox.min.y, 0); return g;
+};
 // pied cormorant swimming: the back all but awash, the snaky neck stretched forward at an angle, the thin hooked bill tilted up
 export const CORMORANT = () => bird((m) => {
   m.body([[0.3, 0.01, 0.015, 0.05], [0.24, 0.045, 0.07, 0.045], [0.1, 0.07, 0.1, 0.03], [-0.08, 0.07, 0.1, 0.03], [-0.26, 0.045, 0.06, 0.035], [-0.48, 0.008, 0.03, 0.03]], { NR: 12, NS: 10, belly: 0.8 });

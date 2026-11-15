@@ -7,7 +7,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
-import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
+import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const LIT_FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
@@ -871,6 +871,25 @@ function buildPelicans(scene, F) {
   for (let i = 0; i < (MOBILE ? 5 : 8) && roosts.length; i++) {
     const h = roosts[i % roosts.length];
     make(eb, ew, 1.9, [0.05, 0.085, 0.1], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
+  }
+  // A pair of sea eagles sitting in a dead tree, as the owner saw them: a bare grey stag with two long limbs, one bird on each, at a few places
+  // round the island (by the Little and the Big Sandhills, near the wrecks, and on the cape).
+  {
+    const tg = new THREE.BufferGeometry();
+    tubes([{ kk: 0, st: [[0, -0.5, 0, 0.34], [0.1, 2.5, 0.05, 0.27], [-0.05, 5, 0.1, 0.21], [0.2, 7.6, 0, 0.14], [0.1, 9.8, -0.15, 0.04]] },
+      { kk: 0, st: [[0, 4.1, 0.05, 0.15], [-1.2, 4.9, 0.25, 0.12], [-2.6, 5.05, 0.3, 0.09], [-3.5, 5.7, 0.15, 0.03]] }, { kk: 0, st: [[0.05, 5.6, 0, 0.13], [1.0, 6.3, -0.3, 0.1], [2.2, 6.45, -0.5, 0.07], [3.0, 7.3, -0.35, 0.02]] },
+      { kk: 0, st: [[-0.02, 6.6, 0.05, 0.09], [-0.7, 7.7, 0.5, 0.05], [-0.9, 8.9, 0.6, 0.015]] }, { kk: 0, st: [[0.1, 3.0, 0.02, 0.1], [0.6, 3.4, 0.5, 0.05], [0.8, 3.5, 0.9, 0.015]] }, { kk: 0, st: [[-2.0, 5.0, 0.28, 0.07], [-2.3, 5.9, 0.6, 0.015]] }], 7)(tg);
+    tg.computeVertexNormals(); const n = tg.attributes.position.count, col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const k = 0.8 + 0.25 * Math.sin(tg.attributes.position.getY(i) * 3.1 + tg.attributes.position.getX(i) * 7); col[i * 3] = 0.5 * k; col[i * 3 + 1] = 0.47 * k; col[i * 3 + 2] = 0.43 * k; }
+    tg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const perch = EAGLE_PERCH(), find = (list, re) => { const q = (list || []).find(o => re.test(o.n || '')); return q ? (q.c || q.p) : null; };
+    const sites = [find(F.sandnames, /Little Sand/), find(F.sandnames, /Big Sand/), find(F.views, /Tangalooma Wrecks/), find(F.lights, /Cape/), find(F.places, /Kooringal/)].filter(Boolean);
+    sites.forEach((c, k) => {
+      let at = null; for (let r = 60; r < 900 && !at; r += 45) for (let a = 0; a < 12 && !at; a++) { const x = c[0] + Math.cos(a * 0.524 + k) * r, z = c[1] + Math.sin(a * 0.524 + k) * r, h = heightAt(x, z), mk = maskAt(x, z); if (h > 2 && h < 40 && mk.sand < 0.75 && mk.land > 0.9) at = [x, z]; }
+      if (!at) return;
+      const g = new THREE.Group(), tree = new THREE.Mesh(tg, mat); g.add(tree);
+      for (const [px, py, pz, ry] of [[-2.0, 5.1, 0.28, 0.4], [1.65, 6.47, -0.42, 2.6]]) { const e = new THREE.Mesh(perch, mat); e.position.set(px, py, pz); e.rotation.y = ry + k; e.scale.setScalar(1.05); g.add(e); }
+      g.position.set(at[0], meshY(at[0], at[1]), at[1]); g.rotation.y = k * 1.7; g.scale.setScalar(1.35); for (const m of g.children) m.frustumCulled = false; scene.add(g); (flyers.stags ||= []).push(g);
+    });
   }
   // How high a bird must be to clear what stands on the ground below it: nothing over the water, a little over open sand, and the height of
   // the forest (with room to spare) over the bush. Birds fly over the trees, never through them.

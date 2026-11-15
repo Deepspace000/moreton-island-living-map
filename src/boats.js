@@ -56,12 +56,30 @@ function hull(g, L, B, D, free, col, deck, zoff = 0, bot = ANTI, fit = {}) {
   }
   return st;
 }
-// A deckhouse: its front rakes back, its rear a little forward, its sides lean in; with a band of glass let in between heights g0 and g1 (as fractions).
-function house(g, cx, y0, cz, sx, sy, sz, col, rake = 0.45, g0 = 0, g1 = 0) {
-  const sec = (f, grow) => { const xf = cx + sx / 2 - rake * sy * f + grow, xb = cx - sx / 2 + rake * 0.35 * sy * f - grow, hz = sz / 2 * (1 - 0.1 * f) + grow, y = y0 + sy * f; return [[xb, y, cz - hz], [xf, y, cz - hz], [xf, y, cz + hz], [xb, y, cz + hz]]; };
-  const band = (f0, f1, c, grow) => { const a = sec(f0, grow), b = sec(f1, grow); for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; g.quad(a[j], a[i], b[i], b[j], c); } return b; };
-  const t = band(0, 1, col, 0); g.quad(t[0], t[1], t[2], t[3], col);
-  if (g1 > g0) band(g0, g1, GLASS, 0.025);
+// A deckhouse. Nothing on a boat is a plain box: the corners are rounded, the front rakes back and the rear a little forward, the sides lean in,
+// the roof is crowned so water runs off it, and a band of glass is let in between heights g0 and g1 (as fractions) with solid pillars at the corners.
+function house(g, cx, y0, cz, sx, sy, sz, col, rake = 0.45, g0 = 0, g1 = 0, lean = 0.1) {
+  const NC = 4, ring = (f, grow) => {             // the outline at one height: a rounded rectangle, NC steps round each corner
+    const xf = cx + sx / 2 - rake * sy * f + grow, xb = cx - sx / 2 + rake * 0.35 * sy * f - grow, hz = sz / 2 * (1 - lean * f) + grow, y = y0 + sy * f;
+    const xm = (xf + xb) / 2, hx = (xf - xb) / 2, r = Math.min(hx, hz) * 0.36, out = [];
+    for (const [qx, qz, a0] of [[1, 1, 0], [-1, 1, Math.PI / 2], [-1, -1, Math.PI], [1, -1, Math.PI * 1.5]]) for (let k = 0; k <= NC; k++) { const a = a0 + k / NC * Math.PI / 2; out.push([xm + qx * (hx - r) + Math.cos(a) * r, y, cz + qz * (hz - r) + Math.sin(a) * r, k > 0 && k <= NC]); }
+    return out;
+  };
+  const band = (f0, f1, c, grow, glass) => { const a = ring(f0, grow), b = ring(f1, grow), n = a.length; for (let i = 0; i < n; i++) { const j = (i + 1) % n; g.quad(a[i], a[j], b[j], b[i], glass && a[j][3] ? col : c); } return b; };
+  band(0, 1, col, 0);
+  // the roof: two rings stepping in and up to a low crown
+  const t = ring(1, 0), n = t.length, mid = [0, 0, 0]; for (const q of t) { mid[0] += q[0] / n; mid[2] += q[2] / n; } const crown = Math.min(sx, sz) * 0.045;
+  const inr = t.map(q => [mid[0] + (q[0] - mid[0]) * 0.72, q[1] + crown * 0.7, mid[2] + (q[2] - mid[2]) * 0.72]), top = [mid[0], t[0][1] + crown, mid[2]];
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; g.quad(t[i], t[j], inr[j], inr[i], col); g.tri(inr[i], inr[j], top, col); }
+  if (g1 > g0) band(g0, g1, GLASS, 0.025, true);
+}
+// A flat rounded slab (a hardtop, a platform, a deck): rounded corners, a slightly crowned top.
+function slab(g, cx, y0, cz, sx, th, sz, col) { house(g, cx, y0, cz, sx, th, sz, col, 0, 0, 0, 0); }
+// A rounded body sitting on a deck (a cowl, a saddle, an engine cover): sections from nose to tail, each [x, base height, height, half width];
+// col(x, k) gives the colour of a strip (k = 0 at the side, 1 on top).
+function hump(g, st, col, N = 10) {
+  const pt = (s, k) => { const a = Math.PI * k / N, c = Math.cos(a), sn = Math.sin(a); return [s[0], s[1] + s[2] * Math.pow(sn, 0.75), -s[3] * Math.sign(c) * Math.pow(Math.abs(c), 0.7)]; };
+  for (let i = 0; i < st.length - 1; i++) for (let k = 0; k < N; k++) g.quad(pt(st[i], k), pt(st[i + 1], k), pt(st[i + 1], k + 1), pt(st[i], k + 1), col((st[i][0] + st[i + 1][0]) / 2, 1 - Math.abs((k + 0.5) / N * 2 - 1)));
 }
 // A sail between its three corners, bellied out by the wind: cut into a fine grid so the cloth curves (roach: how far the leech bows out).
 function sail(g, tack, head, clew, belly, col, roach) {
@@ -125,7 +143,7 @@ function cruiser(hc) {
   for (const x of [-1.5, 1.2]) g.cyl(x, 0.45, 1.98, 0.13, 0.13, 0.6, 8, WHITE, WHITE);
   g.cyl(0.4, 3.53, 0, 0.32, 0.22, 0.2, 10, WHITE, WHITE);
   house(g, 0.3, 1.3, 0, 5.4, 1.25, 2.9, WHITE, 0.55, 0.36, 0.78);
-  house(g, -0.6, 2.55, 0, 3.0, 0.9, 2.3, WHITE, 0.5, 0.3, 0.8); g.box(-0.2, 3.45, 0, 2.6, 0.08, 2.6, [.85, .85, .85]);
+  house(g, -0.6, 2.55, 0, 3.0, 0.9, 2.3, WHITE, 0.5, 0.3, 0.8); slab(g, -0.2, 3.45, 0, 2.6, 0.08, 2.6, [.85, .85, .85]);
   g.box(-4.0, 1.3, 0, 1.6, 0.25, 2.8, [.6, .5, .4]);
   g.cyl(-0.6, 3.5, 0, 0.04, 0.03, 1.8, 4, [.8, .8, .8]);
   return finish(g);
@@ -133,7 +151,9 @@ function cruiser(hc) {
 function tinny() {
   const g = new GB(), AL = [.66, .69, .70];
   hull(g, 4.8, 1.9, 0.22, 0.55, AL, [.5, .53, .54], 0, [.45, .47, .48], { style: 5 });
-  g.box(-2.5, 0.25, 0, 0.45, 0.9, 0.4, [.12, .12, .13]);
+  { const OB = [.12, .12, .13];              // the outboard: a rounded cowl on its leg, the tiller arm reaching forward
+    hump(g, [[-2.78, 0.78, 0.0, 0.1], [-2.72, 0.78, 0.3, 0.17], [-2.5, 0.78, 0.36, 0.19], [-2.3, 0.78, 0.3, 0.17], [-2.24, 0.78, 0.0, 0.1]], (x, k) => (k > 0.8 ? [.75, .76, .78] : OB), 8);
+    g.cyl(-2.52, 0.0, 0, 0.07, 0.085, 0.8, 8, OB); rod(g, [-2.3, 0.86, 0], [-1.75, 0.92, 0.12], 0.025, OB); }
   g.box(-0.9, 0.5, 0, 0.35, 0.12, 1.6, AL); g.box(0.7, 0.5, 0, 0.35, 0.12, 1.5, AL);
   // (no figure at the tiller: the boats are shown without people)
   return finish(g);
@@ -153,15 +173,21 @@ function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm
   for (const z of [-0.55, 0.55]) { g.box(-0.5, 3.25, z, 0.55, 0.5, 0.55, [.86, .84, .78]); g.box(-0.76, 3.75, z, 0.1, 0.6, 0.55, [.86, .84, .78]); }                                    // two helm seats
   for (const z of [-1.7, 1.7]) for (const x of [-2.8, -0.7, 1.4]) rod(g, [x, 3.25, z], [x, 4.05, z], 0.02, METAL);                                                                    // rail stanchions
   for (const [x, z] of [[1.2, 1.5], [1.2, -1.5], [-2.4, 1.5], [-2.4, -1.5]]) g.box(x, 3.25, z, 0.07, 2.25, 0.07, [.82, .82, .84]);
-  g.box(-0.6, 5.5, 0, 4.2, 0.1, 3.4, WHITE);                                                               // hardtop, high enough to stand under and see out all round
+  slab(g, -0.6, 5.5, 0, 4.2, 0.1, 3.4, WHITE);                                                             // hardtop, high enough to stand under and see out all round
   g.box(-5.2, 1.5, 0, 3.2, 0.12, 3.9, [.6, .5, .4]); g.cyl(-0.6, 5.6, 0, 0.05, 0.03, 1.7, 4, [.8, .8, .8]);  // cockpit sole, aerial
   return finish(g);
 }
 function jetski(col) {       // a jet ski and its rider
   const g = new GB(), SKIN = [.82, .64, .52];
   hull(g, 3.2, 1.15, 0.18, 0.42, col, col, 0, [.15, .15, .16]);
-  g.box(0.5, 0.42, 0, 1.3, 0.3, 0.8, WHITE); g.box(-0.5, 0.42, 0, 1.3, 0.34, 0.5, [.1, .1, .11]);          // cowl and seat
-  g.box(0.55, 0.72, 0, 0.12, 0.35, 0.7, [.1, .1, .11]);                                                     // handlebar
+  // the body above the deck, all in curves: a low pointed nose swelling into the cowl, the pod the handlebars stand on, then a long saddle dropping to the stern
+  const SEAT = [.09, .09, .1], top = 0.4;
+  hump(g, [[1.5, top, 0.01, 0.12], [1.25, top, 0.14, 0.34], [0.95, top, 0.3, 0.44], [0.65, top, 0.44, 0.43], [0.42, top, 0.5, 0.34], [0.25, top, 0.4, 0.28], [0.08, top, 0.3, 0.24]], (x, k) => (k > 0.72 && x > 0.5 ? WHITE : col));
+  hump(g, [[0.12, top, 0.31, 0.22], [-0.3, top, 0.35, 0.24], [-0.85, top, 0.36, 0.24], [-1.2, top, 0.3, 0.22], [-1.48, top, 0.12, 0.16], [-1.58, top, 0.01, 0.1]], () => SEAT);
+  hump(g, [[0.2, top, 0.0, 0.5], [-0.3, top, 0.07, 0.52], [-1.2, top, 0.07, 0.5], [-1.55, top, 0.0, 0.4]], () => [.14, .14, .15], 6);      // the rim of the foot wells
+  rod(g, [0.48, top + 0.44, 0], [0.4, top + 0.66, 0], 0.035, SEAT); rod(g, [0.4, top + 0.66, -0.36], [0.4, top + 0.66, 0.36], 0.022, [.6, .62, .64]);                                  // the steering column and the bars
+  for (const z of [-1, 1]) { rod(g, [0.4, top + 0.66, 0.24 * z], [0.4, top + 0.66, 0.38 * z], 0.034, SEAT); rod(g, [0.62, top + 0.5, 0.3 * z], [0.56, top + 0.72, 0.34 * z], 0.012, [.6, .62, .64]); g.cyl(0.55, top + 0.7, 0.34 * z, 0.07, 0.07, 0.012, 8, [.5, .6, .7], [.5, .6, .7]); }       // grips and little mirrors
+  g.quad([0.72, top + 0.44, -0.26], [0.72, top + 0.44, 0.26], [0.58, top + 0.66, 0.2], [0.58, top + 0.66, -0.2], GLASS);                                                        // a low screen
   // (no rider: the boats are shown without people)
   return finish(g);
 }
@@ -169,9 +195,9 @@ function flyer() {            // fast passenger catamaran
   const g = new GB();
   for (const z of [-3.6, 3.6]) hull(g, 35, 2.8, 1.1, 1.7, WHITE, WHITE, z, NAVY, { style: 6 });
   g.box(-0.5, 1.7, 0, 31, 0.9, 10.2, WHITE);
-  g.box(-1.5, 2.6, 0, 25, 2.6, 9.6, WHITE); g.box(-1.3, 3.4, 0, 24.6, 0.9, 9.66, GLASS);
+  house(g, -1.5, 2.6, 0, 25, 2.6, 9.6, WHITE, 0.5, 0.3, 0.66, 0.04);
   g.box(-1.5, 2.62, 0, 25.1, 0.35, 9.7, [.05, .35, .6]);
-  g.box(2.5, 5.2, 0, 13, 2.2, 7.4, WHITE); g.box(3.0, 5.9, 0, 12.6, 0.8, 7.46, GLASS);
+  house(g, 2.5, 5.2, 0, 13, 2.2, 7.4, WHITE, 0.7, 0.32, 0.7, 0.06);
   g.box(6.8, 7.4, 0, 3.4, 0.25, 5.5, WHITE); g.cyl(4, 7.4, 0, 0.08, 0.05, 3.2, 5, [.8, .8, .8]);
   return finish(g);
 }
@@ -180,7 +206,7 @@ function barge() {            // vehicle ferry
   for (const z of [-5.5, 5.5]) hull(g, 58, 5, 1.6, 2.2, HB, [.3, .3, .32], z, [.2, .08, .07], { style: 6 });
   g.box(0, 2.2, 0, 56, 0.6, 16.5, [.36, .37, .38]);
   for (const z of [-8, 8]) g.box(0, 2.8, z, 54, 1.5, 0.4, WHITE);
-  g.box(19, 2.8, 0, 9, 3.2, 16, WHITE); g.box(19.3, 6.0, 0, 8, 2.8, 14, WHITE); g.box(19.6, 6.9, 0, 7.9, 1.0, 14.06, GLASS);
+  house(g, 19, 2.8, 0, 9, 3.2, 16, WHITE, 0.15, 0, 0, 0.02); house(g, 19.3, 6.0, 0, 8, 2.8, 14, WHITE, 0.35, 0.32, 0.68, 0.05);
   g.box(19, 8.8, 0, 5, 0.3, 10, HB); g.cyl(18, 8.8, 0, 0.5, 0.4, 3.5, 6, HB);
   g.box(-28.5, 2.6, 0, 3.5, 0.3, 11, [.5, .5, .5]);
   const R = rng(8), CARS = [[.85, .85, .85], [.15, .15, .17], [.6, .1, .08], [.12, .25, .5], [.75, .7, .55], [.3, .35, .3]];

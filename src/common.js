@@ -299,7 +299,8 @@ export function objectMat(opts = {}) {
             float bn = texture2D(uNoise, L * 0.11 + zone * 0.37).r, streak = texture2D(uNoise, vec2(L.x * 0.17, L.y * 0.03)).g;
             if(zone < 0.5){                      // paint and gelcoat: a boot stripe above the water, weeping streaks below the deck edge
               shine = 0.5;
-              if(face > 2.5){                    // the side of a hull. L.x: metres aft of the bow; L.y: 0 at the waterline, 1 at the gunwale
+              float hullSide = 0.0;
+              if(face > 2.5){ hullSide = 1.0;        // the side of a hull. L.x: metres aft of the bow; L.y: 0 at the waterline, 1 at the gunwale
                 float xb = L.x, hv = L.y, fine = 1.0 - smoothstep(0.02, 0.07, fwidth(hv)), pale = step(0.35, dot(alb, vec3(0.333)));
                 vec3 base = alb, acc = pale > 0.5 ? vec3(0.02, 0.05, 0.16) : vec3(0.76, 0.75, 0.70);
                 float figs = 0.0, fx0 = 1.5, fw = 0.2, fy0 = 0.33, fh = 0.2;               // the registration figures on the bow
@@ -354,6 +355,11 @@ export function objectMat(opts = {}) {
                 face = 0.0;
               }
               alb *= 0.94 + 0.08 * bn;
+              if(face < 1.5 && hullSide < 0.5){     // cabin sides and other upright paintwork: moulded panel joints, and the grey streaks rain leaves below every edge
+                float fineC = 1.0 - smoothstep(0.02, 0.08, fwidth(L.x));
+                alb *= 1.0 - 0.1 * fineC * (1.0 - smoothstep(0.006, 0.02, abs(fract(L.x / 1.7 + 0.25) - 0.5) * 1.7));
+                alb *= 1.0 - 0.1 * smoothstep(0.55, 0.9, texture2D(uNoise, vec2(L.x * 0.45, L.y * 0.06)).r) * (0.4 + 0.6 * texture2D(uNoise, vec2(L.x * 0.1, 0.7)).b);
+              }
               if(face < 1.5){                     // sunlight thrown up off the water plays over the topsides in moving bands
                 float hw = (vW.y - uSeaM * uVex) / uVex;
                 float rp = texture2D(uNoise, vec2(L.x * 0.5 + uTime * 0.05, hw * 0.16 - uTime * 0.1)).r * texture2D(uNoise, vec2(L.x * 0.33 - uTime * 0.04, hw * 0.11 - uTime * 0.06) + 0.4).g;       // thin wavering lines, as light off ripples is
@@ -399,6 +405,16 @@ export function objectMat(opts = {}) {
             }
             alb *= 0.78 + 0.22 * smoothstep(-0.2, 1.3, (vW.y - uSeaM * uVex) / uVex);      // grime toward the waterline
             gloss = vec3(shine);
+          }
+        #endif
+        #ifdef PLANE
+          if(vFx.x > 0.5){                       // an aircraft's skin: sheets of metal with a seam every arm's length, a line of rivets beside each, exhaust and dust
+            vec2 L = vFx.yz; float fineP = 1.0 - smoothstep(0.015, 0.06, fwidth(L.x)), sx = (fract(L.x / 0.74) - 0.5) * 0.74, sy = (fract(L.y / 0.52) - 0.5) * 0.52;
+            alb *= 1.0 - 0.2 * fineP * (1.0 - smoothstep(0.004, 0.012, abs(sx))); alb *= 1.0 - 0.12 * fineP * (1.0 - smoothstep(0.004, 0.012, abs(sy)));
+            alb *= 1.0 - 0.14 * fineP * (1.0 - smoothstep(0.006, 0.014, length(vec2(abs(sx) - 0.035, (fract(L.y / 0.085) - 0.5) * 0.085))));
+            alb *= 0.9 + 0.14 * texture2D(uNoise, L * 0.7).r;
+            alb = mix(alb, vec3(0.16, 0.15, 0.14), 0.35 * smoothstep(0.55, 0.9, texture2D(uNoise, vec2(L.x * 0.25, L.y * 1.7)).g) * (1.0 - smoothstep(1.2, 3.3, L.x)) * smoothstep(0.2, 2.6, L.x) * step(L.y, 1.0));   // soot streaming back from the exhaust under the nose
+            gloss = vec3(0.75);
           }
         #endif
         #if !defined(CAR) && !defined(BOAT)

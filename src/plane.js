@@ -26,7 +26,9 @@ function airframe() {
     for (const [z0, z1] of [[0, 2.7], [2.7, 5.1], [5.1, zt]]) {
       const e = z1 === zt ? 0.28 : 0;
       g.quad(P(te(z0), 0.09, z0), P(le(z0), 0.09, z0), P(le(z1) - e, 0.09, z1), P(te(z1) + e, 0.09, z1), WHITE); g.quad(P(le(z0), -0.07, z0), P(te(z0), -0.07, z0), P(te(z1) + e, -0.07, z1), P(le(z1) - e, -0.07, z1), GREY);
-      g.quad(P(le(z0), 0.09, z0), P(le(z0), -0.07, z0), P(le(z1) - e, -0.07, z1), P(le(z1) - e, 0.09, z1), WHITE); g.quad(P(te(z0), -0.07, z0), P(te(z0), 0.09, z0), P(te(z1) + e, 0.09, z1), P(te(z1) + e, -0.07, z1), WHITE);
+      // the leading edge is round (two strips meeting at a nose), the trailing edge comes to a line
+      g.quad(P(le(z0), 0.09, z0), P(le(z0) + 0.1, 0.02, z0), P(le(z1) - e + 0.1, 0.02, z1), P(le(z1) - e, 0.09, z1), WHITE); g.quad(P(le(z0) + 0.1, 0.02, z0), P(le(z0), -0.07, z0), P(le(z1) - e, -0.07, z1), P(le(z1) - e + 0.1, 0.02, z1), WHITE);
+      g.quad(P(te(z0), -0.07, z0), P(te(z0) - 0.22, 0.0, z0), P(te(z1) + e - 0.22, 0.0, z1), P(te(z1) + e, -0.07, z1), GREY); g.quad(P(te(z0) - 0.22, 0.0, z0), P(te(z0), 0.09, z0), P(te(z1) + e, 0.09, z1), P(te(z1) + e - 0.22, 0.0, z1), WHITE);
     }
     g.quad(P(0.2, 0.095, 4.2), P(1.0, 0.095, 4.2), P(0.95, 0.095, 5.3), P(0.25, 0.095, 5.3), BLUE);                                        // a band of colour near the tip
     g.quad([0.5, 1.9, sd * 2.3], [0.62, 1.9, sd * 2.3], [0.72, 0.62, sd * 0.56], [0.6, 0.62, sd * 0.56], GREY);                               // strut
@@ -42,6 +44,8 @@ function airframe() {
   // nose wheel and its leg
   g.cyl(2.55, 0.28, 0, 0.04, 0.05, 0.5, 6, GREY);
   g.at(new THREE.Matrix4().makeTranslation(2.55, 0.25, 0).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))); g.cyl(0, -0.07, 0, 0.25, 0.25, 0.14, 12, TYRE, TYRE); g.at(null);
+  // every point carries where it is on the airframe, so the skin can be drawn on it: panel seams, lines of rivets, a little weathering
+  for (let i = 0; i < g.p.length / 3; i++) { g.f[i * 3] = 1; g.f[i * 3 + 1] = g.p[i * 3]; g.f[i * 3 + 2] = Math.abs(g.n[i * 3 + 1]) > 0.7 ? g.p[i * 3 + 2] : g.p[i * 3 + 1]; }
   return g.build();
 }
 
@@ -74,7 +78,7 @@ export function buildPlanes(scene, F) {
     m.frustumCulled = false; scene.add(m);
   }
   // ---- the aircraft
-  const mat = objectMat({ side: THREE.DoubleSide }), g = new THREE.Group(), body = new THREE.Mesh(airframe(), mat); body.frustumCulled = false; g.add(body);
+  const mat = objectMat({ side: THREE.DoubleSide, defines: { PLANE: 1 } }), g = new THREE.Group(), body = new THREE.Mesh(airframe(), mat); body.frustumCulled = false; g.add(body);
   // the propeller: a blurred disc when the engine is running
   const prop = new THREE.Mesh(new THREE.CircleGeometry(1.0, 20), makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uSpin: { value: 0 } },
     vs: /* glsl */`varying vec2 vP; varying vec3 vW; void main(){ vP = position.xy; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; ${LOGV} }`,
