@@ -144,16 +144,16 @@ function buildBeachLife(scene) {
   // and among them older ones gone to straw, grey-brown and lying over; thick by the scrub, thinning out onto the sand.
   const fineGeo = (g) => {              // dune grass: many thin blades, each a gentle curve that tips over at the end
     const pos = [], k = [], idx = [];
-    for (let b = 0; b < 12; b++) {
-      const a = b * 2.4 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.12 + 0.5 * ((b * 37) % 10) / 10, tall = 0.6 + 0.4 * ((b * 13) % 7) / 6, r0 = 0.02 + 0.05 * ((b * 7) % 5) / 4, q = pos.length / 3, N = 4;
-      for (let i = 0; i <= N; i++) { const t = i / N, out = r0 + lean * t * t * 0.9, up = tall * (t - 0.28 * t * t * t), w = 0.006 * (1 - 0.8 * t); pos.push(ca * out - sa * w, up, sa * out + ca * w, ca * out + sa * w, up, sa * out - ca * w); k.push(t, t); }
+    for (let b = 0; b < 20; b++) {        // a clump a hand-span or two across, so neighbouring clumps close up into a sward
+      const a = b * 2.4 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.12 + 0.5 * ((b * 37) % 10) / 10, tall = 0.55 + 0.45 * ((b * 13) % 7) / 6, r0 = 0.02 + 0.2 * ((b * 7) % 9) / 8, q = pos.length / 3, N = 3;
+      for (let i = 0; i <= N; i++) { const t = i / N, out = r0 + lean * t * t * 0.9, up = tall * (t - 0.28 * t * t * t), w = 0.007 * (1 - 0.8 * t); pos.push(ca * out - sa * w, up, sa * out + ca * w, ca * out + sa * w, up, sa * out - ca * w); k.push(t, t); }
       for (let i = 0; i < N; i++) { const o = q + i * 2; idx.push(o, o + 1, o + 2, o + 2, o + 1, o + 3); }
     }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   };
-  const belt = scatter(scene, LOW ? 72 : 120, 0.6, fineGeo, /* glsl */`
-        float band = smoothstep(0.4, 0.55, mk.g) * (1.0 - smoothstep(0.72, 0.9, mk.g));                 // the map's sand value is mid-way here: neither bush nor bare beach
-        float dry = step(0.7, h2), thick = mix(0.95, 0.1, smoothstep(0.5, 0.86, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
+  const belt = scatter(scene, LOW ? 80 : 130, 0.5, fineGeo, /* glsl */`
+        float band = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.8, 0.93, mk.g));                 // the map's sand value is mid-way here: neither bush nor bare beach
+        float dry = step(0.7, h2), thick = mix(1.0, 0.22, smoothstep(0.62, 0.9, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
         s = (0.55 + 0.5 * h1) * step(h3, thick * band) * step(0.92, mk.r) * step(0.9, hgt) * (1.0 - smoothstep(0.02, 0.1, ov.r));
         lp = position * mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.5 + 0.2 * h4, 1.5), dry) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry);
         nrm = vec3(0.0, 1.0, 0.0);
