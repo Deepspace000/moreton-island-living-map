@@ -22,7 +22,7 @@ export const U = {
   uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0), uUnder: f(0),
   uMoonLit: f(1), uStarRot: f(0),
   uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
-  uHeight: { value: null }, uOver: { value: null }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
+  uHeight: { value: null }, uOver: { value: null }, uYard: { value: null }, uYardO: { value: new THREE.Vector4(0, 0, 1, 1) }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
   uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
   uCloudTex: { value: null }, uCloudRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCloudAlt: f(2000), uCloudStr: f(0.7),
@@ -35,6 +35,7 @@ export const GLSL_COMMON = /* glsl */`
 uniform float uTime, uFogDens, uNight, uOvercast, uSeaM, uVex, uCloudAlt, uCloudStr, uMpp, uFlash, uUnder;
 uniform vec3 uSunDir, uMoonDir, uLightDir, uLightCol, uSunCol, uAmbSky, uAmbGnd, uFogCol, uFogSun, uZenith, uHorizon, uSunGlow;
 uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, uDetail;
+uniform sampler2D uYard; uniform vec4 uYardO;      // one texel for each 11 m cell of the tree grid near houses: 1 where a garden tree may stand
 uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
 uniform vec4 uCarL[8];        // the headlamps of the eight nearest 4WDs: where the front of the car is (x, z) and the way it points (zero when its lamps are off)
 uniform vec4 uWorld, uCloudRect, uCape;
@@ -234,7 +235,7 @@ export function objectMat(opts = {}) {
         #ifdef WINDOWS
           if(vFx.x > 0.5){                       // a wall: vFx.y is metres along it, vFx.z metres above the floor
             alb = mix(vec3(dot(alb, vec3(0.3333))), alb, 0.6);          // paint fades in the sun and salt: no wall is as bright as the colour card
-            float kind = floor(vFx.x + 0.1), plain = step(0.2, fract(vFx.x + 0.1)), fy = fwidth(vFx.y), fz = fwidth(vFx.z);
+            float kind = floor(vFx.x + 0.1), fx10 = fract(vFx.x + 0.1), plain = step(0.3, fx10), front = step(0.125, fx10) * step(fx10, 0.175), nodoor = step(0.175, fx10), fy = fwidth(vFx.y), fz = fwidth(vFx.z);
             if(kind < 1.5){                      // weatherboards: each board laps the one below and throws a line of shadow
               float b = fract(vFx.z / 0.19), k = 1.0 - smoothstep(0.25, 0.9, fz / 0.19);
               alb *= 1.0 - k * (0.32 * smoothstep(0.18, 0.0, b) - 0.07 * smoothstep(0.7, 1.0, b));
@@ -261,7 +262,7 @@ export function objectMat(opts = {}) {
               float h = hash12(id + floor(vW.xz * 0.05)), h2 = fract(h * 7.31), h3 = fract(h * 23.7), h4 = fract(h * 51.3);
               vec3 trim = kind > 3.5 ? vec3(0.05, 0.055, 0.06) : vec3(0.80, 0.79, 0.74);
               float lit = step(0.52, h);
-              if(h2 < 0.17 && id.y == 0.0){      // a door: frame, panel, a small pane and a handle
+              if(h2 < 0.17 && id.y == 0.0 && nodoor < 0.5){      // a door: frame, panel, a small pane and a handle
                 float dy = (c.y + 0.5) * 3.1;
                 float fr = step(abs(c.x), 0.142) * step(0.0, dy) * step(dy, 2.14), dr = step(abs(c.x), 0.122) * step(0.03, dy) * step(dy, 2.07);
                 vec3 dc = h3 < 0.3 ? vec3(0.70, 0.69, 0.64) : h3 < 0.55 ? vec3(0.05, 0.12, 0.22) : h3 < 0.8 ? vec3(0.28, 0.10, 0.06) : vec3(0.06, 0.20, 0.17);
@@ -271,15 +272,16 @@ export function objectMat(opts = {}) {
                 alb = mix(alb, trim, fr); alb = mix(alb, dc, dr);
                 em = vec3(1.0, 0.72, 0.36) * pane * dr * lit * uNight * 2.0;
               } else {
-                float hw = h3 < 0.45 ? 0.17 : 0.26, hh = 0.2, cy = c.y + 0.04, up = step(0.3, vFx.z);
+                float slide = front * step(h2, 0.74) * step(abs(id.y), 0.5);                                          // onto the verandah: sliding glass doors, floor to head height
+                float hw = slide > 0.5 ? 0.31 : h3 < 0.45 ? 0.17 : 0.26, hh = slide > 0.5 ? 0.33 : 0.2, cy = slide > 0.5 ? c.y + 0.15 : c.y + 0.04, up = step(slide > 0.5 ? 0.02 : 0.3, vFx.z);
                 float fr = step(abs(c.x), hw + 0.022) * step(abs(cy), hh + 0.026) * up, win = step(abs(c.x), hw) * step(abs(cy), hh) * up;
-                float sill = step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.04), 0.014) * up;
-                float bar = max(step(abs(c.x), 0.008), kind < 1.5 ? step(abs(cy), 0.009) : 0.0);                       // sliding sashes; the old weatherboard places have four panes
+                float sill = step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.04), 0.014) * up * (1.0 - slide);
+                float bar = max(step(abs(c.x), 0.008), kind < 1.5 && slide < 0.5 ? step(abs(cy), 0.009) : 0.0);                       // sliding sashes; the old weatherboard places have four panes
                 vec3 gl = mix(vec3(0.015, 0.028, 0.04), vec3(0.09, 0.15, 0.21), smoothstep(-hh, hh, cy)) + 0.05 * step(0.8, fract((c.x + cy) * 5.0 + h * 3.0));    // glass: dark, with the sky in it
                 float blind = step(h4, 0.45) * step(mix(-0.1, 0.12, h2), cy);                                          // some have a blind half down
                 gl = mix(gl, vec3(0.42, 0.40, 0.34), blind * 0.8);
                 alb = mix(alb, trim, max(fr, sill)); alb = mix(alb, mix(gl, trim, bar), win);
-                alb *= 1.0 - 0.22 * step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.075), 0.02) * up;               // the sill's shadow
+                alb *= 1.0 - 0.22 * step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.075), 0.02) * up * (1.0 - slide);               // the sill's shadow
                 em = vec3(1.0, 0.72, 0.36) * win * (1.0 - bar) * lit * uNight * mix(2.4, 1.3, blind);
                 gloss = vec3(win * (1.0 - bar) * (1.0 - blind) * 0.5);
               }
@@ -291,7 +293,9 @@ export function objectMat(opts = {}) {
             alb *= 0.93 + 0.07 * rib + 0.14 * (texture2D(uNoise, vec2(vFx.y * 0.11, vW.y * 0.02 + vW.x * 0.004)).r - 0.5);
             alb *= 1.0 - 0.10 * smoothstep(0.035, 0.0, abs(fract(vFx.z / 0.9 + 0.5) - 0.5)) * (1.0 - smoothstep(0.02, 0.12, fwidth(vFx.z)));
             float rusty = smoothstep(0.55, 0.82, texture2D(uNoise, vW.xz / 95.0).g), rn = texture2D(uNoise, vec2(vFx.y * 0.31, vFx.z * 0.47 + vW.x * 0.013)).r;
-            alb = mix(alb, vec3(0.13, 0.06, 0.028) * (0.7 + 0.6 * rn), rusty * smoothstep(0.62, 0.82, rn) * 0.75);
+            float gather = max(smoothstep(1.3, 0.05, vFx.z), 0.8 * smoothstep(0.14, 0.0, abs(fract(vFx.z / 0.9 + 0.5) - 0.5)));      // rust starts at the eaves and along the laps of the sheets
+            alb = mix(alb, vec3(0.13, 0.06, 0.028) * (0.7 + 0.6 * rn), rusty * smoothstep(0.74, 0.92, rn + 0.3 * gather) * 0.75);
+            alb *= 1.0 - 0.1 * smoothstep(0.6, 0.0, vFx.z);                                    // grime along the gutter line
           }
         #endif
         #ifdef CAR

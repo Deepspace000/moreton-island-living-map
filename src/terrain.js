@@ -154,7 +154,8 @@ export function buildTerrain(scene) {
         for(int j = 0; j < 2; j++) for(int i = 0; i < 2; i++){
           vec2 cell = c0 + vec2(float(i), float(j));
           float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
-          vec2 t = (cell + vec2(h1, h2)) * 11.0, uv = worldUV(t);
+          vec2 yuv = (cell - uYardO.xy + 0.5) * uYardO.zw; float yard = yuv.x > 0.0 && yuv.x < 1.0 && yuv.y > 0.0 && yuv.y < 1.0 ? step(0.5, texture2DLodEXT(uYard, yuv, 0.0).r) : 0.0;      // garden trees shade the yards too
+          vec2 t = (cell + mix(vec2(h1, h2), 0.5 + (vec2(h1, h2) - 0.5) * 0.3, yard)) * 11.0, uv = worldUV(t);
           vec3 mk = texture2DLodEXT(uMask, uv, 0.0).rgb, ov = texture2DLodEXT(uOver, uv, 0.0).rgb;
           float lum = dot(texture2DLodEXT(uAlbedo, uv, 0.0).rgb, vec3(0.3, 0.55, 0.15)), hgt = texture2DLodEXT(uHeight, uv, 0.0).r;
           vec2 duv = (t - uDetRect.xy) * uDetRect.z; vec4 dtx = texture2DLodEXT(uDetail, clamp(duv, 0.0, 1.0), 0.0);
@@ -162,6 +163,7 @@ export function buildTerrain(scene) {
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
           float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.40, 0.20, lumP);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
+          if(yard > 0.5) dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt);
           if(h3 > dens * 1.15) continue;
           float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), hc = 6.5 * (0.9 + 0.2 * h4), r = 4.0 * big;
           vec3 d = vec3(t.x, hgt * uVex + hc, t.y) - P; float along = dot(d, L);
@@ -359,7 +361,12 @@ export function buildTerrain(scene) {
         // (but where the photograph is dark with forest the canopy is closed: from outside you see leaves, not the floor)
         col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));
         // seen from a distance, forest is its canopy: dark green, mottled with crowns
-        col = mix(col, vec3(0.030, 0.062, 0.022) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), (1.0 - sand) * smoothstep(0.40, 0.20, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.62 * (1.0 - smoothstep(0.4, 0.9, ov.g)));
+        // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
+        float woodFar = max(1.0 - sand, smoothstep(0.46, 0.34, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
+        col = mix(col, vec3(0.034, 0.066, 0.024) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+        { // round the houses people keep some grass: patchy couch lawn worn through to sand, never a bowling green
+          float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.4, 3.6, h) * (1.0 - 0.6 * sand), pt = smoothstep(0.4, 0.62, nB.g * 0.4 + nC.r * 0.6);
+          col = mix(col, vec3(0.19, 0.25, 0.10) * (0.7 + 0.6 * nC.g), yd * pt * 0.5); }
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));

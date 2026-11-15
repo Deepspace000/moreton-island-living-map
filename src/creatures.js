@@ -255,16 +255,16 @@ export const CORMORANT = () => {
 const BARS = (n, from, step, w) => `{ float bu = (u + (tone - 0.5) * 0.05 - ${from}) / ${step}; float bar = smoothstep(${w}, ${w} - 0.12, abs(fract(bu) - 0.5) * (1.0 + 0.9 * tone)) * step(0.0, bu) * step(bu, ${n}.0) * smoothstep(0.97, 0.7, tone); alb = mix(alb, vec3(0.025, 0.03, 0.045), bar); }`;
 export const PAINT = {
   // yellowfin bream: silver, darker along the back, faint bars, yellow lower fins
-  bream: { body: `alb *= 1.0 - 0.12 * smoothstep(0.32, 0.0, abs(fract(u * 6.0) - 0.5)) * (1.0 - tone); alb = mix(alb, vec3(0.75, 0.66, 0.3), 0.25 * smoothstep(0.6, 0.9, tone));`, fin: `if(vL.y < -0.02 && !side) alb = mix(alb, vec3(0.85, 0.68, 0.12), 0.75);`, scales: 44 },
+  bream: { body: `alb *= 1.0 - 0.12 * smoothstep(0.32, 0.0, abs(fract(u * 6.0) - 0.5)) * (1.0 - tone); alb = mix(alb, vec3(0.75, 0.66, 0.3), 0.25 * smoothstep(0.6, 0.9, tone));`, fin: `if(vL.y < -0.02 && !side) alb = mix(alb, vec3(0.85, 0.68, 0.12), 0.75);`, scales: 60 },
   // Indo-Pacific sergeant (Abudefduf vaigiensis): pale blue-silver, a yellow wash over the back, five black bars
-  sergeant: { body: `alb = mix(alb, vec3(0.90, 0.78, 0.10), smoothstep(0.45, 0.05, tone) * smoothstep(0.12, 0.3, u) * (1.0 - smoothstep(0.62, 0.9, u)) * 0.85); ${BARS(5, '0.185', '0.142', '0.3')}`, fin: `alb = mix(alb, vec3(0.04), smoothstep(0.5, 1.0, vUV.y) * 0.6 * float(!side));`, scales: 38 },
+  sergeant: { body: `alb = mix(alb, vec3(0.90, 0.78, 0.10), smoothstep(0.45, 0.05, tone) * smoothstep(0.12, 0.3, u) * (1.0 - smoothstep(0.62, 0.9, u)) * 0.85); ${BARS(5, '0.185', '0.142', '0.3')}`, fin: `alb = mix(alb, vec3(0.04), smoothstep(0.5, 1.0, vUV.y) * 0.6 * float(!side));`, scales: 54 },
   // neon damsel (Pomacentrus coelestis): electric blue, yellow under the tail end and on the tail
-  neon: { body: `alb = mix(vec3(0.02, 0.22, 0.95), vec3(0.08, 0.55, 1.0), n) * 1.25; alb = mix(alb, vec3(0.98, 0.82, 0.08), clamp(smoothstep(0.55, 0.85, tone) * smoothstep(0.3, 0.62, u) + smoothstep(0.84, 0.94, u), 0.0, 1.0)); glow = 0.35;`, fin: `alb = side ? vec3(0.45, 0.68, 1.0) : (vL.x < -0.32 || vL.y < -0.02) ? vec3(0.98, 0.82, 0.08) : vec3(0.04, 0.3, 1.0); glow = 0.3;`, scales: 44 },
+  neon: { body: `alb = mix(vec3(0.02, 0.22, 0.95), vec3(0.08, 0.55, 1.0), n) * 1.25; alb = mix(alb, vec3(0.98, 0.82, 0.08), clamp(smoothstep(0.55, 0.85, tone) * smoothstep(0.3, 0.62, u) + smoothstep(0.84, 0.94, u), 0.0, 1.0)); glow = 0.35;`, fin: `alb = side ? vec3(0.45, 0.68, 1.0) : (vL.x < -0.32 || vL.y < -0.02) ? vec3(0.98, 0.82, 0.08) : vec3(0.04, 0.3, 1.0); glow = 0.3;`, scales: 60 },
   // humbug dascyllus (Dascyllus aruanus): white with three black bars
   humbug: { body: `{ float uu = u + (tone - 0.5) * 0.09; float b = max(max(smoothstep(0.035, 0.065, uu) * smoothstep(0.235, 0.2, uu), smoothstep(0.38, 0.41, uu) * smoothstep(0.6, 0.57, uu)), smoothstep(0.74, 0.77, uu) * smoothstep(0.93, 0.9, uu)); alb = mix(vec3(0.86, 0.87, 0.84), vec3(0.02, 0.022, 0.03), b); }`, fin: `alb = side ? vec3(0.7, 0.72, 0.7) : (vL.x > -0.3) ? vec3(0.03) : vec3(0.8, 0.82, 0.8);`, scales: 36 },
   // hardyheads and other baitfish: glassy, with a bright stripe along the side
-  bait: { body: `alb = mix(alb, vec3(0.92, 0.97, 1.0), smoothstep(0.1, 0.02, abs(tone - 0.48)) * 0.9);`, fin: `alb *= 1.2;`, scales: 40 },
-  whiting: { body: `alb *= 0.86 + 0.28 * n; alb = mix(alb, alb * 0.75, smoothstep(0.55, 0.75, n2) * (1.0 - tone) * 0.6);`, fin: `alb = mix(alb, vec3(0.86, 0.72, 0.22), 0.55);`, scales: 44 },
+  bait: { body: `alb = mix(alb, vec3(0.92, 0.97, 1.0), smoothstep(0.1, 0.02, abs(tone - 0.48)) * 0.9);`, fin: `alb *= 1.2;`, scales: 56 },
+  whiting: { body: `alb *= 0.86 + 0.28 * n; alb = mix(alb, alb * 0.75, smoothstep(0.55, 0.75, n2) * (1.0 - tone) * 0.6);`, fin: `alb = mix(alb, vec3(0.86, 0.72, 0.22), 0.55);`, scales: 60 },
   // dusky flathead: mottled like the sand it lies on
   flathead: { body: `alb = mix(alb, vec3(0.16, 0.12, 0.07), smoothstep(0.45, 0.7, n) * (1.0 - tone) * 0.5); alb = mix(alb, vec3(0.1, 0.075, 0.05), step(0.8, n2) * (1.0 - tone) * 0.8); alb = mix(alb, vec3(0.04, 0.035, 0.03), smoothstep(0.9, 0.97, u) * (1.0 - tone)); alb *= 0.8 + 0.4 * n2; alb *= 1.0 - 0.25 * smoothstep(0.3, 0.1, abs(fract(u * 4.0 + 0.2) - 0.5)) * (1.0 - tone);`, fin: `alb *= 0.6 + 0.6 * step(0.5, fract(vUV.y * 3.0));`, scales: 50, top: 1 },
   // a small whaler shark: bronze-grey above, white below, dark tips to the fins, five gill slits
@@ -368,7 +368,7 @@ export function swimmers(scene, o, list) {
           if(vPart < 0.5 || (vPart > 1.5 && vPart < 2.5)){                 // the eye: a dark pupil in a pale ring; and the edge of the gill cover behind it
             vec2 e = (${P.top ? 'vec2(vL.x, abs(vL.z))' : 'vL.xy'} - uEye.xy) / uEye.z; float er = length(e);
             if(er < 1.0){ alb = er < 0.5 ? vec3(0.008) : mix(vec3(0.78, 0.7, 0.46), vec3(0.2, 0.17, 0.1), smoothstep(0.55, 1.0, er)); alb = mix(alb, vec3(0.9), 1.0 - smoothstep(0.1, 0.2, length(e - vec2(-0.2, 0.25)))); gloss = 1.6; flash = 0.0; }      // a round black pupil, a gold ring, a glint
-            ${P.top || P.gill === 0 ? '' : 'alb *= 1.0 - 0.45 * (1.0 - smoothstep(0.003, 0.009, abs(vL.y - uEye.y + uEye.z * 1.9 + (vL.x - uEye.x - 0.06) * 0.35))) * step(uEye.x + 0.03, vL.x);        // the line of the mouth'}
+            ${P.top || P.gill === 0 ? '' : 'alb *= 1.0 - 0.26 * (1.0 - smoothstep(0.002, 0.006, abs(vL.y - uEye.y + uEye.z * 1.9 + (vL.x - uEye.x - 0.06) * 0.35))) * step(uEye.x + 0.03, vL.x);        // the line of the mouth'}
             ${P.top || P.gill === 0 ? '' : 'alb *= 1.0 - 0.3 * smoothstep(0.012, 0.004, abs(vL.x - uEye.x + 0.11 + vL.y * vL.y * 3.5)) * step(abs(vL.y), 0.11);'}
           }
         } else {

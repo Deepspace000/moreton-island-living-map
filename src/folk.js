@@ -70,6 +70,36 @@ function buildPeople(scene, list) {
     fs: PERSON_FS,
   });
   const m = new THREE.Mesh(g, mat); m.name = 'people'; m.frustumCulled = false; scene.add(m);
+  { // Everyone's shadow: a soft long shape on the ground that points away from the sun, short at noon and long in the evening, and walks with them.
+    const sg = new THREE.InstancedBufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1], 3)); sg.setIndex([0, 2, 1, 0, 3, 2]);
+    sg.setAttribute('iA', g.getAttribute('iA')); sg.setAttribute('iB', g.getAttribute('iB')); sg.instanceCount = n; sg.boundingSphere = FAR;
+    const sm = makeMat({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+      vs: /* glsl */`
+        attribute vec4 iA, iB; varying vec2 vUv; varying vec3 vW; varying float vK;
+        void main(){
+          float len = max(distance(iA.xy, iA.zw), 1.0), f = fract(iB.x + uTime * iB.y / len * 0.5), tri = abs(2.0 * f - 1.0), walks = step(iB.z, 0.5);
+          vec2 p = mix(iA.xy, mix(iA.xy, iA.zw, smoothstep(0.03, 0.97, tri)), walks);
+          float child = step(fract(iB.x * 17.3), 0.13), tall = 1.75 * iB.w * mix(1.0, 0.64, child);
+          vec2 sd = -normalize(uLightDir.xz + 1e-4); float reach = tall * clamp(length(uLightDir.xz) / max(uLightDir.y, 0.12), 0.0, 5.0);
+          float a = reach * 0.5 + 0.3, b = 0.25 * iB.w;
+          vec2 q = p + sd * (reach * 0.5) + sd * position.x * a + vec2(-sd.y, sd.x) * position.z * b;
+          float y = max(groundY(q), uSeaM * uVex) + 0.07;
+          float awake = 1.0 - smoothstep(0.55, 0.85, uNight) * step(0.2, fract(iB.x * 7.7));
+          float ok = awake * (1.0 - smoothstep(280.0, 420.0, length(vec3(p.x, y, p.y) - cameraPosition)));
+          vUv = position.xz; vW = vec3(q.x, y, q.y); vK = ok / (1.0 + reach * 0.12);
+          gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(vW, 1.0);
+          ${LOGV}
+        }`,
+      fs: /* glsl */`varying vec2 vUv; varying vec3 vW; varying float vK;
+        void main(){ ${LOGF}
+          float r = length(vUv), sun = clamp(uLightDir.y * 4.0, 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight);
+          float a = (1.0 - smoothstep(0.4, 1.0, r)) * (0.15 + 0.33 * sun) * vK;
+          gl_FragColor = vec4(applyFog(vec3(0.04, 0.05, 0.085) * (uAmbSky + 0.15), vW), a); }`,
+    });
+    const sh = new THREE.Mesh(sg, sm); sh.name = 'peopleShade'; sh.frustumCulled = false; sh.renderOrder = 4; scene.add(sh);
+  }
 }
 
 // ---------------------------------------------------------------- signs
@@ -303,7 +333,9 @@ function buildReefs(scene, R) {
 
 export function buildFolk(scene, F) {
   const R = rng(8642), K = MOBILE ? 0.6 : 1, people = [];
-  const shirt = () => { const c = [[.85, .2, .15], [.15, .35, .7], [.9, .85, .8], [.2, .55, .35], [.95, .7, .15], [.3, .3, .32], [.8, .4, .6], [.25, .6, .75]][(R() * 8) | 0]; return c; };
+    // what people wear at the beach: mostly white, navy, grey, khaki and faded blues, with the odd bright shirt
+  const SHIRTS = [[.88, .86, .82], [.13, .2, .36], [.42, .44, .46], [.62, .56, .42], [.36, .56, .72], [.9, .85, .8], [.7, .22, .18], [.2, .45, .36], [.86, .68, .25], [.16, .16, .18], [.78, .48, .58], [.3, .62, .68], [.55, .6, .38], [.84, .5, .3]];
+  const SR = rng(515), shirt = () => SHIRTS[(SR() * SHIRTS.length) | 0];
   // walkers on the streets of each township, and along its beach
   for (const [re, n, rad] of TOWNS) {
     const c = near(F, re); if (!c) continue;
@@ -325,7 +357,6 @@ export function buildFolk(scene, F) {
     }
   }
   const shade = [], camps = buildCamps(scene, F, people, R, shade), signs = collectSigns(F);
-  for (let i = 0; i < people.length; i += 11) if (people[i + 6] > 0.5) shade.push([people[i], people[i + 1], 0.75, 0.75]);          // those who stand still (fishing, or by their tent)
   { // one flat patch of shade under each, laid on the ground as it slopes
     const pos = [], uv = [], idx = [];
     for (const [x, z, rx, rz] of shade) { const q = pos.length / 3; for (const [u, w] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const px = x + (u * 2 - 1) * rx, pz = z + (w * 2 - 1) * rz; pos.push(px, meshY(px, pz) + 0.06, pz); uv.push(u, w); } idx.push(q, q + 1, q + 2, q, q + 2, q + 3); }

@@ -69,7 +69,11 @@ vec3 personPose(vec3 p, vec2 ps, float ph, float w){
     float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c);
     lp.x = q.x; lp.y = q.y + 0.93;
   } else if(abs(sw) > 0.001){
-    float a = st * sign(sw) * 0.42; vec2 q = vec2(p.x, p.y - 1.42); float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c); lp.x = q.x; lp.y = q.y + 1.42;
+    float a = st * sign(sw) * 0.42; vec2 q = vec2(p.x, p.y - 1.42);
+    if(p.y < 1.13 && part < 2.5){        // nobody's arms hang ruler-straight: the elbow is always a little bent, more as the arm swings forward
+      float eb = 0.2 + 0.3 * w + 0.35 * max(0.0, st * sign(sw)), ce = cos(eb), se = sin(eb); vec2 k = q - vec2(0.0, -0.29);
+      q = vec2(k.x * ce - k.y * se, k.x * se + k.y * ce) + vec2(0.0, -0.29); }
+    float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c); lp.x = q.x; lp.y = q.y + 1.42;
   }
   lp.y += abs(cos(ph)) * 0.022 * w;
   return lp;

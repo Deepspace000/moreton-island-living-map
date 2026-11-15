@@ -111,8 +111,8 @@ function buildBeachLife(scene) {
   // fallen branches and sticks
   const sticks = scatter(scene, LOW ? 44 : 64, 2.1, stickGeo, /* glsl */`
         float logK = step(h3, 0.012), stick = (1.0 - logK) * step(h3, 0.3);
-        float len = logK > 0.5 ? 1.8 + 2.6 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.07 + 0.08 * h2 : 0.01 + 0.022 * h2;
-        float taper = 1.0 - 0.5 * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * 0.3;
+        float len = logK > 0.5 ? 3.2 + 4.2 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.08 + 0.08 * h2 : 0.01 + 0.022 * h2;
+        float taper = 1.0 - mix(0.5, 0.72, logK) * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * mix(0.3, 0.07, logK);      // a fallen trunk lies long and nearly straight; only thin sticks are bowed
         s = (logK * (1.0 - smoothstep(0.3, 0.5, mk.g)) + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
         lp = vec3(position.x * len, (position.y * taper + 0.8) * rad, position.z * rad * taper + crook * len);
         nrm = vec3(0.0, position.y, position.z);
@@ -288,6 +288,10 @@ function buildCars(scene, F, lights) {
   if (!routes.length) return () => {};
   const R = rng(4004), S = 1.45, mat = objectMat({ side: THREE.DoubleSide, defines: { CAR: 1 } });
   const COLS = [[.90, .90, .88], [.80, .81, .82], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40], [.86, .84, .70]], geos = COLS.map(fourWD);
+  { // the 4WDs parked beside the houses (see the yards in features.js): they stay where they are
+    const P = rng(909);
+    for (const [x, z, ang] of F.parked || []) { const m = new THREE.Mesh(geos[(P() * geos.length) | 0], mat); m.name = 'parkedCar'; m.scale.setScalar(S); const tx = Math.cos(ang), tz = -Math.sin(ang), yf = meshY(x + tx * 3, z + tz * 3), yb = meshY(x - tx * 3, z - tz * 3); m.rotation.order = 'YZX'; m.rotation.set(0, ang, Math.atan2(yf - yb, 6 * S)); m.position.set(x, Math.max(meshY(x, z), (yf + yb) / 2), z); const sh = carShadow(); sh.frustumCulled = true; m.add(sh); scene.add(m); }      // (culled when out of view: there are many)
+  }
   const cars = [];
   routes.forEach((r, ri) => {
     const cum = [0]; for (let i = 1; i < r.p.length; i++) cum.push(cum[i - 1] + Math.hypot(r.p[i][0] - r.p[i - 1][0], r.p[i][1] - r.p[i - 1][1]));

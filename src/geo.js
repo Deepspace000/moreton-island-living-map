@@ -41,6 +41,16 @@ export class GB {
       if (cap) this.tri([cx, y0 + h, cz], [cx + c0 * r1, y0 + h, cz + s0 * r1], [cx + c1 * r1, y0 + h, cz + s1 * r1], cap);
     }
   }
+  // a rainwater tank: a smooth round wall of corrugated iron (ribs run round it) under a low domed lid
+  tank(cx, y0, cz, r, h, seg, col, K = 1) {
+    const k = this.p.length / 3, lid = [col[0] * .88, col[1] * .88, col[2] * .88], rise = 0.16 * r * K;
+    for (let s = 0; s <= seg; s++) {
+      const a = s / seg * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), n = { x: c, y: 0, z: sn }, nl = { x: c * 0.3, y: 0.95, z: sn * 0.3 };
+      this._v([cx + c * r, y0, cz + sn * r], n, col, [-1, 0, 2 + a * r]); this._v([cx + c * r, y0 + h, cz + sn * r], n, col, [-1, h / K, 2 + a * r]);
+      this._v([cx + c * r * 1.02, y0 + h, cz + sn * r * 1.02], nl, lid); this._v([cx + c * r * 0.12, y0 + h + rise, cz + sn * r * 0.12], { x: 0, y: 1, z: 0 }, lid);
+      if (s < seg) { const q = k + s * 4; this.i.push(q, q + 4, q + 5, q, q + 5, q + 1, q + 2, q + 6, q + 7, q + 2, q + 7, q + 3); }
+    }
+  }
   build() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));

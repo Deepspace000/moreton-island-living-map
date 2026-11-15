@@ -6,54 +6,67 @@ import { T, meshY, groundH, heightAt, maskAt, albedoAt } from './terrain.js';
 import { GB, makeLights } from './geo.js';
 
 const seaY = () => U.uSeaM.value * VEX;
+const HK = VEX * 0.74;            // buildings are drawn a little taller than true (as the people and cars are a little larger), but far less than the hills are
 const cellKey = (x, z, s) => (Math.floor(x / s) + 8192) * 16384 + (Math.floor(z / s) + 8192);
 
 // ---------------------------------------------------------------- buildings
 const WALLS = [[.93, .90, .83], [.90, .84, .70], [.84, .77, .62], [.95, .94, .91], [.76, .68, .55], [.86, .82, .73], [.80, .88, .88], [.92, .85, .60]];
-const ROOFS = [[.70, .72, .72], [.38, .52, .44], [.68, .27, .18], [.78, .73, .62], [.28, .40, .54], [.86, .86, .84], [.52, .54, .55], [.74, .36, .24], [.58, .65, .60]];
+const ROOFS = [[.58, .60, .60], [.36, .46, .40], [.52, .21, .15], [.66, .62, .53], [.28, .38, .48], [.70, .70, .68], [.50, .52, .53], [.56, .28, .20], [.50, .56, .52]];
 // ---- houses of the island townships ----
 // Bulwer, Cowan Cowan and Kooringal are off the grid: small fibro and weatherboard beach shacks, highset timber
 // houses on stumps with a verandah, newer two-storey places with skillion roofs, tin sheds and the odd shipping
 // container, all under corrugated iron, each with its rainwater tanks and many with solar panels.
 const PASTEL = [[.93, .92, .88], [.90, .85, .72], [.72, .82, .88], [.74, .86, .78], [.92, .87, .64], [.64, .62, .57], [.86, .76, .70], [.80, .86, .90]];
 const MODERN = [[.30, .32, .34], [.78, .72, .60], [.93, .93, .91], [.52, .56, .54], [.40, .46, .50]];
-const IRON = [[.72, .74, .75], [.42, .52, .45], [.55, .22, .17], [.82, .78, .66], [.28, .30, .32], [.60, .68, .72], [.50, .38, .30], [.66, .68, .66]];
+const IRON = [[.56, .58, .59], [.36, .42, .38], [.45, .17, .13], [.64, .61, .52], [.27, .29, .31], [.47, .54, .58], [.44, .34, .27], [.52, .54, .53], [.56, .58, .59]];      // weathered zinc, grey-green, old red: no roof stays bright
+const TRIM = [.84, .83, .78];
 const TANKS = [[.70, .72, .72], [.50, .60, .52], [.82, .78, .66], [.45, .50, .52]];
 const pickC = (R, a) => a[(R() * a.length) | 0];
 function houseStyle(R, area, cape) {
   const r = R(), r2 = R();
-  if (cape) return { stump: 0.4, wallH: 2.8, roofT: 'gable', pitch: 0.3, wall: [.94, .93, .89], roof: [.50, .52, .54], ver: area > 60, verD: 2.2, tank: area > 60, solar: false, win: 1, clad: 1 };
+  if (cape) return { stump: 0.4, wallH: 2.8, roofT: 'gable', pitch: 0.2, wall: [.94, .93, .89], roof: [.50, .52, .54], ver: area > 60, verD: 2.2, tank: area > 60, solar: false, win: 1, clad: 1 };
   if (area < 34) return r < 0.25
     ? { stump: 0.1, wallH: 2.5, roofT: 'skillion', pitch: 0.01, wall: pickC(R, [[.16, .32, .50], [.55, .20, .14], [.20, .42, .30], [.50, .34, .24], [.80, .80, .78]]), roof: [.5, .5, .5], ver: false, tank: false, solar: r2 < 0.4, win: 0, clad: 6 }      // a shipping container
-    : { stump: 0, wallH: 2.5, roofT: r2 < 0.5 ? 'skillion' : 'gable', pitch: 0.16, wall: pickC(R, IRON), roof: pickC(R, IRON), ver: false, tank: r2 < 0.3, solar: false, win: 0, clad: 5 };                                                              // a tin shed
-  if (area < 95) return { stump: 0.5, wallH: 2.5, roofT: r < 0.45 ? 'skillion' : 'gable', pitch: r < 0.45 ? 0.14 : 0.2, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: r2 < 0.6, verD: 2.0, tank: true, solar: r2 > 0.6, win: 1, clad: r < 0.6 ? 2 : 1 };              // a beach shack
-  if (r < 0.45) return { stump: 2.4, wallH: 2.7, roofT: 'gable', pitch: 0.3, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: true, verD: 2.4, tank: true, solar: r2 < 0.55, under: r2 > 0.5, win: 1, clad: r < 0.3 ? 1 : 2 };                                         // a highset house on stumps
-  if (r < 0.8) return { stump: 0.6, wallH: 2.8, roofT: 'gable', pitch: 0.26, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: r2 < 0.75, verD: 2.4, tank: true, solar: r2 > 0.5, win: 1, clad: r < 0.56 ? 1 : r < 0.7 ? 2 : 3 };                                                    // a lowset house
-  return { stump: 0.3, wallH: 5.5, roofT: 'skillion', pitch: 0.13, wall: pickC(R, MODERN), roof: pickC(R, [[.28, .30, .32], [.72, .74, .75], [.82, .78, .66]]), ver: true, verD: 3.0, tank: true, solar: r2 < 0.75, win: 1, clad: 4 };                  // a newer two-storey beach house
+    : { stump: 0, wallH: 2.5, roofT: r2 < 0.5 ? 'skillion' : 'gable', pitch: 0.13, wall: pickC(R, IRON), roof: pickC(R, IRON), ver: false, tank: r2 < 0.3, solar: false, win: 0, clad: 5 };                                                              // a tin shed
+  if (area < 95) return { stump: 0.5, wallH: 2.5, roofT: r < 0.45 ? 'skillion' : 'gable', pitch: r < 0.45 ? 0.1 : 0.17, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: r2 < 0.6, verD: 2.0, tank: true, solar: r2 > 0.6, win: 1, clad: r < 0.6 ? 2 : 1 };              // a beach shack
+  if (r < 0.45) return { stump: 1.9, wallH: 2.7, roofT: 'gable', pitch: 0.2, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: true, verD: 2.4, tank: true, solar: r2 < 0.55, under: r2 > 0.5, win: 1, clad: r < 0.3 ? 1 : 2 };                                         // a highset house on stumps
+  if (r < 0.8) return { stump: 0.6, wallH: 2.8, roofT: 'gable', pitch: 0.19, wall: pickC(R, PASTEL), roof: pickC(R, IRON), ver: r2 < 0.75, verD: 2.4, tank: true, solar: r2 > 0.5, win: 1, clad: r < 0.56 ? 1 : r < 0.7 ? 2 : 3 };                                                    // a lowset house
+  return { stump: 0.3, wallH: 5.4, roofT: 'skillion', pitch: 0.09, wall: pickC(R, MODERN), roof: pickC(R, [[.28, .30, .32], [.72, .74, .75], [.82, .78, .66]]), ver: true, verD: 3.0, tank: true, solar: r2 < 0.75, win: 1, clad: 4 };                  // a newer two-storey beach house
 }
-function buildHouse(g, pts, base, hi, st, R) {
-  const K = VEX * 0.9, POST = [.42, .37, .30], TIMBER = [.55, .47, .38], H2 = Math.hypot;
+function buildHouse(g, pts, base, hi, st, R, free = () => true, street = null) {
+  const K = HK, POST = [.42, .37, .30], TIMBER = [.55, .47, .38], H2 = Math.hypot;
   const [p0, p1, p2, p3] = pts, e0 = H2(p1[0] - p0[0], p1[1] - p0[1]), e1 = H2(p2[0] - p1[0], p2[1] - p1[1]);
-  const [a, b, , d] = e0 >= e1 ? [p0, p1, p2, p3] : [p1, p2, p3, p0];
-  const L = H2(b[0] - a[0], b[1] - a[1]), Wd = H2(d[0] - a[0], d[1] - a[1]), u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], v = [(d[0] - a[0]) / Wd, (d[1] - a[1]) / Wd];
+  const [oa, ob, , od] = e0 >= e1 ? [p0, p1, p2, p3] : [p1, p2, p3, p0];
+  // The outline on the town map is what you see from the air: the edge of the roof. So the whole house is built INSIDE it, as it stands on its lot:
+  // the walls are set in by the width of the eaves, and the verandah sits under the same roofline rather than being added on outside.
+  const Lo = H2(ob[0] - oa[0], ob[1] - oa[1]), Wo = H2(od[0] - oa[0], od[1] - oa[1]), u = [(ob[0] - oa[0]) / Lo, (ob[1] - oa[1]) / Lo], v = [(od[0] - oa[0]) / Wo, (od[1] - oa[1]) / Wo];
+  const EAVE = st.clad === 6 ? 0.04 : st.clad === 5 ? 0.2 : Math.min(0.45, Wo * 0.06);
+  // the front (verandah, stairs, glass doors) faces the street the house stands on; with no street close by it faces west, to the bay
+  let tv = v[0] > 0 ? 0 : 1;
+  if (street) { const ds = v[0] * street[0] + v[1] * street[1]; if (Math.abs(ds) > 0.4) tv = ds < 0 ? 0 : 1; }
+  const w = tv === 0 ? [-v[0], -v[1]] : v;
+  if (st.ver && Wo - 2 * EAVE < 6.2) st.ver = false;                               // too shallow a house to have a verandah under its roof
+  if (st.ver) st.verD = Math.min(st.verD, 2.2, (Wo - 2 * EAVE) * 0.3);
+  const dvIn = st.ver ? st.verD : 0, t0m = EAVE + (tv === 0 ? dvIn : 0);
+  const a = [oa[0] + u[0] * EAVE + v[0] * t0m, oa[1] + u[1] * EAVE + v[1] * t0m], L = Lo - 2 * EAVE, Wd = Wo - 2 * EAVE - dvIn;
   const P = (s, t, y, k = 0, w = [0, 0]) => [a[0] + u[0] * s * L + v[0] * t * Wd + w[0] * k, y, a[1] + u[1] * s * L + v[1] * t * Wd + w[1] * k];      // a point of the plan: s along, t across, k metres out along w
   const yG = base, yF = hi + st.stump * K, yT = yF + st.wallH * K, high = st.stump > 1.2, yLow = high ? yF : yG - 1.2;
-  const tv = v[0] > 0 ? 0 : 1, w = tv === 0 ? [-v[0], -v[1]] : v;                    // the front faces west, to the bay
-  const es = 0.5 / L, et = 0.5 / Wd, rf = (s, up = 0) => [-1, s * L, up], cl = st.clad, gb = (t, y) => [cl + 0.25, 50 + t * Wd, (y - yF) / K];      // eaves; roof sheets and walls are marked so the shader can rib and clad them
+  const es = EAVE / L, et = EAVE / Wd, rf = (s, up = 0) => [-1, s * L, up], cl = st.clad, gb = (t, y) => [cl + 0.25, 50 + t * Wd, (y - yF) / K];      // eaves; roof sheets and walls are marked so the shader can rib and clad them
   // walls, with windows
   const C = [[0, 0], [1, 0], [1, 1], [0, 1]]; let along = 0;
   for (let i = 0; i < 4; i++) {
     const [s0, t0] = C[i], [s1, t1] = C[(i + 1) % 4], len = i % 2 ? Wd : L, f0 = (yLow - yF) / K, f1 = st.wallH;
     const yE = yT - 0.5 * K, fE = f1 - 0.5, shade = [st.wall[0] * 0.74, st.wall[1] * 0.74, st.wall[2] * 0.78];       // under the eave the wall is in shadow
-    g.quad(P(s1, t1, yLow), P(s0, t0, yLow), P(s0, t0, yE), P(s1, t1, yE), st.wall, [cl, along + len, f0], [cl, along, f0], [cl, along, fE], [cl, along + len, fE]);
-    g.quad(P(s1, t1, yE), P(s0, t0, yE), P(s0, t0, yT), P(s1, t1, yT), shade, [cl, along + len, fE], [cl, along, fE], [cl, along, f1], [cl, along + len, f1]);
+    const front = i === (tv === 0 ? 0 : 2), wc = cl + (front && st.ver ? 0.05 : high || (front && st.stump > 0.25) ? 0.1 : 0);      // the wall onto the verandah has sliding glass doors; a wall high off the ground has no door in it
+    g.quad(P(s1, t1, yLow), P(s0, t0, yLow), P(s0, t0, yE), P(s1, t1, yE), st.wall, [wc, along + len, f0], [wc, along, f0], [wc, along, fE], [wc, along + len, fE]);
+    g.quad(P(s1, t1, yE), P(s0, t0, yE), P(s0, t0, yT), P(s1, t1, yT), shade, [wc, along + len, fE], [wc, along, fE], [wc, along, f1], [wc, along + len, f1]);
     along += len + 1.3;
   }
   if (high) {            // stumps, the dark underside of the floor, and sometimes a room built in underneath
     const ns = Math.max(2, Math.round(L / 3.5) + 1), nt = Wd > 6.5 ? 3 : 2;
     for (let i = 0; i < ns; i++) for (let j = 0; j < nt; j++) { const q = P(0.03 + 0.94 * i / (ns - 1), 0.04 + 0.92 * j / (nt - 1), 0); g.box(q[0], yG - 0.6, q[2], 0.24, yF - yG + 0.6, 0.24, POST); }
     g.quad(P(0, 0, yF), P(1, 0, yF), P(1, 1, yF), P(0, 1, yF), [.28, .26, .23]);
-    if (st.under) { const dk = [st.wall[0] * .8, st.wall[1] * .8, st.wall[2] * .8], Q = [[0.5, 0.05], [0.98, 0.05], [0.98, 0.95], [0.5, 0.95]]; for (let i = 0; i < 4; i++) { const [s0, t0] = Q[i], [s1, t1] = Q[(i + 1) % 4]; g.quad(P(s1, t1, yG - 1), P(s0, t0, yG - 1), P(s0, t0, yF), P(s1, t1, yF), dk); } }
+    if (st.under) { const dk = [.44, .39, .32], Q = [[0.5, 0.05], [0.98, 0.05], [0.98, 0.95], [0.5, 0.95]]; let al = 0; for (let i = 0; i < 4; i++) { const [s0, t0] = Q[i], [s1, t1] = Q[(i + 1) % 4], ln = (i % 2 ? Wd * 0.9 : L * 0.48), z0 = (yG - 1 - yF) / K; g.quad(P(s1, t1, yG - 1), P(s0, t0, yG - 1), P(s0, t0, yF), P(s1, t1, yF), dk, [4.25, al + ln, z0], [4.25, al, z0], [4.25, al, 0], [4.25, al + ln, 0]); al += ln; } }      // a room under the house, closed in with upright timber battens
   }
   // roof of corrugated iron
   let top = yT;
@@ -63,6 +76,11 @@ function buildHouse(g, pts, base, hi, st, R) {
     g.quad(P(-es, -et, ye), P(1 + es, -et, ye), r1, r0, st.roof, rf(-es), rf(1 + es), rf(1 + es, Wd / 2), rf(-es, Wd / 2));
     g.quad(P(1 + es, 1 + et, ye), P(-es, 1 + et, ye), r0, r1, st.roof, rf(1 + es), rf(-es), rf(-es, Wd / 2), rf(1 + es, Wd / 2));
     g.tri(P(0, 0, yT), P(0, 1, yT), P(0, 0.5, top), st.wall, gb(0, yT), gb(1, yT), gb(0.5, top)); g.tri(P(1, 1, yT), P(1, 0, yT), P(1, 0.5, top), st.wall, gb(1, yT), gb(0, yT), gb(0.5, top));
+    { const fh = 0.2 * K, t0 = -et, t1 = 1 + et, sa = -es, sb = 1 + es, cap = [st.roof[0] * .8, st.roof[1] * .8, st.roof[2] * .8], cw = 0.3 / Wd, yc = top - (top - ye) * cw / (0.5 + et);
+      g.quad(P(sa, t0, ye - fh), P(sb, t0, ye - fh), P(sb, t0, ye), P(sa, t0, ye), TRIM); g.quad(P(sb, t1, ye - fh), P(sa, t1, ye - fh), P(sa, t1, ye), P(sb, t1, ye), TRIM);
+      g.quad(P(sa, t0, ye - fh), P(sa, 0.5, top - fh), P(sa, 0.5, top), P(sa, t0, ye), TRIM); g.quad(P(sa, 0.5, top - fh), P(sa, t1, ye - fh), P(sa, t1, ye), P(sa, 0.5, top), TRIM);
+      g.quad(P(sb, t1, ye - fh), P(sb, 0.5, top - fh), P(sb, 0.5, top), P(sb, t1, ye), TRIM); g.quad(P(sb, 0.5, top - fh), P(sb, t0, ye - fh), P(sb, t0, ye), P(sb, 0.5, top), TRIM);
+      g.quad(P(sa, 0.5 - cw, yc + 0.07), P(sb, 0.5 - cw, yc + 0.07), P(sb, 0.5, top + 0.1), P(sa, 0.5, top + 0.1), cap); g.quad(P(sb, 0.5 + cw, yc + 0.07), P(sa, 0.5 + cw, yc + 0.07), P(sa, 0.5, top + 0.1), P(sb, 0.5, top + 0.1), cap); }
     if (st.solar) {      // panels on the slope that faces north
       const tn = v[1] > 0 ? 0 : 1, T = (f) => tn === 0 ? 0.5 * f : 1 - 0.5 * f, Y = (f) => yT + rh * f + 0.14, s0 = 0.2 + R() * 0.15, s1 = s0 + 0.4;
       g.quad(P(s0, T(0.2), Y(0.2)), P(s1, T(0.2), Y(0.2)), P(s1, T(0.8), Y(0.8)), P(s0, T(0.8), Y(0.8)), [.07, .09, .18]);
@@ -72,6 +90,9 @@ function buildHouse(g, pts, base, hi, st, R) {
     g.quad(P(-es, -et, Y(-et)), P(1 + es, -et, Y(-et)), P(1 + es, 1 + et, Y(1 + et)), P(-es, 1 + et, Y(1 + et)), st.roof, rf(-es), rf(1 + es), rf(1 + es, Wd), rf(-es, Wd));
     g.quad(P(0, tv, yT), P(1, tv, yT), P(1, tv, yT + rise), P(0, tv, yT + rise), st.wall, [cl + 0.25, 0, st.wallH], [cl + 0.25, L, st.wallH], [cl + 0.25, L, st.wallH + rise / K], [cl + 0.25, 0, st.wallH + rise / K]);
     for (const s of [0, 1]) g.tri(P(s, tv, yT), P(s, 1 - tv, yT), P(s, tv, yT + rise), st.wall, gb(tv, yT), gb(1 - tv, yT), gb(tv, yT + rise));
+    { const fh = 0.2 * K, t0 = -et, t1 = 1 + et, sa = -es, sb = 1 + es;
+      g.quad(P(sa, t0, Y(t0) - fh), P(sb, t0, Y(t0) - fh), P(sb, t0, Y(t0)), P(sa, t0, Y(t0)), TRIM); g.quad(P(sb, t1, Y(t1) - fh), P(sa, t1, Y(t1) - fh), P(sa, t1, Y(t1)), P(sb, t1, Y(t1)), TRIM);
+      g.quad(P(sa, t0, Y(t0) - fh), P(sa, t1, Y(t1) - fh), P(sa, t1, Y(t1)), P(sa, t0, Y(t0)), TRIM); g.quad(P(sb, t1, Y(t1) - fh), P(sb, t0, Y(t0) - fh), P(sb, t0, Y(t0)), P(sb, t1, Y(t1)), TRIM); }
     if (st.solar) g.quad(P(0.25, 0.25, Y(0.25) + 0.12), P(0.7, 0.25, Y(0.25) + 0.12), P(0.7, 0.75, Y(0.75) + 0.12), P(0.25, 0.75, Y(0.75) + 0.12), [.07, .09, .18]);
   }
   if (st.ver) {          // verandah or deck along the front: boards, posts, a rail, its own strip of roof, and steps down from a highset house
@@ -79,21 +100,125 @@ function buildHouse(g, pts, base, hi, st, R) {
     g.quad(P(0, tv, yF, 0, w), P(1, tv, yF, 0, w), P(1, tv, yF, dv, w), P(0, tv, yF, dv, w), TIMBER);
     g.quad(P(0, tv, yF - 0.3, dv, w), P(1, tv, yF - 0.3, dv, w), P(1, tv, yF, dv, w), P(0, tv, yF, dv, w), POST);
     for (let i = 0; i < m; i++) { const q = P(0.02 + 0.96 * i / (m - 1), tv, 0, dv - 0.12, w), y0 = high ? yG - 0.6 : yF - 0.4; g.box(q[0], y0, q[2], 0.16, yV - y0, 0.16, [.90, .89, .85]); }
-    for (const hgt of [0.5, 1.0]) g.quad(P(0, tv, yF + (hgt - 0.05) * K, dv, w), P(1, tv, yF + (hgt - 0.05) * K, dv, w), P(1, tv, yF + (hgt + 0.03) * K, dv, w), P(0, tv, yF + (hgt + 0.03) * K, dv, w), [.90, .89, .85]);
-    g.quad(P(-es, tv, yT - 0.08, 0, w), P(1 + es, tv, yT - 0.08, 0, w), P(1 + es, tv, yV, dv + 0.35, w), P(-es, tv, yV, dv + 0.35, w), st.roof, rf(-es, dv), rf(1 + es, dv), rf(1 + es), rf(-es));
-    if (yF - yG > 1) { const run = (yF - yG) / K * 1.15, s0 = 0.1, s1 = s0 + 1.2 / L; g.quad(P(s0, tv, yF, dv, w), P(s1, tv, yF, dv, w), P(s1, tv, yG, dv + run, w), P(s0, tv, yG, dv + run, w), TIMBER); }
+    const RAIL = [.90, .89, .85], stairs = yF - yG > 1, runEst = Math.max(4, Math.round((yF - yG) / (0.19 * K))) * 0.27, g0 = [0.1, 0.72, 0.42].find(f => { const q = P(f + 0.57 / L, tv, 0, dv + runEst + 0.4, w); return free(q[0], q[2], 0.9); }) ?? 0.1, g1 = g0 + 1.15 / L, spans = stairs ? [[0, g0], [g1, 1]] : [[0, 1]];      // the rail leaves a gap at the head of the stairs
+    for (const [sa, sb] of spans) {
+      for (const hgt of [0.08, 1.0]) g.quad(P(sa, tv, yF + (hgt - 0.04) * K, dv, w), P(sb, tv, yF + (hgt - 0.04) * K, dv, w), P(sb, tv, yF + (hgt + 0.03) * K, dv, w), P(sa, tv, yF + (hgt + 0.03) * K, dv, w), RAIL);
+      const nb = Math.round((sb - sa) * L / 0.17), ds = 0.035 / L;
+      for (let i = 1; i < nb; i++) { const sx = sa + (sb - sa) * i / nb; g.quad(P(sx - ds / 2, tv, yF + 0.08 * K, dv, w), P(sx + ds / 2, tv, yF + 0.08 * K, dv, w), P(sx + ds / 2, tv, yF + 1.0 * K, dv, w), P(sx - ds / 2, tv, yF + 1.0 * K, dv, w), RAIL); }
+    }
+    for (const sx of [0, 1]) {                                                         // and across both ends
+      for (const hgt of [0.08, 1.0]) g.quad(P(sx, tv, yF + (hgt - 0.04) * K, 0, w), P(sx, tv, yF + (hgt - 0.04) * K, dv, w), P(sx, tv, yF + (hgt + 0.03) * K, dv, w), P(sx, tv, yF + (hgt + 0.03) * K, 0, w), RAIL);
+      const nb = Math.round(dv / 0.17); for (let i = 1; i < nb; i++) { const k = dv * i / nb; g.quad(P(sx, tv, yF + 0.08 * K, k - 0.018, w), P(sx, tv, yF + 0.08 * K, k + 0.018, w), P(sx, tv, yF + 1.0 * K, k + 0.018, w), P(sx, tv, yF + 1.0 * K, k - 0.018, w), RAIL); }
+    }
+    g.quad(P(-es, tv, yT - 0.08, 0, w), P(1 + es, tv, yT - 0.08, 0, w), P(1 + es, tv, yV, dv + EAVE, w), P(-es, tv, yV, dv + EAVE, w), st.roof, rf(-es, dv), rf(1 + es, dv), rf(1 + es), rf(-es));
+    if (stairs) {        // open timber stairs: treads between two stringers, a handrail on posts
+      const rise = yF - yG, nst = Math.max(4, Math.round(rise / (0.19 * K))), td = 0.27, run = nst * td;
+      for (let i = 0; i < nst; i++) { const y = yF - (i + 1) * rise / nst, k0 = dv + i * td; g.quad(P(g0, tv, y, k0, w), P(g1, tv, y, k0, w), P(g1, tv, y, k0 + td + 0.03, w), P(g0, tv, y, k0 + td + 0.03, w), TIMBER); g.quad(P(g0, tv, y - 0.05 * K, k0, w), P(g1, tv, y - 0.05 * K, k0, w), P(g1, tv, y, k0, w), P(g0, tv, y, k0, w), POST); }
+      for (const sx of [g0, g1]) {
+        g.quad(P(sx, tv, yF - 0.3 * K, dv, w), P(sx, tv, yG - 0.3 * K, dv + run, w), P(sx, tv, yG + 0.02, dv + run, w), P(sx, tv, yF, dv, w), POST);
+        g.quad(P(sx, tv, yF + 0.9 * K, dv, w), P(sx, tv, yG + 0.9 * K, dv + run, w), P(sx, tv, yG + 0.98 * K, dv + run, w), P(sx, tv, yF + 0.98 * K, dv, w), RAIL);
+        for (const f of [0, 0.5, 1]) { const q = P(sx, tv, 0, dv + run * f, w), y = yF - rise * f; g.box(q[0], y - 0.1, q[2], 0.09, 0.98 * K + 0.1, 0.09, RAIL); }
+      }
+    }
   }
   if (st.tank) {         // rainwater tanks at the end of the house: there is no town water
     const n = R() < 0.35 ? 2 : 1;
-    for (let i = 0; i < n; i++) { const r = 1.2 + R() * 0.7, c = pickC(R, TANKS), q = P(i ? 0 : 1, 0.3 + 0.4 * R(), 0, r + 0.6, i ? [-u[0], -u[1]] : u); g.cyl(q[0], yG - 0.4, q[2], r, r, (2.0 + R() * 0.6) * K + (hi - base) + 0.4, 12, c, [c[0] * .85, c[1] * .85, c[2] * .85]); }
+    for (let i = 0; i < n; i++) {
+      const r = 1.2 + R() * 0.55, c = pickC(R, TANKS), tt = 0.3 + 0.4 * R(), back = [-w[0], -w[1]];
+      // a tank stands at one end of the house, or behind it, wherever there is room between the neighbours
+      const q = [P(i ? 0 : 1, tt, 0, r + EAVE + 0.3, i ? [-u[0], -u[1]] : u), P(i ? 1 : 0, tt, 0, r + EAVE + 0.3, i ? u : [-u[0], -u[1]]), P(i ? 0.25 : 0.75, 1 - tv, 0, r + EAVE + 0.3, back)].find(q => free(q[0], q[2], r + 0.5));
+      if (!q) continue;
+      g.tank(q[0], yG - 0.4, q[2], r, (1.75 + R() * 0.45) * K + (hi - base) + 0.4, 24, c, K);
+    }
   }
   return top;
+}
+// A rotary clothes hoist: a steel pole, four arms, lines strung round them, and some of the washing out to dry.
+function clothesHoist(g, x, y, z, R) {
+  const K = HK, STEEL = [.60, .62, .62], top = y + 1.95 * K, a0 = R() * 1.57, arm = [];
+  g.box(x, y - 0.3, z, 0.08, 1.95 * K + 0.3, 0.08, STEEL);
+  for (let i = 0; i < 4; i++) { const a = a0 + i * 1.5708, c = Math.cos(a), s = Math.sin(a); arm.push((f) => [x + c * 1.55 * f, top + 0.22 * K * f, z + s * 1.55 * f]);
+    const p0 = arm[i](0), p1 = arm[i](1); g.quad(p0, p1, [p1[0], p1[1] + 0.07, p1[2]], [p0[0], p0[1] + 0.07, p0[2]], STEEL); g.quad([p0[0] - s * 0.03, p0[1] + 0.07, p0[2] + c * 0.03], [p1[0] - s * 0.03, p1[1] + 0.07, p1[2] + c * 0.03], [p1[0] + s * 0.03, p1[1] + 0.07, p1[2] - c * 0.03], [p0[0] + s * 0.03, p0[1] + 0.07, p0[2] - c * 0.03], STEEL); }
+  for (const f of [0.45, 0.72, 1.0]) for (let i = 0; i < 4; i++) {
+    const p0 = arm[i](f), p1 = arm[(i + 1) % 4](f); g.quad(p0, p1, [p1[0], p1[1] + 0.03, p1[2]], [p0[0], p0[1] + 0.03, p0[2]], [.80, .80, .78]);
+    if (f > 0.5 && R() < 0.6) {            // a towel, a shirt, a sheet
+      const u0 = 0.1 + R() * 0.3, u1 = u0 + 0.25 + R() * 0.3, drop = (0.45 + R() * 0.45) * K, c = [[.86, .86, .84], [.25, .45, .70], [.80, .30, .25], [.92, .80, .35], [.30, .58, .50], [.90, .62, .70]][(R() * 6) | 0];
+      const A = p0.map((v, k) => v + (p1[k] - v) * u0), B = p0.map((v, k) => v + (p1[k] - v) * u1); g.quad([A[0], A[1] - drop, A[2]], [B[0], B[1] - drop, B[2]], B, A, c);
+    }
+  }
+}
+// An aluminium dinghy on its trailer, the outboard tilted up: there is one beside half the houses on the island.
+// Built in metres and scaled up like the 4WDs it is towed by.
+function tinnyOnTrailer(g, x, y, z, ang, R) {
+  const ALU = [.74, .76, .77], BOT = [.50, .52, .54], IN = [.56, .58, .59], DARK = [.07, .07, .08], GAL = [.52, .54, .54], HUB = [.70, .70, .68];
+  g.at(new THREE.Matrix4().makeRotationY(ang).multiply(new THREE.Matrix4().makeScale(1.4, 1.4, 1.4)).setPosition(x, y, z));
+  g.box(0.7, 0.36, 0, 5.6, 0.09, 0.09, GAL); g.box(-0.5, 0.28, 0, 0.09, 0.08, 1.8, GAL);                                      // drawbar and axle
+  g.box(3.45, 0.02, 0, 0.07, 0.36, 0.07, GAL);                                                                                // the jockey leg under the coupling
+  for (const sd of [-1, 1]) {                                                                                                 // wheels (round), each under a guard
+    const N = 12, zc = sd * 0.92, r = 0.3, w = 0.09, P = (i, rr, dz) => { const a = i / N * 6.2832; return [-0.5 + Math.cos(a) * rr, 0.3 + Math.sin(a) * rr, zc + dz]; };
+    for (let i = 0; i < N; i++) { g.quad(P(i, r, -w), P(i + 1, r, -w), P(i + 1, r, w), P(i, r, w), DARK); for (const dz of [-w, w]) { g.tri([-0.5, 0.3, zc + dz], P(i, r * 0.55, dz), P(i + 1, r * 0.55, dz), HUB); g.quad(P(i, r * 0.55, dz), P(i + 1, r * 0.55, dz), P(i + 1, r, dz), P(i, r, dz), DARK); } }
+    g.box(-0.5, 0.63, zc, 0.78, 0.035, 0.24, GAL); g.box(-0.5, 0.42, sd * 0.55, 3.4, 0.06, 0.07, GAL);                          // guard, and a side rail the hull rests on
+  }
+  const y0 = 0.5, N = 12, st = [];
+  for (let i = 0; i <= N; i++) { const t = i / N, half = 0.80 * Math.pow(Math.max(0, 1 - Math.pow(Math.max(0, (t - 0.38) / 0.62), 2.4)), 0.55) * (0.93 + 0.07 * Math.min(1, t * 4)), lift = 0.40 * Math.pow(Math.max(0, (t - 0.5) / 0.5), 2.2); st.push([-2.1 + 4.2 * t, half, lift, 0.10 * t * t]); }
+  // keel, chine and gunwale at each station: a shallow vee bottom, flared sides, the sheer rising to the bow
+  const pt = (i, sd, lvl) => { const [bx, half, lift, sheer] = st[i]; return lvl === 0 ? [bx, y0 + lift, 0] : lvl === 1 ? [bx, y0 + 0.13 + lift * 0.75, sd * half * 0.8] : lvl === 2 ? [bx, y0 + 0.56 + sheer + lift * 0.2, sd * half] : [bx, y0 + 0.56 + sheer + lift * 0.2, sd * Math.max(0, half - 0.07)]; };
+  for (let i = 0; i < N; i++) for (const sd of [-1, 1]) {
+    g.quad(pt(i, sd, 0), pt(i + 1, sd, 0), pt(i + 1, sd, 1), pt(i, sd, 1), BOT); g.quad(pt(i, sd, 1), pt(i + 1, sd, 1), pt(i + 1, sd, 2), pt(i, sd, 2), ALU);
+    g.quad(pt(i, sd, 2), pt(i + 1, sd, 2), pt(i + 1, sd, 3), pt(i, sd, 3), [.86, .87, .87]);                                   // the rolled gunwale catches the light
+    const a = pt(i, sd, 3), b = pt(i + 1, sd, 3), c = pt(i + 1, sd, 1), d = pt(i, sd, 1); g.quad(a, b, [c[0], c[1] + 0.03, c[2] * 0.96], [d[0], d[1] + 0.03, d[2] * 0.96], IN);      // inside of the topsides
+  }
+  g.quad(pt(0, -1, 1), pt(0, 1, 1), pt(0, 1, 2), pt(0, -1, 2), ALU); g.tri(pt(0, -1, 1), pt(0, 1, 1), pt(0, 1, 0), BOT);                        // transom
+  for (let i = 0; i < N - 1; i++) { const a = pt(i, -1, 1), b = pt(i + 1, -1, 1), c = pt(i + 1, 1, 1), d = pt(i, 1, 1); g.quad([a[0], a[1] + 0.03, a[2]], [b[0], b[1] + 0.03, b[2]], [c[0], c[1] + 0.03, c[2]], [d[0], d[1] + 0.03, d[2]], [.44, .46, .47]); }      // the floor inside
+  for (const i of [3, 6]) { const a = pt(i, -1, 3), b = pt(i, 1, 3), yy = a[1] - 0.14; g.quad([a[0] - 0.13, yy, a[2]], [a[0] + 0.13, yy, a[2]], [b[0] + 0.13, yy, b[2]], [b[0] - 0.13, yy, b[2]], [.80, .81, .81]); g.quad([a[0] + 0.13, yy, a[2]], [a[0] + 0.13, yy - 0.22, a[2] * 0.9], [b[0] + 0.13, yy - 0.22, b[2] * 0.9], [b[0] + 0.13, yy, b[2]], IN); }   // two thwarts
+  // the outboard, tilted up for the road: cowl, leg and propeller end
+  g.box(-2.22, y0 + 0.62, 0, 0.3, 0.26, 0.24, DARK); g.box(-2.22, y0 + 0.84, 0, 0.34, 0.07, 0.26, [.16, .17, .2]);
+  g.quad([-2.3, y0 + 0.62, -0.05], [-2.3, y0 + 0.62, 0.05], [-2.78, y0 + 0.28, 0.05], [-2.78, y0 + 0.28, -0.05], [.3, .31, .33]); g.quad([-2.2, y0 + 0.62, -0.05], [-2.2, y0 + 0.62, 0.05], [-2.68, y0 + 0.24, 0.05], [-2.68, y0 + 0.24, -0.05], [.24, .25, .27]);
+  g.at(null);
 }
 function buildBuildings(F, g, occ, casters, lights) {
   const R = rng(11); let nl = 0;
   const cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p;
+  // every outline with its centre and reach, so a house can ask whether a spot beside it is clear of its neighbours
+  const plans = F.buildings.filter(b => b.p.length >= 3 && !b.lh && b.k !== 'ship').map(b => {
+    let x = 0, z = 0, r = 0, a = 0; const n = b.p.length;
+    for (let i = 0; i < n; i++) { const p = b.p[i], q = b.p[(i + 1) % n]; x += p[0]; z += p[1]; a += p[0] * q[1] - q[0] * p[1]; }
+    x /= n; z /= n; for (const p of b.p) r = Math.max(r, Math.hypot(p[0] - x, p[1] - z));
+    return { b, p: b.p, x, z, r, a: Math.abs(a) / 2 };
+  });
+  const within = (x, z, p) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const a = p[i], b = p[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const reach = (x, z, p) => { let d = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length], dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); d = Math.min(d, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return d; };
+  const freeOf = (self) => (x, z, r) => plans.every(q => q.b === self || Math.hypot(x - q.x, z - q.z) > q.r + r || (!within(x, z, q.p) && reach(x, z, q.p) > r));
+  const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
+  // which way the street lies from a house: the nearest point of any street or track within 70 m
+  const toStreet = (x, z) => { let bd = 70 * 70, bx = 0, bz = 0; for (let i = 0; i < streetPts.length; i += 2) { const dx = streetPts[i] - x, dz = streetPts[i + 1] - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bx = dx; bz = dz; } } const l = Math.hypot(bx, bz); return l > 0.5 ? [bx / l, bz / l] : null; };
+  const onStreet = (x, z) => { for (let dx = -4; dx <= 4; dx += 4) for (let dz = -4; dz <= 4; dz += 4) if (streets.has(cellKey(x + dx, z + dz, 4))) return true; return false; };
+  const anyFree = freeOf(null);
+  { // Garden trees. The forest's trees stand one to a cell of an 11 m grid (see buildTrees). In the townships a cell beside a house gets a tree too,
+    // if a circle round its middle is clear of every building, verandah, tank and street. The cells are handed to the tree shader as a small map.
+    CS = 11;
+    for (const r of F.roads) { if (r.c === 3) continue; for (let i = 1; i < r.p.length; i++) { const a = r.p[i - 1], b = r.p[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2)); for (let k = 0; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; streets.add(cellKey(x, z, 4)); if (r.c < 2 && k % 2 === 0) streetPts.push(x, z); } } }
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const q of plans) {
+      if (q.a < 25) continue;
+      for (let cz = Math.floor((q.z - q.r - 18) / CS); cz <= Math.floor((q.z + q.r + 18) / CS); cz++) for (let cx = Math.floor((q.x - q.r - 18) / CS); cx <= Math.floor((q.x + q.r + 18) / CS); cx++) {
+        const key = cx + ',' + cz; if (cells.has(key)) continue;
+        const x = (cx + 0.5) * CS, z = (cz + 0.5) * CS, ok = reach(x, z, q.p) < 18 && anyFree(x, z, 4.8) && !onStreet(x, z) && maskAt(x, z).land > 0.9;
+        if (!ok) continue;
+        cells.set(key, [cx, cz]); x0 = Math.min(x0, cx); x1 = Math.max(x1, cx); z0 = Math.min(z0, cz); z1 = Math.max(z1, cz);
+      }
+    }
+    if (cells.size) {
+      const w = x1 - x0 + 1, h = z1 - z0 + 1, data = new Uint8Array(w * h);
+      for (const [cx, cz] of cells.values()) { data[(cz - z0) * w + (cx - x0)] = 255; }
+      const t = new THREE.DataTexture(data, w, h, THREE.RedFormat); t.unpackAlignment = 1; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true;
+      U.uYard.value = t; U.uYardO.value.set(x0, z0, 1 / w, 1 / h);
+    }
+  }
+  const swallowed = new Set(plans.filter(s => plans.some(q => q !== s && q.a > s.a && Math.hypot(s.x - q.x, s.z - q.z) < q.r && within(s.x, s.z, q.p))).map(s => s.b));
+  const Y = rng(77), things = [], parked = F.parked = [];
   for (const b of F.buildings) {
-    let pts = b.p; const n = pts.length; if (n < 3 || b.lh || b.k === 'ship') continue;      // outlines of wrecked ships are not houses: see the Bulwer wrecks
+    let pts = b.p; const n = pts.length; if (n < 3 || b.lh || b.k === 'ship' || swallowed.has(b)) continue;      // outlines of wrecked ships are not houses: see the Bulwer wrecks; nor is a shed drawn inside a bigger building
     let A2 = 0, cx = 0, cz = 0;
     for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n]; A2 += p[0] * q[1] - q[0] * p[1]; cx += p[0]; cz += p[1]; }
     if (A2 < 0) pts = pts.slice().reverse();
@@ -107,29 +232,45 @@ function buildBuildings(F, g, occ, casters, lights) {
     }
     occ.add(cellKey(cx, cz, 6));
     let h = b.ht > 0 ? b.ht : b.lv > 0 ? b.lv * 3.1 : area < 45 ? 2.5 : area < 300 ? (R() < 0.3 ? 5.6 : 3.0) : area < 900 ? (R() < 0.5 ? 6.2 : 3.6) : 7.6;
-    h *= VEX * 0.9;
+    h *= HK;
     let wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
     if (cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350) { wall = [.94, .93, .89]; roof = [.50, .52, .54]; }       // the lighthouse keepers' cottages and sheds: white walls, grey roofs
     const isCape = cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350, st = n === 4 && area < 340 ? houseStyle(R, area, isCape) : null;
-    if (st) h = (st.stump + st.wallH) * VEX * 0.9;
+    if (st) h = (st.stump + st.wallH) * HK;
     const y0 = base - 1.5, y1 = hi + h;
-    const win = area > 30 ? 3 : 5;                 // rendered block for the larger buildings, iron for small sheds
+    let win = area > 30 ? 3 : 5;                 // rendered block for the larger buildings, iron for small sheds
+    if (!st && !isCape && area > 30 && area < 340 && !(b.lv > 1)) { wall = pickC(R, PASTEL); roof = pickC(R, IRON); win = R() < 0.55 ? 1 : 2; }      // a house with an L or T plan: weatherboard or fibro like its neighbours
     casters.push({ pts, y: hi, h: h + Math.min(Math.sqrt(area) * 0.12, 2) * VEX });
     if (area > 55 && nl < 230 && R() < 0.7) { nl++; const q = pts[(R() * n) | 0]; lights.add([q[0] + (q[0] - cx) * 0.15, hi + 2.4 * VEX, q[1] + (q[1] - cz) * 0.15], [1, .74, .42], 0, 1, 0, 0.75); }
-    if (st) { buildHouse(g, pts, base, hi, st, R); continue; }
+    if (st) {
+      buildHouse(g, pts, base, hi, st, R, freeOf(b), toStreet(cx, cz));
+      // what stands in the yard: the 4WD, a clothes hoist with the washing out, the tinny on its trailer
+      if (area >= 45 && !isCape) {
+        const rr = Math.sqrt(area) * 0.75, e0 = [pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]], e1 = [pts[2][0] - pts[1][0], pts[2][1] - pts[1][1]], ax = Math.hypot(...e0) >= Math.hypot(...e1) ? e0 : e1, ang = Math.atan2(-ax[1], ax[0]);
+        const spot = (rad) => { for (let t = 0; t < 14; t++) { const a = Y() * 6.283, d = rr + rad + 1.5 + Y() * 5, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d, c = cells.get(Math.floor(x / CS) + ',' + Math.floor(z / CS));
+          if (!anyFree(x, z, rad + 1.0) || onStreet(x, z) || maskAt(x, z).land < 0.9 || Math.abs(meshY(x + 2.5, z) - meshY(x - 2.5, z)) > 0.9 || Math.abs(meshY(x, z + 2.5) - meshY(x, z - 2.5)) > 0.9) continue;      // on ground that is close to level
+          if (c && Math.hypot(x - (c[0] + 0.5) * CS, z - (c[1] + 0.5) * CS) < rad + 2.4) continue;
+          if (things.some(q => Math.hypot(x - q[0], z - q[1]) < rad + q[2] + 0.6)) continue;
+          things.push([x, z, rad]); return [x, z]; } return null; };
+        if (Y() < 0.5) { const q = spot(3.3); if (q) parked.push([q[0], q[1], ang + (Y() < 0.5 ? Math.PI : 0) + (Y() - 0.5) * 0.3]); }
+        if (Y() < 0.4) { const q = spot(1.9); if (q) { clothesHoist(g, q[0], meshY(q[0], q[1]), q[1], Y); (F.hoists ||= []).push(q); } }
+        if (Y() < 0.22) { const q = spot(2.9); if (q) { tinnyOnTrailer(g, q[0], meshY(q[0], q[1]), q[1], ang + (Y() - 0.5) * 0.5, Y); (F.tinnies ||= []).push(q); } }
+      }
+      continue;
+    }
     let along = 0;
     for (let i = 0; i < n; i++) {
       const p = pts[i], q = pts[(i + 1) % n], len = Math.hypot(q[0] - p[0], q[1] - p[1]);
       g.quad([q[0], y0, q[1]], [p[0], y0, p[1]], [p[0], y1, p[1]], [q[0], y1, q[1]], wall,
-        [win, along + len, (y0 - hi) / VEX / 0.9], [win, along, (y0 - hi) / VEX / 0.9], [win, along, h / VEX / 0.9], [win, along + len, h / VEX / 0.9]);
+        [win, along + len, (y0 - hi) / HK], [win, along, (y0 - hi) / HK], [win, along, h / HK], [win, along + len, h / HK]);
       along += len + 1.3;
     }
     if (n === 4 && area < 700) {
       const [p0, p1, p2, p3] = pts, e0 = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), e1 = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
       const [a, b2, c, d] = e0 >= e1 ? [p0, p1, p2, p3] : [p1, p2, p3, p0];
-      const rh = Math.min(Math.min(e0, e1) * 0.3, 3.4) * VEX * 0.9, yr = y1 + rh;
+      const rh = Math.min(Math.min(e0, e1) * 0.19, 2.3) * HK, yr = y1 + rh;
       const r0 = [(a[0] + d[0]) / 2, yr, (a[1] + d[1]) / 2], r1 = [(b2[0] + c[0]) / 2, yr, (b2[1] + c[1]) / 2];
-      const ev = (q) => [cx + (q[0] - cx) * 1.09, y1 - 0.25, cz + (q[1] - cz) * 1.09];
+      const ev = (q) => [cx + (q[0] - cx) * 1.03, y1 - 0.25, cz + (q[1] - cz) * 1.03];
       const A = ev(a), B = ev(b2), C = ev(c), D = ev(d);
       const rl = Math.max(e0, e1), rv = Math.min(e0, e1) / 2;
       g.quad(B, A, r0, r1, roof, [-1, rl, 0], [-1, 0, 0], [-1, 0, rv], [-1, rl, rv]); g.quad(D, C, r1, r0, roof, [-1, 0, 0], [-1, rl, 0], [-1, rl, rv], [-1, 0, rv]);
@@ -138,8 +279,8 @@ function buildBuildings(F, g, occ, casters, lights) {
       const tri = THREE.ShapeUtils.triangulateShape(pts.map(p => new THREE.Vector2(p[0], p[1])), []);
       if (area > 520) { for (const t of tri) g.tri([pts[t[0]][0], y1, pts[t[0]][1]], [pts[t[2]][0], y1, pts[t[2]][1]], [pts[t[1]][0], y1, pts[t[1]][1]], [.70, .70, .68]); }
       else {      // hipped roof: slopes rising to a smaller copy of the outline
-        const rh = Math.min(Math.sqrt(area) * 0.22, 3.2) * VEX * 0.9, yr = y1 + rh, inn = pts.map(p => [cx + (p[0] - cx) * 0.42, cz + (p[1] - cz) * 0.42]);
-        const eav = pts.map(q => [cx + (q[0] - cx) * 1.07, cz + (q[1] - cz) * 1.07]);
+        const rh = Math.min(Math.sqrt(area) * 0.15, 2.4) * HK, yr = y1 + rh, inn = pts.map(p => [cx + (p[0] - cx) * 0.42, cz + (p[1] - cz) * 0.42]);
+        const eav = pts.map(q => [cx + (q[0] - cx) * 1.03, cz + (q[1] - cz) * 1.03]);
         for (let i = 0; i < n; i++) { const j = (i + 1) % n, el = Math.hypot(eav[j][0] - eav[i][0], eav[j][1] - eav[i][1]), ev2 = Math.hypot(inn[i][0] - eav[i][0], inn[i][1] - eav[i][1]); g.quad([eav[j][0], y1 - 0.25, eav[j][1]], [eav[i][0], y1 - 0.25, eav[i][1]], [inn[i][0], yr, inn[i][1]], [inn[j][0], yr, inn[j][1]], roof, [-1, el, 0], [-1, 0, 0], [-1, el * 0.3, ev2], [-1, el * 0.7, ev2]); }
         for (const t of tri) g.tri([inn[t[0]][0], yr, inn[t[0]][1]], [inn[t[2]][0], yr, inn[t[2]][1]], [inn[t[1]][0], yr, inn[t[1]][1]], roof);
       }
@@ -306,8 +447,8 @@ function speciesTree(K, B) {
     for (let k = 0; k <= rings; k++) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2; pos.push(Math.cos(a), k / rings, Math.sin(a)); nrm.push(Math.cos(a), 0, Math.sin(a)); part.push(kind); blob.push(which); }
     for (let k = 0; k < rings; k++) for (let i = 0; i < S; i++) { const j = (i + 1) % S, q = base + k * S; idx.push(q + i, q + S + i, q + j, q + j, q + S + i, q + S + j); }
   };
-  tube(7, 4, 1, 0);                                       // many short sections, so every bend reads as a curve
-  for (let i = 0; i < B; i++) tube(5, 3, 2, i);
+  tube(7, B > 3 ? 6 : 4, 1, 0);                           // many short sections, so every bend reads as a curve; enough sides to read as round, not as a ribbon
+  for (let i = 0; i < B; i++) tube(5, B > 3 ? 4 : 3, 2, i);
   for (let k = B; k < K; k++) tube(3, 3, 3, k);          // a twig out to every clump that does not sit on a limb end
   return { pos: new THREE.Float32BufferAttribute(pos, 3), nrm: new THREE.Float32BufferAttribute(nrm, 3), part: new THREE.Float32BufferAttribute(part, 1), blob: new THREE.Float32BufferAttribute(blob, 1), idx, K, B };
 }
@@ -318,12 +459,12 @@ function buildGrassTrees(scene) {
   const pos = [], col = [], pt = [], idx = [], R = rng(606);
   for (let k = 0; k <= 4; k++) for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, r = 0.15 - 0.04 * k / 4; pos.push(Math.cos(a) * r, k / 4, Math.sin(a) * r); col.push(0.035, 0.033, 0.035); pt.push(0, k / 4); }
   for (let k = 0; k < 4; k++) for (let i = 0; i < 5; i++) { const j = (i + 1) % 5, q = k * 5; idx.push(q + i, q + 5 + i, q + j, q + j, q + 5 + i, q + 5 + j); }
-  const NB = 26;
+  const NB = LOW ? 48 : 90;                       // a grass tree's head is a ball of a hundred or more wiry leaves, each no wider than a finger
   for (let i = 0; i < NB; i++) {
-    const az = i * 2.39996, el = 1.4 - 2.6 * (i / (NB - 1)), L = 0.9 + 0.35 * R(), dead = el < -0.15, base = pos.length / 3;
+    const az = i * 2.39996, el = 1.4 - 2.6 * Math.pow(i / (NB - 1), 0.85) + (R() - 0.5) * 0.25, L = 0.85 + 0.45 * R(), dead = el < -0.15, base = pos.length / 3;
     const g = dead ? [0.40 + R() * 0.1, 0.29 + R() * 0.06, 0.17] : [0.17 + R() * 0.06, 0.30 + R() * 0.08, 0.15];
     for (let j = 0; j <= 2; j++) {
-      const u = j / 2, out = L * u * Math.cos(el), y = L * u * Math.sin(el) - 0.4 * u * u * L * (dead ? 0.6 : 1), w = 0.045 * (1 - u) + 0.006;
+      const u = j / 2, out = L * u * Math.cos(el), y = L * u * Math.sin(el) - 0.4 * u * u * L * (dead ? 0.6 : 1), w = 0.016 * (1 - u) + 0.004;
       for (const sd of [-1, 1]) { pos.push(Math.cos(az) * out - Math.sin(az) * w * sd, y, Math.sin(az) * out + Math.cos(az) * w * sd); const f = 0.75 + 0.5 * u; col.push(g[0] * f, g[1] * f, g[2] * f); pt.push(1, u); }
       if (j) { const q = base + j * 2; idx.push(q - 2, q - 1, q, q, q - 1, q + 1); }
     }
@@ -383,7 +524,7 @@ function buildTrees(F, scene) {
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
         attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
-        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; varying vec2 vBark; uniform float uPorous;
+        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp; varying vec2 vBark; uniform float uPorous;
         #ifdef SPECIES
         attribute float aBlob;            // crown: which clump; limb: which limb
         // a point along a limb, in units of the tree's height: from the fork P to its end E, bowed up by arch and kinked sideways
@@ -397,7 +538,13 @@ function buildTrees(F, scene) {
         void main(){
           vec2 cell = uCentre + iCell;
           float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
-          vec2 xz = (cell + vec2(h1, h2)) * uCS;
+          float yard = 0.0;
+          #ifdef SPECIES
+          { vec2 yuv = (cell - uYardO.xy + 0.5) * uYardO.zw; if(yuv.x > 0.0 && yuv.x < 1.0 && yuv.y > 0.0 && yuv.y < 1.0) yard = step(0.5, texture2D(uYard, yuv).r); }      // a garden tree stands near the middle of its cell, which is known to be clear of the houses
+          #endif
+          vec2 jit = vec2(h1, h2);
+          if(uMode > 1.5) jit = fract(jit + texture2D(uNoise, cell * 0.37 + 0.11).rg + texture2D(uNoise, cell / 41.0).gb * 2.0);      // low plants are scattered, never in rows
+          vec2 xz = (cell + mix(jit, 0.5 + (jit - 0.5) * 0.3, yard)) * uCS;
           vec2 uv = worldUV(xz);
           vec3 mk = texture2D(uMask, uv).rgb;
           float hgt = texture2D(uHeight, uv).r;
@@ -429,8 +576,10 @@ function buildTrees(F, scene) {
           { // and on the sheltered south-western shore (below the sandhills, as the owner photographed) clumps of mangroves stand out in the shallows, their feet in the water
             float bay = 1.0 - smoothstep(0.25, 0.4, texture2D(uHeight, uv).g), stand = step(0.6, texture2D(uNoise, xz / 240.0 + 0.4).r);
             if(hgt > -0.5 && hgt < 0.9 && shoreD > -70.0 && shoreD < 40.0 && xz.y > 9000.0 && bay * stand > 0.5){ sp = 4.0; dens = 0.55 * clr; } }
+          if(yard > 0.5){ dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt); sp = hs < 0.34 ? 0.0 : hs < 0.56 ? 1.0 : hs < 0.8 ? 2.0 : 3.0; }      // in the yards: a gum, a she-oak, a banksia or a paperbark by the house
           #endif
           if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
+          if(uMode > 1.5){ float th = texture2D(uNoise, xz / 85.0 + 0.37).g * 0.7 + texture2D(uNoise, xz / 23.0 + 0.11).r * 0.3; dens *= mix(0.07, 1.7, smoothstep(0.43, 0.57, th)); }      // low growth stands in thickets some metres across, with open sand between them
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
@@ -444,7 +593,8 @@ function buildTrees(F, scene) {
           vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
           c = mix(c, vec3(lum * 1.15, lum * 1.8, lum * 0.75), 0.28) * (0.9 + 0.5 * h2);
           c = mix(c, c * vec3(1.25, 1.1, 0.7), step(0.8, h3) * 0.5);
-          float ao; vec3 lp; vPor = uPorous; vBark = vec2(0.0);
+          if(uMode < 0.5) c = mix(c, vec3(0.15, 0.21, 0.085) * (0.85 + 0.4 * h2), max(smoothstep(0.2, 0.36, lum), yard));      // a tree standing on pale sand or in a yard is as green as one in the forest: its leaves do not take the colour of the ground
+          float ao; vec3 lp; vPor = uPorous; vBark = vec2(0.0); vSp = 0.0;
           #ifdef SPECIES
             // Each kind of tree has its own build, and each tree its own form: where the trunk forks, how far the limbs
             // spread and bow, how much it leans and wanders. form picks between the distinct forms of a kind.
@@ -456,10 +606,10 @@ function buildTrees(F, scene) {
               else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
               else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.38; wig = 0.13; } }                 // leaning and crooked
             else if(sp < 1.5){ H = 11.0; tr = 0.0145; vPor = 0.75; rbK = 0.085; sc = vec3(0.85, 2.1, 0.85); twig = 0.17; hang = -0.8;                               // she-oak (casuarina): slender dark stems,
-              bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.66, 0.78, 0.70); top0 = 0.72; arch = 0.1; kink = 0.07; wig = 0.05;                                      // grey-green tassels of needles hanging from the twig ends
-              if(form < 0.55){ fork = 0.16; spread = 0.22; lean = 0.1; }               // the classic form: several stems rising from low down
-              else if(form < 0.8){ fork = 0.4; spread = 0.14; lean = 0.08; }           // one stem, branching higher
-              else { fork = 0.3; spread = 0.16; lean = 0.42; } }                       // bent over by the sea wind
+              bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.70, 0.80, 0.70); top0 = 0.34; arch = 0.26; kink = 0.07; wig = 0.05;                                      // grey-green tassels of needles hanging from the twig ends
+              if(form < 0.55){ fork = 0.16; spread = 0.33; lean = 0.1; }               // the classic form: several stems rising from low down, the limbs reaching out and drooping
+              else if(form < 0.8){ fork = 0.3; spread = 0.24; lean = 0.08; }           // one stem, branching higher
+              else { fork = 0.3; spread = 0.26; lean = 0.42; } }                       // bent over by the sea wind
             else if(sp < 2.5){ H = 6.0; tr = 0.029; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
               fork = 0.14 + 0.2 * form; spread = 0.46; top0 = 0.55; arch = 0.1; kink = 0.2; lean = 0.38; wig = 0.14; }
             else if(sp < 3.5){ H = 10.0; tr = 0.021; vPor = 0.62; rbK = 0.13; sc.y = 1.15; twig = 0.09; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
@@ -469,7 +619,8 @@ function buildTrees(F, scene) {
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
             float dense = smoothstep(0.30, 0.12, lum);                                  // closed forest: crowns spread until they meet
             rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
-            wig = max(wig * 0.75, 0.045) * (0.7 + 0.6 * h4); kink = max(kink * 0.8, 0.05);            // no tree grows straight, but real trunks and limbs bend in long, easy curves
+            wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); lean *= mix(0.6, 0.2, yard); spread *= 1.0 - 0.15 * yard;
+            { float gir = hash12(cell * 5.3 + 8.0); tr *= 0.62 + 0.9 * gir * gir; vSp = sp; if(NLIMB > 3.5) rbK *= 0.84; }            // saplings, grown trees and the odd old giant; with more clumps on a tree each is smaller            // no tree grows straight, but real trunks and limbs bend in long, easy curves
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
             vec2 ld = (swept > 0.5 ? normalize(vec2(-0.8, -0.6) + (vec2(h2, h1) - 0.5) * 0.7) : vec2(cos(h2 * 6.2832), sin(h2 * 6.2832))) * lean * (0.4 + 0.6 * h3);
@@ -493,7 +644,7 @@ function buildTrees(F, scene) {
               float u = position.y;
               vec3 c0 = Q + tw * u + vec3(0.0, sin(3.1416 * u) * 0.16 * length(tw), 0.0) + normalize(vec3(-tw.z, 0.0, tw.x) + 0.0001) * sin(3.1416 * u) * (hk - 0.5) * 0.24 * length(tw), dir = normalize(tw + vec3(0.0, 0.0001, 0.0));
               vec3 ax = normalize(cross(dir, vec3(0.31, 0.0, 0.95))), ay = cross(dir, ax), ring = ax * position.x + ay * position.z;
-              lp = (c0 + ring * tr * mix(0.22, 0.07, u)) * H * s; nrm = ring;
+              lp = (c0 + ring * tr * mix(0.3, 0.07, u)) * H * s; nrm = ring;
               c = bark * (0.7 + 0.5 * h2); ao = 0.7; vBark = vec2(mott, burnt * 0.1);
             } else if(aPart > 1.5){          // limb
               float u = position.y;
@@ -523,7 +674,7 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-            if(uMode > 0.5 && uMode < 1.5) c = mix(alb * 1.45, vec3(0.055, 0.085, 0.032), 0.45) * (0.8 + 0.35 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
+            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.062, 0.105, 0.038), vec3(lum * 0.55, lum * 0.85, lum * 0.32), 0.3) * (0.8 + 0.45 * h1);          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.28, h2 + (lum - 0.1) * 2.0); c = mix(mix(vec3(0.30, 0.25, 0.20), alb * 1.3, 0.55), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
@@ -535,21 +686,21 @@ function buildTrees(F, scene) {
           float wrap = aPart > 0.5 ? 0.12 : uMode > 0.5 && uMode < 1.5 ? 1.0 : 0.5, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
           // no leaf is greener than nature allows; and the green varies by the patch of bush, not by the single plant
           if(aPart < 0.5){ c.g = min(c.g, 1.4 * c.r + 0.015); c = mix(vec3(dot(c, vec3(0.3, 0.5, 0.2))), c, 0.82) * (0.8 + 0.42 * texture2D(uNoise, base.xz / 130.0).g); }
-          if(uMode > 0.5 && uMode < 1.5) ao = mix(0.5, 1.0, smoothstep(-0.25, 0.85, nrm.y));        // a distant crown is lit from the top down: bright cap, dim skirt
+          if(uMode > 0.5 && uMode < 1.5) ao = mix(0.62, 1.2, smoothstep(-0.25, 0.85, nrm.y));        // a distant crown is lit from the top down: bright cap, dim skirt
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
           vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
-      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor; varying vec2 vBark;
+      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp; varying vec2 vBark;
         // one layer of leaves: a leaf in each cell of a grid, each hanging at its own angle, slim and a little sickle-curved.
         // returns x: how much of the pixel a leaf covers, y: a number that differs from leaf to leaf, z: where across the leaf (the midrib is at 0)
-        vec3 leafLayer(vec2 p, float seed, vec2 slim, float dens){
-          vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7), a = (h - 0.5) * 3.6;      // leaves hang every way, not all on one slant
+        vec3 leafLayer(vec2 p, float seed, vec2 slim, float dens, float turn){
+          vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7), a = (h - 0.5) * turn;      // leaves hang, each a little off plumb
           f += (vec2(h2, fract(h * 31.1)) - 0.5) * 0.34;
           vec2 q = vec2(f.x * cos(a) - f.y * sin(a), f.x * sin(a) + f.y * cos(a));
           q.x += q.y * q.y * (h2 - 0.5) * 2.2;
-          float d = length(q * slim), w = fwidth(d) + 0.02;
+          float d = length(q * slim), w = fwidth(d) * 0.8 + 0.006;      // a hard edge: leaves are crisp, not smudges
           return vec3((1.0 - smoothstep(0.5 - w, 0.5 + w, d)) * step(fract(h * 5.3), dens), h2, q.x * slim.x);
         }
         void main(){
@@ -568,18 +719,25 @@ function buildTrees(F, scene) {
             // near the eye the clusters resolve into single leaves (three layers of them, at different sizes); far away only the clusters are drawn
             vec3 an = abs(normalize(vN)); vec2 lp = an.y > 0.75 ? vObj.xz : an.x > an.z ? vObj.zy : vObj.xy;
             #ifdef SPECIES
-            vec2 slim = vec2(4.4, 1.12); float lsc = 16.0;       // gum leaves a hand long
+            // gum leaves a hand long, hanging; she-oaks carry no leaves but curtains of long thin needles that hang plumb
+            bool oak = vSp > 0.5 && vSp < 1.5;
+            vec2 slim = oak ? vec2(2.5, 1.0) : vec2(4.7, 1.06), lsc = oak ? vec2(24.0, 1.9) : vec2(7.5); float turn = oak ? 0.16 : 1.25, lw = oak ? fwidth(lp.x * 12.0) + fwidth(lp.y * 3.0) : fwidth(lp.x * 7.5) + fwidth(lp.y * 7.5);
             #else
-            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5); float lsc = 20.0;        // bare scrub shows thin twigs, not leaves
+            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5), lsc = vec2(20.0); float turn = 3.6, lw = fwidth(lp.x * 20.0) + fwidth(lp.y * 20.0);        // bare scrub shows thin twigs, not leaves
             #endif
-            float lw = fwidth(lp.x * lsc) + fwidth(lp.y * lsc), nearL = 1.0 - smoothstep(0.18, 0.6, lw), dens = clamp(clump * 1.25 + 0.12, 0.0, 1.0);
+            float nearL = 1.0 - smoothstep(0.18, 0.6, lw), dens = clamp(clump * 1.1, 0.0, 1.0);
             alpha = clump;
             if(nearL > 0.0){
-              vec3 l1 = leafLayer(lp * lsc, 1.0, slim, dens), l2 = leafLayer(lp * lsc * 1.37 + 3.7, 7.0, slim, dens), l3 = leafLayer(lp * lsc * 0.83 + 9.2, 13.0, slim, dens * 0.8);
+              vec3 l1 = leafLayer(lp * lsc, 1.0, slim, dens, turn), l2 = leafLayer(lp * lsc * 1.37 + 3.7, 7.0, slim, dens, turn), l3 = leafLayer(lp * lsc * 0.83 + 9.2, 13.0, slim, dens * 0.8, turn);
               vec3 lf = l1.x > 0.5 ? l1 : l2.x > 0.5 ? l2 : l3;
-              float la = max(l1.x, max(l2.x, l3.x));
-              alpha = mix(clump, la, nearL);
-              col *= mix(1.0, (0.72 + 0.6 * lf.y) * (1.0 + 0.18 * smoothstep(0.12, 0.0, abs(lf.z))), nearL * la);        // every leaf its own shade of green, a paler midrib
+              // leaves grow in sprays on the twigs: none hang loose in the sky outside a clump, and the heart of a clump is full, leaf behind leaf
+              float la = max(l1.x, max(l2.x, l3.x)) * smoothstep(0.1, 0.35, clump) * (1.0 - smoothstep(0.66, 0.9, rim)),      // (and none are drawn where the clump's surface is seen edge-on, where they would smear into streaks)
+                     core = smoothstep(vPor + 0.05, vPor + 0.2, n - rim * 0.55 + (n2 - 0.5) * 0.36) * 0.94;
+              alpha = mix(clump, max(la, core), nearL);
+              col *= mix(1.0, mix(0.5, (0.78 + 0.6 * lf.y) * (1.0 + 0.18 * smoothstep(0.12, 0.0, abs(lf.z))), la), nearL);
+              #ifdef SPECIES
+              if(oak) col = mix(col, col * vec3(1.5, 1.3, 1.0), la * nearL * smoothstep(0.45, 0.1, fract(lp.y * lsc.y)));      // the needle tips are paler, yellow-green
+              #endif        // every leaf its own shade of green, a paler midrib; the leaves behind are in shade
             }
             if(alpha < 0.03 || length(vWp - cameraPosition) < 1.1) discard;       // leaves right in front of the eye are not drawn, rather than fill the view
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
@@ -606,7 +764,7 @@ function buildTrees(F, scene) {
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
   };
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
-  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 8, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
+  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 11, LOW ? 2 : 4), true);          // single trees close to the view, each its own kind
   ring(n, 30, 6.5, 12, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
   ring(LOW ? 90 : 150, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
   ring(LOW ? 70 : 104, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
@@ -849,7 +1007,7 @@ function buildStructures(F, g, lights, scene, casters) {
   const beams = [];
   for (const l of F.lights) {
     const x = l.p[0], z = l.p[1], y = meshY(x, z) - 1, big = /Cape/.test(l.n || '');
-    const H = (big ? 23 : 9) * VEX * 1.15, r0 = big ? 3.6 : 1.8, r1 = big ? 2.5 : 1.3, bands = big ? 5 : 1, STONE = [.74, .66, .52];        // Cape Moreton: sandstone with two broad red bands
+    const H = (big ? 23 : 9) * HK * 1.1, r0 = big ? 3.6 : 1.8, r1 = big ? 2.5 : 1.3, bands = big ? 5 : 1, STONE = [.74, .66, .52];        // Cape Moreton: sandstone with two broad red bands
     for (let i = 0; i < bands; i++) {
       const a = i / bands, b = (i + 1) / bands;
       g.cyl(x, y + H * a, z, r0 + (r1 - r0) * a, r0 + (r1 - r0) * b, H / bands, 14, big ? (i === 1 || i === 3 ? RED : STONE) : W);
