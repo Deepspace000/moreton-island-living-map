@@ -19,6 +19,8 @@ import { buildLife } from './life.js';
 import { buildFolk } from './folk.js';
 import { makeSound } from './sound.js';
 import { makeDive } from './dive.js';
+import { makeRide } from './ride.js';
+import { rideable } from './life.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
@@ -60,10 +62,15 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.55, 1.15)
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const walk = makeWalk(camera, canvas);
+// where a car is, in words, for the screen on its dash: the nearest named place and how far off it is
+const ride = makeRide(camera, canvas, rideable, (x, z) => {
+  let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
+  return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
+});
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
-  camera.aspect = w / h; camera.fov = walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
+  camera.aspect = w / h; camera.fov = ride.active ? (w < h ? 82 : 66) : walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
 
@@ -135,9 +142,30 @@ function exitWalk() {
   resize();
 }
 walk.onExit = exitWalk;
-$('btWalk').onclick = () => { if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
-canvas.addEventListener('dblclick', (e) => { if (walk.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
-addEventListener('keydown', (e) => { if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
+// riding in a 4WD: tap one on the beach to sit in it; Leave the car (or Esc) to come back to the map above it
+function enterRide(car) {
+  if (walk.active) exitWalk();
+  fly = null; controls.enabled = false; controls.autoRotate = false; $('btSpin').classList.remove('on');
+  ride.enter(car); document.body.classList.add('riding');
+}
+function exitRide() {
+  if (!ride.active) return;
+  const m = ride.car.m, yaw = m.rotation.y; ride.exit(); controls.enabled = true; document.body.classList.remove('riding');
+  controls.target.set(m.position.x, m.position.y, m.position.z);
+  camera.position.set(m.position.x - Math.cos(yaw) * 110, m.position.y + 60, m.position.z + Math.sin(yaw) * 110);
+  resize();
+}
+ride.onExit = exitRide;
+{ let down = null;                 // a tap (not a drag) on a 4WD
+  canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  canvas.addEventListener('pointerup', (e) => {
+    if (!down || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
+    down = null; const car = rideable.length && boats ? ride.pick(e.clientX, e.clientY) : null; if (car) enterRide(car);
+  });
+}
+$('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
+canvas.addEventListener('dblclick', (e) => { if (walk.active || ride.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
+addEventListener('keydown', (e) => { if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
 $('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); syncButtons(); });
 $('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); syncButtons(); };
 $('btPlay').onclick = () => { st.play = !st.play; st.live = false; syncButtons(); };
@@ -245,7 +273,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -275,8 +303,8 @@ function frame() {
   if (wx.storm > 0.5 && sky.day < 2) { flashT -= dt; if (flashT < 0) { flashT = 2 + Math.random() * 9; U.uFlash.value = 1; } }
   U.uFlash.value *= Math.exp(-dt * 9); if (U.uFlash.value < 0.003) U.uFlash.value = 0;
 
-  const t = walk.active ? walk.pos : controls.target;
-  if (walk.active) walk.update(dt); else {
+  const t = ride.active ? ride.pos : walk.active ? walk.pos : controls.target;
+  if (ride.active) ride.update(dt, acc); else if (walk.active) walk.update(dt); else {
   stepFly(dt);
   if (!fly) controls.update();
   // keep the pivot on the ground and the camera above it
@@ -295,7 +323,7 @@ function frame() {
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
   boats.update(dt, acc, camera);
   clouds.update(dt, acc, camera, showClouds && !U.uUnder.value);
-  const camDist = walk.active ? 0 : camera.position.distanceTo(t);
+  const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
   life.update(dt, acc, t, camDist);
   sound.update({ x: t.x, z: t.z, dist: camDist, wind: wx.wind, wave: wx.wave, rain: wx.rain, dt });

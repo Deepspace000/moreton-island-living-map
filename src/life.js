@@ -225,6 +225,7 @@ export function fourWD(col) {
   g.computeBoundingSphere();
   return g;
 }
+export const rideable = [];            // the moving 4WDs, for riding along in (see ride.js)
 function buildCars(scene, F, lights) {
   const routes = (F.beach || []).filter(r => r.p.length > 30);
   if (!routes.length) return () => {};
@@ -237,9 +238,10 @@ function buildCars(scene, F, lights) {
     for (let k = 0; k < n; k++) {
       const m = new THREE.Mesh(geos[(R() * geos.length) | 0], mat); m.name = 'car'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; scene.add(m);
       const dir = R() < 0.5 ? 1 : -1;
-      cars.push({ m, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3)] });
+      cars.push({ m, side: r.side, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3)] });
     }
   });
+  rideable.push(...cars);
   // fresh tyre marks: each car lays two ribbons of tread behind it, which fade over a couple of minutes and wash out near the water
   const NT = 110, tp = new Float32Array(cars.length * NT * 4 * 3), td = new Float32Array(cars.length * NT * 4 * 3), ti = [];
   cars.forEach((c, k) => { c.k = k; c.lx = 1e9; c.lz = 0; c.run = 0; for (let j = 0; j < NT - 1; j++) for (const h of [0, 2]) { const o = (k * NT + j) * 4 + h; ti.push(o, o + 1, o + 4, o + 4, o + 1, o + 5); } });
