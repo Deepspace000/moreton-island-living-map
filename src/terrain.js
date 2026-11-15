@@ -252,19 +252,19 @@ export function buildTerrain(scene) {
         vec3 Nv = normalize(N + vec3(-(cg.x * near * 2.2 + cg1.x * 1.3), 0.0, -(cg.y * near * 2.2 + cg1.y * 1.3)));
 
         // ---- sand: warm, wind-rippled, sparkling ----
-        // Moreton sand: fine quartz, pale yellow, with grey patches (damp or mineral-stained); the photo sets how light it is
+        // Moreton sand: fine, clean, warm yellow, the thing the island is known for. It is kept clear and even: no grey patches, no dark stains,
+        // only the gentlest variation, so the beaches look as inviting as they are. (The owner asked for exactly this.)
         float sLum = dot(alb, vec3(0.3, 0.55, 0.15));
         float greyP = smoothstep(0.56, 0.74, texture2D(uNoise, vW.xz / 1300.0 + 0.61).g * 0.88 + nB.b * 0.12);
         // the beaches of the bay side (west and south) are white, as the owner's photographs from Kooringal and the south-west show; the ocean beaches and
         // the high dunes keep their pale yellow. A beach is a bay beach when there is no open ocean within a few hundred metres of it.
         float ocean = max(max(texture2D(uHeight, cuv + vec2(uHTex.x * 18.0, 0.0)).g, texture2D(uHeight, cuv - vec2(uHTex.x * 18.0, 0.0)).g), max(texture2D(uHeight, cuv + vec2(0.0, uHTex.y * 18.0)).g, texture2D(uHeight, cuv - vec2(0.0, uHTex.y * 18.0)).g));
         float bayBeach = (1.0 - smoothstep(0.34, 0.55, ocean)) * (1.0 - smoothstep(5.0, 11.0, h));
-        vec3 sd = mix(mix(vec3(0.96, 0.90, 0.71), vec3(0.96, 0.935, 0.865), bayBeach), vec3(0.84, 0.81, 0.73), greyP * 0.14) * mix(0.94, 1.04, smoothstep(0.2, 0.8, sLum));
-        sd = mix(sd, alb * vec3(1.04, 0.94, 0.72), 0.05);
-        sd *= 0.95 + 0.10 * nA.r;
+        vec3 sd = mix(vec3(0.99, 0.875, 0.575), vec3(0.99, 0.895, 0.635), bayBeach) * mix(0.97, 1.03, smoothstep(0.2, 0.8, sLum));
+        sd *= 0.97 + 0.06 * nA.r;
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
-        sd *= 1.0 - 0.05 * rip * near - 0.025 * nD.b * near;
-        sd = mix(sd, sd * vec3(0.95, 0.88, 0.74), smoothstep(0.06, 0.3, slope));              // slip faces
+        sd *= 1.0 - 0.035 * rip * near - 0.015 * nD.b * near;
+        sd = mix(sd, sd * vec3(0.97, 0.91, 0.78), smoothstep(0.06, 0.3, slope));              // slip faces: a shade deeper gold
         { // The high dunes (the Desert, the sandhills), as the owner photographed them: sand slides down the steep faces in tongues and leaves streaks
           // that run straight down the slope, and the darker, damper sand under the pale crust shows through in ragged grey-brown patches.
           // The streaks are laid along the nearest two of sixteen compass bearings and blended, so they hold still as the slope turns.
@@ -275,17 +275,17 @@ export function buildTerrain(scene) {
             streak += (i == 0 ? 1.0 - fq : fq) * smoothstep(0.46, 0.72, s1 * 0.62 + s2 * 0.38);
           }
           float damp = smoothstep(0.5, 0.66, nB.g * 0.55 + nC.g * 0.3 + nD.r * 0.15);
-          sd = mix(sd, sd * vec3(0.80, 0.775, 0.73), steep * clamp(streak * 0.5 + damp * streak * 0.35 + damp * 0.12, 0.0, 1.0));
+          sd = mix(sd, sd * vec3(0.95, 0.9, 0.8), steep * clamp(streak * 0.5 + damp * streak * 0.2, 0.0, 1.0) * 0.6);        // (kept faint: a slightly deeper gold where the sand has slid)
           // The Big and Little Sandhills in the south are paler, close to white, and the wind sorts their heavy dark mineral grains into soft
           // smoky wisps that lie along the hollows, with clean bright drifts beside them (the owner's photo from the top of the Big Sandhills).
           float south = smoothstep(7000.0, 9500.0, vW.z) * smoothstep(5.0, 12.0, h);
-          sd = mix(sd, vec3(0.95, 0.905, 0.80) * (0.95 + 0.08 * nA.r), south * 0.7);
+          sd = mix(sd, vec3(0.99, 0.905, 0.66) * (0.97 + 0.05 * nA.r), south * 0.5);
           vec2 wq = vec2(dot(vW.xz, vec2(0.8, 0.6)), dot(vW.xz, vec2(-0.6, 0.8)));                   // laid along the prevailing south-easter
           float w1 = texture2D(uNoise, vec2(wq.x / 330.0, wq.y / 64.0) + nB.rg * 0.22).r, w2 = texture2D(uNoise, vec2(wq.x / 90.0, wq.y / 17.0) + nC.rg * 0.12 + 0.31).g;
           float dunes = smoothstep(6.0, 14.0, h) * (0.2 + 0.8 * south) * (1.0 - bayBeach);
           float wisp = smoothstep(0.56, 0.74, w1 * 0.68 + w2 * 0.32) * (0.55 + 0.45 * w2) * dunes;
-          sd = mix(sd, vec3(0.30, 0.295, 0.30) * (0.8 + 0.4 * nD.g), wisp * 0.62);
-          sd = mix(sd, vec3(1.0, 0.965, 0.885), smoothstep(0.34, 0.2, w1 * 0.68 + w2 * 0.32) * dunes * 0.35);
+          sd = mix(sd, sd * vec3(0.9, 0.84, 0.72), wisp * 0.3);                                       // only a hint of the darker grains: a soft deeper-gold shading in the hollows
+          sd = mix(sd, vec3(1.0, 0.93, 0.72), smoothstep(0.34, 0.2, w1 * 0.68 + w2 * 0.32) * dunes * 0.3);
         }
         // wind-built dune forms: gradients of two noise scales bend the normal so bare sand shows relief from far away
         vec2 dA = vec2(texture2D(uNoise, vW.xz / 310.0 + vec2(0.01, 0.0)).r - nB.r, texture2D(uNoise, vW.xz / 310.0 + vec2(0.0, 0.01)).r - nB.r);
@@ -302,7 +302,7 @@ export function buildTerrain(scene) {
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         { // the grass belt between beach and bush, seen from a distance: a strip of green and straw where the sand value is mid-way
           float belt = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.8, 0.93, mk.g)) * smoothstep(1.4, 2.2, h) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0));      // only behind a beach, above the reach of the sea
-          col = mix(col, mix(vec3(0.19, 0.25, 0.10), vec3(0.36, 0.33, 0.20), nC.g) * (0.8 + 0.4 * nD.r), belt * 0.62 * smoothstep(0.25, 0.55, nC.b * 0.6 + nD.g * 0.5 + (0.75 - mk.g) * 0.8) * (0.4 + 0.6 * smoothstep(14.0, 60.0, dist)));     // thicker toward the scrub; close to, the old thatch between the clumps keeps the sand from showing through
+          col = mix(col, mix(vec3(0.19, 0.25, 0.10), vec3(0.36, 0.33, 0.20), nC.g) * (0.8 + 0.4 * nD.r), belt * 0.3 * smoothstep(0.35, 0.6, nC.b * 0.6 + nD.g * 0.5 + (0.6 - mk.g) * 0.8) * (0.4 + 0.6 * smoothstep(14.0, 60.0, dist)));     // thicker toward the scrub; close to, the old thatch between the clumps keeps the sand from showing through
         }
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(vW.xz - uCape.xy));
@@ -318,7 +318,7 @@ export function buildTerrain(scene) {
           { // footprints: here and there a line of them wanders over the dry sand (a faint winding trail of small hollows, each with a lit rim)
             float tr = abs(texture2D(uNoise, vW.xz / 55.0 + 0.13).r - 0.5), band = 1.0 - smoothstep(0.004, 0.012, tr), hol = texture2D(uNoise, vW.xz / 1.15).g;
             float fp = band * sand * (1.0 - smoothstep(10.0, 45.0, dist)) * smoothstep(uSeaM + 0.5, uSeaM + 1.2, h) * smoothstep(0.45, 0.6, texture2D(uNoise, vW.xz / 400.0).b);
-            col *= 1.0 - 0.17 * fp * smoothstep(0.6, 0.72, hol) + 0.07 * fp * smoothstep(0.5, 0.58, hol) * (1.0 - smoothstep(0.58, 0.64, hol)); }
+            col *= 1.0 - 0.09 * fp * smoothstep(0.6, 0.72, hol) + 0.05 * fp * smoothstep(0.5, 0.58, hol) * (1.0 - smoothstep(0.58, 0.64, hol)); }
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
           col = mix(col, mix(vec3(0.085, 0.13, 0.05), vec3(0.19, 0.17, 0.09), smoothstep(0.35, 0.75, nF.b)) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long grass: dull green going to straw, never lawn
@@ -374,11 +374,11 @@ export function buildTerrain(scene) {
           vec2 so = L.xz / max(L.y, 0.14); float bs = max(texture2D(uOver, worldUV(vW.xz + so * 3.0)).r, texture2D(uOver, worldUV(vW.xz + so * 7.0)).r * 0.85);
           sh *= 1.0 - 0.55 * smoothstep(0.25, 0.7, bs) * (1.0 - smoothstep(0.3, 0.8, ov.r)) * step(0.02, L.y); }
         float tsh = mk.b > 0.4 ? treeShade(vW, L, dist) : 0.0;
-        sh *= 1.0 - mix(0.6, 0.82, sand) * tsh;
+        sh *= 1.0 - mix(0.6, 0.66, sand) * tsh;
         float cs = cloudShadow(vW);
         float vis = sh * cs;
         float nl = max(dot(Nn, L), 0.0);
-        nl = mix(nl, nl * 0.5 + 0.5, 0.25 * sand);     // sand glows a little into the shade
+        nl = mix(nl, nl * 0.5 + 0.5, 0.4 * sand);      // sand glows into the shade: it is never a dull surface
         vec3 amb = mix(uAmbGnd, uAmbSky, Nn.y * 0.5 + 0.5) * ao;
         vec3 V = normalize(cameraPosition - vW);
 
@@ -386,22 +386,22 @@ export function buildTerrain(scene) {
         if(flatK > 0.0 && depth <= 0.0){
           float rp = sin(dot(vW.xz, vec2(1.9, 0.7)) + texture2D(uNoise, vW.xz / 9.0).r * 8.0) * 0.5 + 0.5;
           float pool = smoothstep(0.56, 0.66, texture2D(uNoise, vW.xz / 37.0 + 0.2).g * 0.6 + texture2D(uNoise, vW.xz / 150.0).b * 0.5) * smoothstep(0.5, 0.1, -depth);
-          col = mix(col, col * vec3(0.66, 0.63, 0.57) * (0.92 + 0.14 * rp * (1.0 - smoothstep(20.0, 120.0, dist))), flatK * 0.85);
+          col = mix(col, col * vec3(0.82, 0.74, 0.58) * (0.94 + 0.1 * rp * (1.0 - smoothstep(20.0, 120.0, dist))), flatK * 0.8);
           col = mix(col, uAmbSky * 0.55 + uLightCol * 0.05, pool * flatK * 0.55);
         }
         // wet sand just above the waterline
         // (the owner's photo of the southern tip: bright dry sand ends at a clean, wandering edge, and below it the wet sand is a warm tan)
         float wetTop = 0.1 + 0.13 * texture2D(uNoise, vW.xz / 31.0).r + 0.04 * texture2D(uNoise, vW.xz / 5.0).g;
         float wet = max(smoothstep(wetTop + 0.025, wetTop - 0.015, -depth), 0.22 * smoothstep(0.7, 0.0, -depth)) * step(depth, 0.0);
-        col = mix(col, col * vec3(0.80, 0.68, 0.50), wet * 0.9);
+        col = mix(col, col * vec3(0.87, 0.77, 0.58), wet * 0.9);          // wet sand: a deeper gold, not brown
         { // wrack: dark seagrass cast up by the tide. A fresh, wavering line of it at the water's edge, an older broken line at the last high water, and
           // scraps scattered over the sand between; thickest on the sheltered shores where the seagrass grows
           float wv = texture2D(uNoise, vW.xz / 13.0).r - 0.5, hw = -depth + wv * 0.14;
           float clump = smoothstep(0.40, 0.62, texture2D(uNoise, vW.xz / 2.3 + 0.13).g) * (0.45 + 0.55 * smoothstep(0.3, 0.6, texture2D(uNoise, vW.xz / 0.37).b));
           float fresh = smoothstep(-0.02, 0.04, hw) * (1.0 - smoothstep(0.1, 0.24, hw)), old = 1.0 - smoothstep(0.0, 0.12, abs(h - 0.85 + wv * 0.3));
           float scraps = step(0.86, texture2D(uNoise, vW.xz / 0.9 + 0.4).r) * smoothstep(0.52, 0.7, texture2D(uNoise, vW.xz / 6.0).g) * step(0.2, hw) * (1.0 - smoothstep(1.5, 2.6, h)) * (1.0 - smoothstep(20.0, 90.0, dist));
-          float wrack = clamp(fresh * clump * 1.2 + old * clump * 0.6 + scraps * 0.7, 0.0, 1.0) * (0.3 + 0.7 * bayBeach) * sand * (1.0 - smoothstep(400.0, 1500.0, dist));
-          col = mix(col, vec3(0.045, 0.04, 0.03) * (0.7 + 0.6 * texture2D(uNoise, vW.xz / 0.21).g), wrack * 0.92);
+          float wrack = clamp(fresh * clump * 0.9 + old * clump * 0.25 + scraps * 0.08, 0.0, 1.0) * (0.3 + 0.7 * bayBeach) * sand * (1.0 - smoothstep(400.0, 1500.0, dist));
+          col = mix(col, vec3(0.16, 0.13, 0.08) * (0.7 + 0.6 * texture2D(uNoise, vW.xz / 0.21).g), wrack * 0.4);        // a thin, faint line of weed at the water's edge and no more
         }
         vec3 lit = col * (uLightCol * nl * vis * mix(1.0, clamp(relief, 0.6, 1.25), 0.5) + amb);
         float sp = pow(max(dot(reflect(-L, Nn), V), 0.0), 60.0);

@@ -3,7 +3,9 @@
 // shorebirds and butterflies. Small things are grown by the GPU in a grid that follows the viewer;
 // animals that swim or fly are instanced and animated in their vertex shaders.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng, clamp } from './common.js';
+import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, FEATHER_GLSL, LOGV, LOGF, rng, clamp } from './common.js';
+// birds drawn many at a time: lit at each corner, feathered at each pixel
+const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
@@ -323,8 +325,8 @@ function buildCars(scene, F, lights) {
         float across = abs(vD.y), blocks = step(0.42, fract(vD.x * 2.6 + across * 0.9 * sign(vD.y))) ;          // chevrons of tread, pressed into the sand
         float press = mix(0.55, 1.0, blocks) * smoothstep(1.0, 0.8, across) + 0.35 * smoothstep(0.25, 0.0, abs(across - 0.9));    // and a ridge pushed up at each edge
         float crumble = 0.6 + 0.4 * texture2D(uNoise, vW.xz * 0.9).r;
-        vec3 c = vec3(0.34, 0.28, 0.18) * (uLightCol * (0.2 + 0.5 * max(uLightDir.y, 0.0)) * cloudShadow(vW) + uAmbSky * 0.7);
-        gl_FragColor = vec4(applyFog(c, vW), a * press * crumble * 0.62); }`,
+        vec3 c = vec3(0.6, 0.5, 0.32) * (uLightCol * (0.2 + 0.5 * max(uLightDir.y, 0.0)) * cloudShadow(vW) + uAmbSky * 0.7);
+        gl_FragColor = vec4(applyFog(c, vW), a * press * crumble * 0.45); }`,
   }));
   tmesh.name = 'tyremarks'; tmesh.frustumCulled = false; tmesh.renderOrder = 3; scene.add(tmesh);
   return (dt) => {
@@ -622,7 +624,7 @@ function buildBirds(scene, F) {
   const wet = (x, z) => U.uSeaM.value - heightAt(x, z) > 0.9;
   const afloat = (geo2, spots, per) => {
     const fg = new THREE.InstancedBufferGeometry(), ip = [];
-    fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color);
+    fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color); fg.setAttribute('aFx', geo2.attributes.aFx);
     for (const [p, n] of spots) for (let i = 0, t = 0; i < n * per && t < 400; t++) { const x = p[0] - 40 - R() * 160, z = p[1] + (R() - .5) * 260; if (wet(x, z)) { ip.push(x, z, 3 + R() * 9, R()); i++; } }
     fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
     const fm = new THREE.Mesh(fg, fmat); fm.name = 'afloat'; fm.frustumCulled = false; scene.add(fm);
@@ -630,7 +632,7 @@ function buildBirds(scene, F) {
   const fmat = makeMat({
     side: THREE.DoubleSide,
     vs: /* glsl */`
-      attribute vec3 color; attribute vec4 iP; varying vec3 vCol, vW;
+      attribute vec3 color, aFx; attribute vec4 iP; varying vec3 vCol, vW, vLight, vFx;
       void main(){
         float way = iP.w < 0.5 ? 1.0 : -1.0, ang = iP.w * 40.0 + uTime * 0.22 / iP.z * way;
         vec2 c = iP.xy + vec2(cos(ang), sin(ang)) * iP.z, fwd = vec2(-sin(ang), cos(ang)) * way;
@@ -638,11 +640,11 @@ function buildBirds(scene, F) {
         vec3 wp = vec3(c.x + fwd.x * lp.x - fwd.y * lp.z, uSeaM * uVex + lp.y + sin(uTime * 1.3 + iP.w * 30.0) * 0.06, c.y + fwd.y * lp.x + fwd.x * lp.z);
         vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
         float ok = step(groundY(c), uSeaM * uVex - 0.5) * (1.0 - smoothstep(900.0, 1200.0, length(wp - cameraPosition)));
-        vCol = color * (uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y)); vW = wp;
+        vCol = color; vFx = aFx; vLight = uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y); vW = wp;
         gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`,
-    fs: LIT_FS,
+    fs: BIRD_FS,
   });
   const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wv = F.views.find(v => /Tangalooma Wrecks/.test(v.n || '')), wrk = wv && (wv.c || wv.p), others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
   const spots = [...(tgl ? [[[tgl[0] - 230, tgl[1] + 340], 3]] : []), ...(wrk ? [[[wrk[0] + 60, wrk[1]], 2]] : []), ...others];
@@ -665,12 +667,12 @@ function buildBirds(scene, F) {
       if (ok) { group(x, p[1], 7 + ((Rp() * 9) | 0)); made++; }
     }
     const sg = PELICAN_STAND(), ig2 = new THREE.InstancedBufferGeometry();
-    ig2.index = sg.index; for (const k of ['position', 'normal', 'color']) ig2.setAttribute(k, sg.attributes[k]);
+    ig2.index = sg.index; for (const k of ['position', 'normal', 'color', 'aFx']) ig2.setAttribute(k, sg.attributes[k]);
     ig2.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(st), 4)); ig2.instanceCount = st.length / 4; ig2.boundingSphere = FAR;
     const smat2 = makeMat({
       side: THREE.DoubleSide, uniforms: { },
       vs: /* glsl */`
-        attribute vec3 color; attribute vec4 iP; uniform vec2 uWindDir; varying vec3 vCol, vW;
+        attribute vec3 color, aFx; attribute vec4 iP; uniform vec2 uWindDir; varying vec3 vCol, vW, vLight, vFx;
         void main(){
           // each stands facing the wind (give or take), shifting its weight and turning its head a little now and then
           vec2 up = -normalize(uWindDir + 1e-4); float a = (iP.z - 0.5) * 0.9 + sin(uTime * 0.13 + iP.z * 40.0) * 0.12, ca = cos(a), sa = sin(a);
@@ -679,11 +681,11 @@ function buildBirds(scene, F) {
           vec3 wp = vec3(iP.x + fwd.x * lp.x - fwd.y * lp.z, groundY(iP.xy) + lp.y, iP.y + fwd.y * lp.x + fwd.x * lp.z);
           vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
           float ok = step(uSeaM * uVex - 0.35, groundY(iP.xy)) * (1.0 - smoothstep(1100.0, 1500.0, length(wp - cameraPosition)));       // when the tide covers their spit they are gone (out fishing)
-          vCol = color * (uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y)); vW = wp;
+          vCol = color; vFx = aFx; vLight = uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y); vW = wp;
           gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
-      fs: LIT_FS,
+      fs: BIRD_FS,
     });
     const sm2 = new THREE.Mesh(ig2, smat2); sm2.name = 'ashore'; sm2.frustumCulled = false; scene.add(sm2);
   }
@@ -871,7 +873,7 @@ function buildLizards(scene) {
 // hinged wings), so one can be followed, and flown: when it is, it goes where it is steered, and settles on the water if brought down to it.
 export const flyers = [];
 function buildPelicans(scene, F) {
-  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.4;
+  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide, defines: { BIRD: 1 } }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.4;
   const homes = [...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] - 500, p.p[1]]), ...F.views.filter(v => /Wrecks/.test(v.n || '')).map(v => [(v.c || v.p)[0] - 200, (v.c || v.p)[1]])];
   const N = MOBILE ? 9 : 16;
   const shGeo = new THREE.PlaneGeometry(1, 1); shGeo.rotateX(-Math.PI / 2);

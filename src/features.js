@@ -207,7 +207,7 @@ function buildRoads(F, scene, occ) {
         vec3 col; float a;
         if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
-          col = vec3(0.16, 0.14, 0.11); a = 0.2 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
+          col = vec3(0.55, 0.45, 0.28); a = 0.16 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
           col = vec3(0.92, 0.84, 0.66); a = 0.75 * dash * edge;

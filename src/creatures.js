@@ -149,20 +149,21 @@ export const WHALE = cetacean({ prof: [[0.5, 0.004, 0.006, -0.03], [0.47, 0.04, 
 
 // ---------------------------------------------------------------- water birds sitting on the sea
 // Built from the same smooth pieces; returned as a plain coloured geometry (colours: one per part number).
-function bird(build, colours) {
+function bird(build, colours, kinds) {       // kinds: what each part is, for the feather painter (1 body feathers, 2 flight feathers, 3 bare skin or bill, 4 leg, 5 a single long feather)
   const m = new Shape(() => 0); m.weld = true; build(m); const d = m.done(), g = new THREE.BufferGeometry(), col = [];
-  d.part.forEach((p, i) => { const ny = d.nrm[i * 3 + 1], u = d.uv[i * 2], v = d.uv[i * 2 + 1], k = (0.8 + 0.2 * Math.min(1, Math.max(0, ny * 0.9 + 0.6))) * (0.95 + 0.05 * Math.sin(u * 46 + v * 9) * Math.sin(v * 31)); col.push(colours[p][0] * k, colours[p][1] * k, colours[p][2] * k); });
-  g.setAttribute('position', new THREE.Float32BufferAttribute(d.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(d.nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(d.idx);
+  d.part.forEach((p, i) => { const ny = d.nrm[i * 3 + 1], u = d.uv[i * 2], v = d.uv[i * 2 + 1], k = 0.8 + 0.2 * Math.min(1, Math.max(0, ny * 0.9 + 0.6)); col.push(colours[p][0] * k, colours[p][1] * k, colours[p][2] * k); });
+  const fx = []; d.part.forEach((p, i) => fx.push(1 + ((kinds && kinds[p]) || 1), d.uv[i * 2], d.uv[i * 2 + 1]));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(d.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(d.nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aFx', new THREE.Float32BufferAttribute(fx, 3)); g.setIndex(d.idx);
   return g;
 }
 // Australian pelican at rest on the water: a big white bird sitting low, the neck folded back in an S so the head rides over the
 // shoulders, the long pink bill and its pouch angled down onto the breast, the wings folded along the flanks with the black
 // flight feathers crossing over the tail
 const pelicanRest = (m) => {
-  m.body([[0.44, 0.01, 0.02, 0.2], [0.38, 0.1, 0.12, 0.17], [0.22, 0.18, 0.21, 0.14], [0.0, 0.21, 0.245, 0.13], [-0.22, 0.19, 0.21, 0.155], [-0.42, 0.11, 0.12, 0.21], [-0.58, 0.01, 0.02, 0.29]], { NR: 14, NS: 12, belly: 0.75 });
+  m.body([[0.44, 0.01, 0.02, 0.2], [0.38, 0.1, 0.12, 0.17], [0.22, 0.18, 0.195, 0.14], [0.0, 0.21, 0.215, 0.13], [-0.22, 0.19, 0.18, 0.155], [-0.42, 0.11, 0.1, 0.21], [-0.58, 0.01, 0.02, 0.29]], { NR: 14, NS: 12, belly: 0.75 });
   for (const sd of [-1, 1]) {
-    m.leaf([0.24, 0.25, sd * 0.15], [-1, 0.05, sd * 0.1], [0, -0.74, sd * 0.67], 0.3, 0.12, { part: 0, flex: () => 0, curl: [0, -0.06, sd * -0.04], tip: 0.6 });      // a white patch at the shoulder
-    m.leaf([0.15, 0.262, sd * 0.165], [-1, 0.06, sd * -0.04], [0, -0.7, sd * 0.71], 0.86, 0.21, { part: 1, flex: () => 0, curl: [0, -0.06, sd * -0.1], tip: 0.55 });   // the folded wing: black, meeting its fellow over the tail
+    m.leaf([0.27, 0.27, sd * 0.15], [-1, 0.08, sd * 0.3], [0, -0.74, sd * 0.67], 0.2, 0.06, { part: 0, flex: () => 0, curl: [0, -0.06, sd * -0.04], tip: 0.6 });     // a small white patch at the shoulder
+    m.leaf([0.15, 0.255, sd * 0.235], [-1, 0.06, sd * 0.03], [0, -0.82, sd * 0.57], 0.86, 0.2, { part: 1, flex: () => 0, curl: [0, -0.06, sd * -0.2], tip: 0.55 });   // the folded wing: black, meeting its fellow over the tail
   }
   m.tube((t) => [0.3 + 0.11 * Math.sin(t * PI) - 0.17 * t, 0.2 + 0.37 * t, 0, 0.078 - 0.022 * t], 10, 8, 0);                                        // neck, folded back
   m.tube((t) => [0.07 + 0.26 * t, 0.59 - 0.03 * t, 0, 0.01 + 0.047 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);                    // head: small and long for the size of the bird
@@ -170,13 +171,13 @@ const pelicanRest = (m) => {
   m.tube((t) => [0.26 + 0.32 * t, 0.53 - 0.25 * t, 0, 0.008 + 0.042 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                    // pouch
   for (const sd of [-1, 1]) { m.tube((t) => [0.262 + 0.006 * t, 0.578, sd * 0.045, 0.014 * Math.sin(PI * t)], 3, 6, 4); m.tube((t) => [0.264 + 0.004 * t, 0.58, sd * 0.05, 0.0065 * Math.sin(PI * t)], 3, 5, 1); }       // ...and the dark eye in it                               // the pale yellow skin round each eye
 };
-export const PELICAN = () => bird(pelicanRest, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2]]);
+export const PELICAN = () => bird(pelicanRest, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2]], [1, 2, 3, 3, 3]);
 // the same bird standing on the sand: up on its short grey legs and broad webbed feet
 export const PELICAN_STAND = () => bird((m) => {
   pelicanRest(m); const ca = Math.cos(0.4), sa = Math.sin(0.4);                    // ashore it stands with its breast up and its tail down
   for (let i = 0; i < m.pos.length; i += 3) { const x = m.pos[i] + 0.1, y = m.pos[i + 1] - 0.2; m.pos[i] = -0.1 + x * ca - y * sa; m.pos[i + 1] = 0.34 + x * sa + y * ca; }
   for (const sd of [-1, 1]) { m.tube((t) => [-0.05 + 0.02 * t, 0.24 - 0.23 * t, sd * 0.09, 0.04 - 0.012 * t], 4, 6, 5); m.leaf([-0.05, 0.012, sd * 0.09], [1, 0, sd * 0.1], [0, 0, 1], 0.17, 0.07, { part: 5, flex: () => 0, tip: 1.6 }); }
-}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2], [.26, .28, .32]]);
+}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2], [.26, .28, .32]], [1, 2, 3, 3, 3, 4]);
 // the same bird on the wing: neck folded back so the head rides on the shoulders, the long bill out ahead, feet trailing
 export const PELICAN_FLY = () => bird((m) => {
   m.body([[0.5, 0.01, 0.02, 0.05], [0.42, 0.09, 0.1, 0.04], [0.24, 0.15, 0.17, 0.02], [0.0, 0.16, 0.19, 0.0], [-0.24, 0.13, 0.15, 0.0], [-0.44, 0.07, 0.09, 0.02], [-0.6, 0.01, 0.05, 0.03]], { NR: 14, NS: 12 });
@@ -186,13 +187,13 @@ export const PELICAN_FLY = () => bird((m) => {
   m.tube((t) => [0.6 + 0.44 * t, 0.075 - 0.06 * t, 0, 0.008 + 0.036 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                   // pouch
   for (const sd of [-1, 1]) m.tube((t) => [-0.46 - 0.2 * t, 0.0 + 0.01 * t, sd * 0.045, 0.02 - 0.008 * t], 4, 5, 4);                                 // feet tucked up under the tail
   m.leaf([-0.52, 0.03, 0], [-1, 0.02, 0], [0, 0, 1], 0.22, 0.12, { part: 1, flex: () => 0 });                                                      // tail
-}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.45, .5, .55]]);
+}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.45, .5, .55]], [1, 2, 3, 3, 4]);
 // one wing, hinged at the shoulder (the origin) and reaching out along +z: white coverts in front, black flight feathers behind and at the tip
 export const PELICAN_WING = () => bird((m) => {
   m.leaf([0.12, 0, 0.02], [-0.03, 0.02, 1], [1, 0, 0.04], 1.2, 0.25, { part: 0, flex: () => 0, curl: [-0.1, -0.08, 0], ns: 12, tip: 0.45 });         // broad white fore-wing
   m.leaf([-0.14, -0.005, 0.02], [-0.04, 0.02, 1], [1, 0, 0.0], 1.26, 0.3, { part: 1, flex: () => 0, curl: [-0.14, -0.08, 0], ns: 12, tip: 0.42 });    // black flight feathers behind
-  for (let i = 0; i < 6; i++) { const dx = 0.2 - 0.1 * i, l = Math.hypot(dx, 0.05, 1), a = [dx / l, 0.04 / l, 1 / l]; m.leaf([0.12 - 0.075 * i, -0.02, 1.08], a, [a[2], 0, -a[0]], 0.3 - 0.02 * Math.abs(i - 2), 0.07, { part: 1, flex: () => 0, ns: 6, tip: 0.8 }); }    // six short black fingers at the tip
-}, [[.93, .93, .9], [.04, .04, .045]]);
+  for (let i = 0; i < 6; i++) { const dx = 0.2 - 0.1 * i, l = Math.hypot(dx, 0.05, 1), a = [dx / l, 0.04 / l, 1 / l]; m.leaf([0.12 - 0.075 * i, -0.02, 1.08], a, [a[2], 0, -a[0]], 0.3 - 0.02 * Math.abs(i - 2), 0.07, { part: 2, flex: () => 0, ns: 6, tip: 0.8 }); }    // six short black fingers at the tip
+}, [[.93, .93, .9], [.04, .04, .045], [.04, .04, .045]], [1, 2, 5]);
 // White-bellied sea eagle on the wing. Nothing like a pelican: a heavy grey bird with a white head, breast and short wedge of a tail, a hooked
 // bill, and broad plank-like wings held up in a shallow V, their tips spread into separate fingers.
 export const EAGLE_FLY = () => bird((m) => {
@@ -202,16 +203,16 @@ export const EAGLE_FLY = () => bird((m) => {
   m.leaf([0.18, 0.138, 0], [-1, 0.0, 0], [0, 0, 1], 0.68, 0.22, { part: 1, flex: () => 0, curl: [0, -0.07, 0] });                                 // grey over the whole back and rump
   m.leaf([-0.42, 0.02, 0], [-1, 0.02, 0], [0, 0, 1], 0.36, 0.2, { part: 0, flex: () => 0, tip: 1.6 });                                            // short, broad white wedge of a tail
   for (const sd of [-1, 1]) m.tube((t) => [-0.14 - 0.2 * t, -0.085 - 0.02 * t, sd * 0.05, 0.024 - 0.008 * t], 3, 5, 3);                             // yellow feet tucked back
-}, [[.94, .94, .92], [.36, .38, .41], [.42, .44, .46], [.8, .72, .3]]);
+}, [[.94, .94, .92], [.36, .38, .41], [.42, .44, .46], [.8, .72, .3]], [1, 1, 3, 4]);
 export const EAGLE_WING = () => bird((m) => {
   m.leaf([0.07, 0, 0.02], [-0.02, 0.03, 1], [1, 0, 0.02], 0.98, 0.27, { part: 0, flex: () => 0, curl: [-0.08, -0.03, 0], ns: 12, tip: 0.42 });      // grey coverts: a broad arm
   m.leaf([-0.16, -0.004, 0.02], [-0.04, 0.03, 1], [1, 0, 0.0], 1.02, 0.3, { part: 1, flex: () => 0, curl: [-0.1, -0.03, 0], ns: 12, tip: 0.38 });   // dark flight feathers behind
   for (let i = 0; i < 5; i++) {                                                                                                                    // five fingers at the tip, spread like a hand
     const dx = 0.3 - 0.17 * i, l = Math.hypot(dx, 0.07, 1), a = [dx / l, (0.05 + 0.015 * i) / l, 1 / l];
-    m.leaf([0.15 - 0.1 * i, 0.0, 0.88], a, [a[2], 0, -a[0]], 0.36 - 0.03 * Math.abs(i - 1.5), 0.085, { part: 1, flex: () => 0, ns: 6, tip: 0.8 });       // broad, overlapping at the base
+    m.leaf([0.15 - 0.1 * i, 0.0, 0.88], a, [a[2], 0, -a[0]], 0.36 - 0.03 * Math.abs(i - 1.5), 0.085, { part: 2, flex: () => 0, ns: 6, tip: 0.8 });       // broad, overlapping at the base
   }
-  { const i = 5, dx = 0.3 - 0.17 * i, l = Math.hypot(dx, 0.07, 1), a = [dx / l, 0.12 / l, 1 / l]; m.leaf([0.15 - 0.1 * i, 0.0, 0.88], a, [a[2], 0, -a[0]], 0.3, 0.085, { part: 1, flex: () => 0, ns: 6, tip: 0.8 }); }
-}, [[.36, .38, .41], [.17, .18, .2]]);
+  { const i = 5, dx = 0.3 - 0.17 * i, l = Math.hypot(dx, 0.07, 1), a = [dx / l, 0.12 / l, 1 / l]; m.leaf([0.15 - 0.1 * i, 0.0, 0.88], a, [a[2], 0, -a[0]], 0.3, 0.085, { part: 2, flex: () => 0, ns: 6, tip: 0.8 }); }
+}, [[.36, .38, .41], [.17, .18, .2], [.14, .15, .17]], [1, 2, 5]);
 // The same eagle perched, as the owner photographed a pair in a dead tree: sitting bolt upright, white head and breast, the folded slate-grey wings
 // wrapping the flanks and crossing over the back, the white wedge of the tail hanging below the perch, big yellow feet gripping it.
 export const EAGLE_PERCH = () => bird((m) => {
@@ -232,7 +233,7 @@ export const EAGLE_PERCH = () => bird((m) => {
   m.tube((t) => [hx - 0.1 + 0.24 * t, hy + 0.03 + 0.03 * Math.sin(t * PI), 0, 0.014 + 0.088 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);
   m.tube((t) => [hx + 0.11 + 0.13 * t, hy + 0.055 - 0.1 * t * t, 0, 0.036 - 0.029 * t], 5, 6, 2);
   for (const sd of [-1, 1]) m.tube((t) => [hx + 0.06 + 0.004 * t, hy + 0.075, sd * 0.075, 0.012 * Math.sin(PI * t)], 3, 5, 2);
-}, [[.94, .94, .91], [.33, .35, .38], [.2, .21, .23], [.8, .74, .45]]);
+}, [[.94, .94, .91], [.33, .35, .38], [.2, .21, .23], [.8, .74, .45]], [1, 2, 3, 4]);
 // pied cormorant swimming: the back all but awash, the snaky neck stretched forward at an angle, the thin hooked bill tilted up
 export const CORMORANT = () => {
   const neck = (t) => [0.2 + 0.17 * t + 0.035 * Math.sin(t * PI), 0.05 + 0.27 * t, 0, 0.047 - 0.016 * t];      // a thick neck held up in a shallow S, half the length of the body
@@ -245,7 +246,7 @@ export const CORMORANT = () => {
     m.tube((t) => [0.45 + 0.02 * t, 0.336 + 0.004 * t, 0, 0.022 * Math.sin(PI * t)], 3, 6, 3);                                                          // the orange-yellow patch of bare skin before the eye
     m.tube((t) => [0.455 + 0.12 * t, 0.342 + 0.035 * t - 0.03 * t * t * t, 0, 0.013 - 0.008 * t], 6, 5, 1);                                              // long grey bill, hooked at the tip
     m.leaf([-0.4, 0.04, 0], [-1, 0.0, 0], [0, 0, 1], 0.2, 0.06, { part: 0, flex: () => 0 });                                                           // stiff tail lying on the water
-  }, [[.028, .028, .03], [.5, .5, .46], [.9, .9, .87], [.85, .55, .12]]);
+  }, [[.028, .028, .03], [.5, .5, .46], [.9, .9, .87], [.85, .55, .12]], [1, 3, 1, 3]);
   g.scale(0.52, 0.52, 0.52); g.translate(0, 0.045, 0); return g;         // (the birds afloat share one scale, set for the pelican: a cormorant is half its size)
 };
 
@@ -267,7 +268,8 @@ export const PAINT = {
   // dusky flathead: mottled like the sand it lies on
   flathead: { body: `alb = mix(alb, vec3(0.16, 0.12, 0.07), smoothstep(0.45, 0.7, n) * (1.0 - tone) * 0.5); alb = mix(alb, vec3(0.1, 0.075, 0.05), step(0.8, n2) * (1.0 - tone) * 0.8); alb = mix(alb, vec3(0.04, 0.035, 0.03), smoothstep(0.9, 0.97, u) * (1.0 - tone)); alb *= 0.8 + 0.4 * n2; alb *= 1.0 - 0.25 * smoothstep(0.3, 0.1, abs(fract(u * 4.0 + 0.2) - 0.5)) * (1.0 - tone);`, fin: `alb *= 0.6 + 0.6 * step(0.5, fract(vUV.y * 3.0));`, scales: 50, top: 1 },
   // a small whaler shark: bronze-grey above, white below, dark tips to the fins, five gill slits
-  shark: { body: `alb = mix(uColA, uColB, smoothstep(0.50, 0.58, tone + (n - 0.5) * 0.05)); { float gu = (u - 0.215) / 0.022; alb *= 1.0 - 0.5 * smoothstep(0.2, 0.08, abs(fract(gu) - 0.5)) * step(0.0, gu) * step(gu, 5.0) * smoothstep(0.2, 0.35, tone) * smoothstep(0.62, 0.5, tone); }`, fin: `alb = mix(alb, vec3(0.03, 0.035, 0.04), smoothstep(0.62, 0.96, vUV.y));`, shade: [0.5, 0.58], gill: 0 },
+  shark: { body: `alb = mix(uColA, uColB, smoothstep(0.50, 0.58, tone + (n - 0.5) * 0.05)); alb *= 0.9 + 0.2 * texture2D(uNoise, vec2(u * 60.0, tone * 28.0)).r;       // skin like fine sandpaper
+      alb = mix(alb, alb * 1.4 + 0.04, (1.0 - smoothstep(0.004, 0.012, abs(fract(tone * 6.0 + u * 5.0 + vSeed) - 0.5))) * step(0.82, hash12(floor(vec2(u * 5.0, tone * 6.0)) + vSeed)) * 0.4); { float gu = (u - 0.215) / 0.022; alb *= 1.0 - 0.5 * smoothstep(0.2, 0.08, abs(fract(gu) - 0.5)) * step(0.0, gu) * step(gu, 5.0) * smoothstep(0.2, 0.35, tone) * smoothstep(0.62, 0.5, tone); }`, fin: `alb = mix(alb, vec3(0.03, 0.035, 0.04), smoothstep(0.62, 0.96, vUV.y));`, shade: [0.5, 0.58], gill: 0 },
   shovel: { body: `alb *= 0.85 + 0.3 * n; alb = mix(alb, uColB, smoothstep(0.6, 1.0, abs(vL.z) / 0.25) * 0.5 * (1.0 - tone)); alb = mix(alb, vec3(0.85, 0.82, 0.7), smoothstep(0.6, 0.85, n2) * 0.25 * (1.0 - tone));`, fin: ``, top: 1 },
   // bluespotted maskray: sandy grey-brown with scattered blue spots and a dark band across the eyes
   ray: { body: `{ vec2 q = vL.xz * 8.0; vec2 f = fract(q) - 0.5; float hs = hash12(floor(q) + 3.0); float spot = smoothstep(0.2, 0.13, length(f + (vec2(hs, fract(hs * 7.3)) - 0.5) * 0.45)) * step(0.5, hs) * (1.0 - tone) * step(-0.3, vL.x); alb *= 0.82 + 0.36 * n; alb = mix(alb, vec3(0.16, 0.42, 0.85), spot * 0.9); alb = mix(alb, uColA * 0.45, smoothstep(0.06, 0.02, abs(vL.x - 0.3)) * smoothstep(0.2, 0.1, abs(vL.z)) * (1.0 - tone)); alb = mix(alb, uColB, smoothstep(0.8, 1.0, abs(vL.z) / 0.5) * 0.4); }`, fin: ``, top: 1 },
@@ -283,10 +285,21 @@ export const PAINT = {
         alb = mix(vec3(0.075, 0.062, 0.036) * (0.7 + 0.6 * n), vec3(0.30, 0.27, 0.17), edge); if(vPart < 2.5 && tone > 0.6) alb = vec3(0.7, 0.66, 0.46); }`, fin: ``, top: 1,
   },
   // bottlenose dolphin: dark grey cape, paler flanks, pinkish-white belly
-  dolphin: { body: `alb = mix(uColA, mix(uColA, uColB, 0.45), smoothstep(0.26, 0.42, tone + 0.07 * sin(u * 9.0))); alb = mix(alb, uColB, smoothstep(0.6, 0.82, tone)); alb *= 0.93 + 0.14 * n; gloss = 0.9;`, fin: `alb = uColA * 0.9; gloss = 0.7;`, shade: [0.3, 0.8], gill: 0 },
-  dugong: { body: `alb *= 0.82 + 0.36 * n; alb = mix(alb, uColB * 1.05, smoothstep(0.6, 0.85, n2) * 0.25); alb *= 1.0 - 0.05 * smoothstep(0.2, 0.0, abs(fract(u * 9.0 + n * 0.9) - 0.5)) * smoothstep(0.2, 0.6, u); alb = mix(alb, uColB, 0.3 * smoothstep(0.12, 0.0, u)); gloss = 0.5;`, fin: `alb = uColA * 0.85;`, shade: [0.35, 0.9], gill: 0 },
+  dolphin: { body: `alb = mix(uColA, mix(uColA, uColB, 0.45), smoothstep(0.26, 0.42, tone + 0.07 * sin(u * 9.0))); alb = mix(alb, uColB, smoothstep(0.6, 0.82, tone)); alb *= 0.93 + 0.14 * n;
+      { // old tooth-rake scars: sets of fine pale parallel lines, here and there on the back and flanks; a dark line from the eye to the flipper; the blowhole
+        vec2 rq = vec2(u * 7.0 + tone * 2.0, tone * 5.0 - u * 3.0); float patchy = step(0.62, texture2D(uNoise, floor(rq) * 0.37 + vSeed).r), rk = (1.0 - smoothstep(0.03, 0.09, abs(fract(rq.y * 9.0) - 0.5))) * smoothstep(0.15, 0.3, fract(rq.x)) * smoothstep(0.9, 0.7, fract(rq.x));
+        alb = mix(alb, alb * 1.5 + 0.06, rk * patchy * 0.45 * (1.0 - smoothstep(0.5, 0.7, tone)));
+        alb *= 1.0 - 0.35 * (1.0 - smoothstep(0.004, 0.012, abs(tone - 0.5 - (u - 0.2) * 0.5))) * smoothstep(0.12, 0.16, u) * smoothstep(0.36, 0.3, u);
+        alb *= 1.0 - 0.7 * (1.0 - smoothstep(0.006, 0.014, length(vec2(u - 0.2, tone * 0.4)))); }
+      gloss = 0.9;`, fin: `alb = uColA * 0.9; gloss = 0.7;`, shade: [0.3, 0.8], gill: 0 },
+  dugong: { body: `alb *= 0.82 + 0.36 * n; alb = mix(alb, vec3(0.3, 0.27, 0.17), smoothstep(0.55, 0.8, texture2D(uNoise, vL.xz * 1.3 + vSeed).b) * (1.0 - smoothstep(0.2, 0.5, tone)) * 0.45);       // a film of brown algae along the back
+      { float sq = fract(u * 3.0 + n2 * 0.4 + tone); alb = mix(alb, alb * 1.4 + 0.05, (1.0 - smoothstep(0.004, 0.014, abs(fract(tone * 7.0 + u * 4.0 + vSeed) - 0.5))) * step(0.72, hash12(floor(vec2(u * 3.0, tone * 7.0)) + vSeed)) * 0.5); alb *= 1.0 - 0.3 * step(0.8, hash12(floor(vec2(u * 60.0, tone * 30.0)))) * smoothstep(0.1, 0.0, u) * sq * 0.0 - 0.3 * step(0.75, hash12(floor(vec2(u * 70.0, tone * 34.0)))) * smoothstep(0.09, 0.02, u); }       // pale scars, and the bristles round the muzzle alb = mix(alb, uColB * 1.05, smoothstep(0.6, 0.85, n2) * 0.25); alb *= 1.0 - 0.05 * smoothstep(0.2, 0.0, abs(fract(u * 9.0 + n * 0.9) - 0.5)) * smoothstep(0.2, 0.6, u); alb = mix(alb, uColB, 0.3 * smoothstep(0.12, 0.0, u)); gloss = 0.5;`, fin: `alb = uColA * 0.85;`, shade: [0.35, 0.9], gill: 0 },
   // humpback: black above, white below with a ragged edge, long grooves down the throat
-  whale: { body: `alb = mix(uColA, uColB, smoothstep(0.56, 0.62, tone + (n - 0.5) * 0.22 + (n2 - 0.5) * 0.08)); alb *= 1.0 - 0.22 * smoothstep(0.25, 0.05, abs(fract(vL.z * 46.0) - 0.5)) * smoothstep(0.62, 0.75, tone) * smoothstep(0.6, 0.45, u); alb = mix(alb, vec3(0.5, 0.5, 0.46), smoothstep(0.74, 0.84, n2) * smoothstep(0.3, 0.05, u) * 0.4); gloss = 0.9;`, fin: `alb = mix(uColB, uColA, smoothstep(0.3, 0.7, n + (vUV.y - 0.5) * 0.6)); gloss = 0.7;`, shade: [0.5, 0.6], gill: 0 },
+  whale: { body: `alb = mix(uColA, uColB, smoothstep(0.56, 0.62, tone + (n - 0.5) * 0.22 + (n2 - 0.5) * 0.08)); alb *= 1.0 - 0.22 * smoothstep(0.25, 0.05, abs(fract(vL.z * 46.0) - 0.5)) * smoothstep(0.62, 0.75, tone) * smoothstep(0.6, 0.45, u); alb = mix(alb, vec3(0.5, 0.5, 0.46), smoothstep(0.74, 0.84, n2) * smoothstep(0.3, 0.05, u) * 0.4);
+      { vec2 tq = vec2(u * 26.0, tone * 9.0); float tub = (1.0 - smoothstep(0.16, 0.3, length(fract(tq) - 0.5))) * step(0.5, hash12(floor(tq))) * smoothstep(0.2, 0.05, u) * (1.0 - smoothstep(0.3, 0.5, tone)); alb = mix(alb, alb * 1.8 + 0.05, tub * 0.6);          // the knobs on the head
+        vec2 bq = vec2(u * 15.0, tone * 8.0) + vSeed; float barn = (1.0 - smoothstep(0.1, 0.22, length(fract(bq) - 0.5 - (vec2(hash12(floor(bq)), hash12(floor(bq) + 5.0)) - 0.5) * 0.5))) * step(0.8, hash12(floor(bq) + 9.0)); alb = mix(alb, vec3(0.72, 0.7, 0.62), barn * 0.8);      // patches of barnacles
+        alb = mix(alb, alb * 1.5 + 0.04, (1.0 - smoothstep(0.004, 0.012, abs(fract(tone * 5.0 - u * 6.0 + vSeed) - 0.5))) * step(0.78, hash12(floor(vec2(u * 4.0, tone * 5.0)) + vSeed)) * 0.5 * (1.0 - smoothstep(0.5, 0.6, tone))); }      // long pale scratches
+      gloss = 0.9;`, fin: `alb = mix(uColB, uColA, smoothstep(0.3, 0.7, n + (vUV.y - 0.5) * 0.6)); gloss = 0.7;`, shade: [0.5, 0.6], gill: 0 },
 };
 
 // Each animal swims a wobbly loop around a home point. list: [cx, cz, radius, depth, phase, speed, size, seed] per animal.
@@ -336,24 +349,33 @@ export function swimmers(scene, o, list) {
       void main(){
         ${LOGF}
         vec3 N = normalize(vN); if(!gl_FrontFacing) N = -N;
-        float u = vUV.x, tone = vUV.y, gloss = 0.3, glow = 0.0;
+        float u = vUV.x, tone = vUV.y, gloss = 0.3, glow = 0.0, flash = 0.0;
         float n = texture2D(uNoise, vL.xy * 0.9 + vL.z * 0.6 + vSeed).r, n2 = texture2D(uNoise, vL.xz * 2.7 + vL.y * 2.1 + vSeed * 3.0).g;
         vec3 alb;
         if(vPart < 0.5 || vPart > 1.5){
           alb = mix(uColA, uColB, smoothstep(${sh[0].toFixed(2)}, ${sh[1].toFixed(2)}, tone)) * (0.88 + 0.24 * fract(vSeed * 7.3));
           ${P.body || ''}
-          ${P.scales ? `{ vec2 sc = vec2(u * ${P.scales}.0, tone * ${Math.round(P.scales * 0.42)}.0); sc.x += 0.5 * floor(sc.y); vec2 sf = fract(sc) - vec2(0.62, 0.5);
-            alb *= 1.0 - 0.12 * smoothstep(0.3, 0.52, length(sf * vec2(1.0, 1.15))) * (1.0 - smoothstep(0.25, 0.8, fwidth(sc.x) + fwidth(sc.y))) * step(0.16, u);
-            gloss += 0.5; }` : ''}
+          ${P.scales ? `{ // scales: rows of them from the gill cover to the tail, each a pale disc with a dark hind edge, no two quite the same shade,
+            // and each catching the light on its own (so the flank flashes as the fish turns)
+            vec2 sc = vec2(u * ${P.scales}.0, tone * ${Math.round(P.scales * 0.42)}.0); sc.x += 0.5 * floor(sc.y); vec2 sf = fract(sc) - vec2(0.62, 0.5);
+            float sk = (1.0 - smoothstep(0.25, 0.8, fwidth(sc.x) + fwidth(sc.y))) * smoothstep(0.15, 0.19, u) * smoothstep(0.02, 0.08, tone) * (1.0 - smoothstep(0.86, 0.95, tone)), sd2 = length(sf * vec2(1.0, 1.15)), sh2 = hash12(floor(sc) + vSeed);
+            alb *= 1.0 - sk * (0.2 * smoothstep(0.3, 0.52, sd2) - 0.08 * (1.0 - smoothstep(0.0, 0.3, sd2)));
+            alb *= 1.0 + sk * (sh2 - 0.5) * 0.16;
+            flash = sk * step(0.72, sh2) * (1.0 - smoothstep(0.1, 0.34, sd2));
+            ${P.top ? '' : 'alb *= 1.0 - 0.22 * (1.0 - smoothstep(0.004, 0.012, abs(tone - 0.4 - 0.07 * sin(u * 3.4)))) * smoothstep(0.18, 0.22, u) * smoothstep(0.95, 0.85, u);       // the lateral line'}
+            gloss += 0.5; }` : `{ // smooth-skinned animals: a fine grain, and the water's own light dappling the back
+            alb *= 0.94 + 0.1 * texture2D(uNoise, vL.xy * 9.0 + vL.z * 7.0).b; }`}
           if(vPart < 0.5 || (vPart > 1.5 && vPart < 2.5)){                 // the eye: a dark pupil in a pale ring; and the edge of the gill cover behind it
             vec2 e = (${P.top ? 'vec2(vL.x, abs(vL.z))' : 'vL.xy'} - uEye.xy) / uEye.z; float er = length(e);
-            if(er < 1.0){ alb = er < 0.55 ? vec3(0.008) : mix(vec3(0.75, 0.68, 0.45), vec3(0.2, 0.17, 0.1), smoothstep(0.6, 1.0, er)); gloss = 1.6; }
+            if(er < 1.0){ alb = er < 0.5 ? vec3(0.008) : mix(vec3(0.78, 0.7, 0.46), vec3(0.2, 0.17, 0.1), smoothstep(0.55, 1.0, er)); alb = mix(alb, vec3(0.9), 1.0 - smoothstep(0.1, 0.2, length(e - vec2(-0.2, 0.25)))); gloss = 1.6; flash = 0.0; }      // a round black pupil, a gold ring, a glint
+            ${P.top || P.gill === 0 ? '' : 'alb *= 1.0 - 0.45 * (1.0 - smoothstep(0.003, 0.009, abs(vL.y - uEye.y + uEye.z * 1.9 + (vL.x - uEye.x - 0.06) * 0.35))) * step(uEye.x + 0.03, vL.x);        // the line of the mouth'}
             ${P.top || P.gill === 0 ? '' : 'alb *= 1.0 - 0.3 * smoothstep(0.012, 0.004, abs(vL.x - uEye.x + 0.11 + vL.y * vL.y * 3.5)) * step(abs(vL.y), 0.11);'}
           }
         } else {
           // fins: fine rays running out from the root, thin enough for the light to come through
           bool side = abs(vL.z) > 0.07;                                 // the fins at the sides are clearer than the rest
-          alb = uColC * (0.72 + 0.28 * sin(vUV.x * 70.0)) * (0.85 + 0.3 * n); if(side) alb = mix(alb, vec3(0.62, 0.66, 0.64), 0.5);
+          float ray = sin(vUV.x * 70.0), memb = texture2D(uNoise, vUV * vec2(9.0, 3.0) + vSeed).g;                 // stiff rays, the skin between them thinner and paler, a darker edge
+          alb = uColC * (0.68 + 0.32 * smoothstep(-0.3, 0.6, ray)) * (0.8 + 0.35 * memb) * (1.0 - 0.25 * smoothstep(0.8, 1.0, vUV.y)); if(side) alb = mix(alb, vec3(0.62, 0.66, 0.64), 0.5);
           ${P.fin || ''}
         }
         float cs = cloudShadow(vW), dw = max((uSeaM * uVex - vW.y) / uVex, 0.0);
@@ -363,6 +385,7 @@ export function swimmers(scene, o, list) {
         vec3 col = alb * light + alb * glow * (uLightCol * 0.2 + uAmbSky);
         vec3 V = normalize(cameraPosition - vW);
         col += gloss * (uLightCol * pow(max(dot(reflect(-V, N), normalize(uLightDir + vec3(0.0, 0.5, 0.0))), 0.0), 22.0) * 0.22 * cs + uAmbSky * 0.25 * pow(1.0 - max(dot(N, V), 0.0), 3.0));
+        col += flash * (uLightCol * 0.35 + uAmbSky * 0.3) * pow(max(dot(reflect(-V, N), normalize(uLightDir + vec3(0.0, 0.9, 0.0))), 0.0), 5.0) * cs * vec3(0.9, 1.0, 1.05);       // single scales flashing silver
         if(dw > 0.0){ vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * dw * 2.3); col = col * Tm + vec3(0.012, 0.20, 0.18) * (uLightCol * 0.3 + uAmbSky * 0.8) * (1.0 - Tm); }
         gl_FragColor = vec4(applyFog(col, vW), 1.0);
       }`,

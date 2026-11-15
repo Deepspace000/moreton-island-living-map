@@ -139,6 +139,28 @@ export function blobShadowMat() {
 }
 
 // Simple lit, vertex-coloured material for buildings, boats, wrecks, beacons.
+// Feathers, pixel by pixel. fx.x says what the surface is (1 body feathers, 2 flight feathers side by side, 3 bare skin or bill, 4 scaly leg,
+// 5 one long feather on its own), fx.yz are the surface's own coordinates (along and across).
+export const FEATHER_GLSL = /* glsl */`
+vec3 featherPaint(vec3 alb, vec3 fx){
+  float kind = floor(fx.x - 0.5); vec2 q = fx.yz; float pale = step(0.4, dot(alb, vec3(0.3333))), fine = texture2D(uNoise, q * vec2(37.0, 53.0)).r;
+  if(kind < 1.5){                      // body feathers: rows of small rounded feathers, each one lapping the next and throwing a line of shade on it
+    vec2 c = vec2(q.x * 30.0, q.y * 15.0); c.y += 0.5 * floor(c.x); vec2 f = fract(c) - vec2(0.36, 0.5);
+    float d = length(f * vec2(1.0, 1.2)), k = 1.0 - smoothstep(0.3, 1.0, fwidth(c.x) + fwidth(c.y)), rim = smoothstep(0.3, 0.52, d);
+    alb *= 1.0 - k * mix(-0.6, 0.34, pale) * rim;                       // white birds: a grey edge to every feather; dark birds: a paler fringe
+    alb *= 1.0 - 0.1 * pale * smoothstep(0.35, 0.75, texture2D(uNoise, q * vec2(2.3, 1.7)).g);      // white plumage is never one flat white: soft grey and cream shading through it
+    alb *= 1.0 - k * 0.07 * smoothstep(0.12, 0.0, abs(f.y)) * smoothstep(0.3, 0.0, d);                   // the shaft
+    alb *= (0.92 + 0.12 * hash12(floor(c))) * (0.95 + 0.08 * fine);
+  } else if(kind < 2.5 || kind > 4.5){ // flight feathers: long vanes, a shaft down the middle of each, fine barbs slanting off it
+    float nF = kind > 4.5 ? 1.0 : 12.0, along = kind > 4.5 ? q.y : q.x, fi = (kind > 4.5 ? q.x : q.y) * nF, ff = fract(fi) - 0.5, k = 1.0 - smoothstep(0.25, 0.9, fwidth(fi) * (kind > 4.5 ? 0.2 : 1.0));
+    if(kind < 4.5) alb *= 1.0 - k * mix(0.45, 0.3, pale) * smoothstep(0.34, 0.5, abs(ff));                              // the dark slot between one feather and the next
+    alb = mix(alb, mix(alb + 0.2, alb * 0.7, pale), k * (1.0 - smoothstep(0.02, 0.07, abs(ff))) * 0.8);      // the shaft
+    alb *= 1.0 - k * 0.14 * sin((along * 46.0 + abs(ff) * 26.0) * 3.0);                                  // barbs
+    alb *= (0.92 + 0.12 * hash12(vec2(floor(fi), 3.0))) * (0.95 + 0.08 * fine);
+  } else if(kind < 3.5) alb *= 0.88 + 0.16 * texture2D(uNoise, vec2(q.x * 3.0, q.y * 14.0)).g;           // bare skin and bill: smooth, streaked along its length
+  else alb *= (0.8 + 0.22 * step(0.45, fract(q.x * 16.0))) * (0.9 + 0.15 * fine);                        // legs: rings of scales
+  return alb;
+}`;
 export function objectMat(opts = {}) {
   return makeMat({
     vertexColors: true, side: opts.side ?? THREE.FrontSide, defines: opts.defines || {},
@@ -154,6 +176,9 @@ export function objectMat(opts = {}) {
       }`,
     fs: /* glsl */`
       varying vec3 vW, vN, vC, vFx; uniform vec3 uWaterDeep;
+      #ifdef BIRD
+      ${FEATHER_GLSL}
+      #endif
       #ifdef BOAT
       // one stencilled figure (0-9) in a cell, built from seven strokes like the figures painted on a hull or sewn on a sail
       float figure7(vec2 q, float d){
@@ -432,7 +457,10 @@ export function objectMat(opts = {}) {
             gloss = vec3(0.75);
           }
         #endif
-        #if !defined(CAR) && !defined(BOAT)
+        #ifdef BIRD
+        if(vFx.x > 0.5) alb = featherPaint(alb, vFx);
+        #endif
+        #if !defined(CAR) && !defined(BOAT) && !defined(BIRD)
         alb *= 0.72 + 0.28 * smoothstep(-0.3, 3.5, (vW.y - uSeaM * uVex) / uVex + step(1.0, vFx.x) * 9.0);   // grime toward the waterline
         if(vFx.x > 0.5) alb *= 0.62 + 0.38 * smoothstep(-0.2, 2.6, vFx.z);          // walls darken toward the ground
         #endif
