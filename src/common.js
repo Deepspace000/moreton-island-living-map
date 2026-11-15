@@ -356,8 +356,8 @@ export function objectMat(opts = {}) {
               alb *= 0.94 + 0.08 * bn;
               if(face < 1.5){                     // sunlight thrown up off the water plays over the topsides in moving bands
                 float hw = (vW.y - uSeaM * uVex) / uVex;
-                float rp = texture2D(uNoise, vec2(L.x * 0.23 + uTime * 0.05, hw * 0.5 - uTime * 0.12)).r * texture2D(uNoise, vec2(L.x * 0.15 - uTime * 0.04, hw * 0.36 - uTime * 0.07) + 0.4).g;
-                em += uLightCol * alb * smoothstep(0.17, 0.4, rp) * smoothstep(1.9, 0.15, hw) * step(0.0, hw) * 0.55 * clamp(uLightDir.y * 3.0, 0.0, 1.0) * cloudShadow(vW);
+                float rp = texture2D(uNoise, vec2(L.x * 0.5 + uTime * 0.05, hw * 0.16 - uTime * 0.1)).r * texture2D(uNoise, vec2(L.x * 0.33 - uTime * 0.04, hw * 0.11 - uTime * 0.06) + 0.4).g;       // thin wavering lines, as light off ripples is
+                em += uLightCol * alb * smoothstep(0.2, 0.42, rp) * smoothstep(1.3, 0.1, hw) * step(0.0, hw) * 0.2 * clamp(uLightDir.y * 3.0, 0.0, 1.0) * cloudShadow(vW);
               }
             } else if(zone < 1.5){               // bottom paint: scum at the waterline, weed further down
               alb = mix(alb * (0.75 + 0.5 * bn), vec3(0.06, 0.10, 0.045), smoothstep(-0.6, 0.05, L.y) * (0.25 + 0.55 * bn));

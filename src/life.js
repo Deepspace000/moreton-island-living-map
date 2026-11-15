@@ -90,12 +90,14 @@ function buildBeachLife(scene) {
         float line = smoothstep(0.7, 1.1, hgt) * (1.0 - smoothstep(2.5, 3.6, hgt));                  // where the last high tide left things
         float logK = step(h3, 0.016), stick = (1.0 - logK) * step(h3, 0.10);
         float len = logK > 0.5 ? 2.4 + 3.4 * h1 : 0.45 + 1.1 * h1, rad = logK > 0.5 ? 0.11 + 0.12 * h2 : 0.012 + 0.02 * h2;
-        float taper = 1.0 - 0.45 * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * 0.22;
+        float taper = (1.0 - 0.6 * (position.x + 0.5)) * (1.0 + 0.55 * logK * smoothstep(0.3, 0.5, -position.x)) * (0.9 + 0.2 * sin(position.x * 9.0 + h1 * 20.0) * logK), crook = (sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * 0.22 + sin((position.x + 0.5) * 7.0 + h4 * 6.0) * 0.035 * logK);     // a log swells to its butt, wanders, and thins to a broken end
         s = (logK + stick) * sandy * line;
         lp = vec3(position.x * len, (position.y * taper + 0.75) * rad, position.z * rad * taper + crook * len);
         nrm = vec3(0.0, position.y, position.z);
         float grain = texture2D(uNoise, vec2(position.x * len * 0.35 + h1, aK * 0.07 + h2 + atan(position.z, position.y) * 0.4)).r;
-        c = mix(vec3(0.58, 0.54, 0.48), vec3(0.34, 0.27, 0.20), smoothstep(0.35, 0.8, h4)) * (0.65 + 0.6 * grain);`, 420);
+        float crack = texture2D(uNoise, vec2(position.x * len * 0.12 + h2, atan(position.z, position.y) * 1.7 + h1 * 3.0)).g;
+        c = mix(vec3(0.58, 0.54, 0.48), vec3(0.34, 0.27, 0.20), smoothstep(0.35, 0.8, h4)) * (0.6 + 0.65 * grain) * (1.0 - 0.55 * logK * smoothstep(0.6, 0.72, crack));     // long dark checks along the grain
+        c *= 0.6 + 0.4 * smoothstep(-0.6, 0.4, position.y);                                                       // dark where it lies on the sand`, 420);
   // ---- the forest floor ----
   const WOODED = 'step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt)';
   // fallen branches and sticks
@@ -103,7 +105,7 @@ function buildBeachLife(scene) {
         float logK = step(h3, 0.012), stick = (1.0 - logK) * step(h3, 0.3);
         float len = logK > 0.5 ? 1.8 + 2.6 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.07 + 0.08 * h2 : 0.01 + 0.022 * h2;
         float taper = 1.0 - 0.5 * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * 0.3;
-        s = (logK + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
+        s = (logK * (1.0 - smoothstep(0.3, 0.5, mk.g)) + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
         lp = vec3(position.x * len, (position.y * taper + 0.8) * rad, position.z * rad * taper + crook * len);
         nrm = vec3(0.0, position.y, position.z);
         float grain = texture2D(uNoise, vec2(position.x * len * 0.35 + h1, aK * 0.07 + h2)).r;
@@ -584,10 +586,10 @@ function buildBirds(scene, F) {
   {
     const st = [], Rp = rng(9090), gh = (x, z) => heightAt(x, z);
     const group = (x, z, n) => {      // a loose knot of birds a wing-length apart, strung along the shore, each one on sand that stays dry
-      for (let i = 0, tries = 0; i < n && tries < n * 6; tries++) {
-        const a = Rp() * 6.283, r = Math.sqrt(Rp()) * (0.9 + n * 0.3), px = x + Math.cos(a) * r * 0.45, pz = z + Math.sin(a) * r, h = gh(px, pz);
-        if (h < 0.4 || h > 1.3) continue;
-        st.push(px, pz, Rp(), 0.9 + Rp() * 0.22); i++;
+      for (let i = 0; i < n; i++) {
+        const pz = z + (Rp() - 0.5) * (2.2 + n * 0.75), ok = [];
+        for (let dx = -9; dx <= 9; dx += 0.4) { const h = gh(x + dx, pz); if (h > 0.45 && h < 1.15) ok.push(x + dx); }
+        if (ok.length) st.push(ok[(Rp() * ok.length) | 0], pz, Rp(), 0.9 + Rp() * 0.22);
       }
     };
     let made = 0;
@@ -715,11 +717,11 @@ function buildCreeper(scene) {
     if (arm < 2) fan(px * 0.6 + 0.02, 0.05, pz * 0.6, 0.026, 2, 0, 0.55, 0);
   }
   return scatter(scene, LOW ? 44 : 64, 1.5, (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); }, /* glsl */`
-        float edge = smoothstep(0.42, 0.68, mk.g) * (1.0 - smoothstep(0.9, 0.985, mk.g));
-        float here = step(0.9, mk.r) * smoothstep(1.3, 1.9, hgt) * (1.0 - smoothstep(5.0, 8.0, hgt)) * edge * step(h3, 0.34) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g)));
+        float edge = smoothstep(0.5, 0.6, mk.g) * (1.0 - smoothstep(0.74, 0.86, mk.g));                              // it creeps out from the foot of the scrub onto the edge of the open sand
+        float here = step(0.9, mk.r) * smoothstep(0.9, 1.4, hgt) * (1.0 - smoothstep(5.0, 8.0, hgt)) * edge * step(h3, 0.34) * (1.0 - smoothstep(0.02, 0.1, ov.r));
         s = (1.7 + 1.8 * h2) * here;
         lp = position; nrm = normalize(vec3(position.x * 0.6, 1.0, position.z * 0.6));
-        c = aK < 0.5 ? mix(vec3(0.10, 0.24, 0.055), vec3(0.20, 0.34, 0.08), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
+        c = aK < 0.5 ? mix(vec3(0.07, 0.17, 0.045), vec3(0.14, 0.25, 0.06), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
           : aK < 1.5 ? vec3(0.22, 0.13, 0.09)
           : (h4 > 0.45 ? vec3(0.60, 0.24, 0.52) : vec3(0.86, 0.72, 0.10));
         if(aK > 1.5 && fract(h1 * 9.0) > 0.45) s = 0.0;                    // not every runner is in flower`, 110);
@@ -741,9 +743,9 @@ function buildSnags(scene) {
   }
   const tb = tubes(parts, 5), build = (g) => { tb(g); g.computeVertexNormals(); };
   return scatter(scene, LOW ? 28 : 44, 12, build, /* glsl */`
-        float edgeBand = smoothstep(0.3, 0.5, mk.g) * (1.0 - smoothstep(0.84, 0.97, mk.g));                         // the ragged edge between bush and bare sand
-        float backBeach = smoothstep(0.9, 1.0, mk.g) * smoothstep(1.5, 2.2, hgt) * (1.0 - smoothstep(3.5, 5.5, hgt)) * step(h1, 0.4);
-        float here = step(0.9, mk.r) * step(1.2, hgt) * max(edgeBand, backBeach) * step(h3, 0.085) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g)));
+        // the map's sand value falls away gently from open beach (near 1) to bush (near 0): the ragged ground between is where the mid values are
+        float edgeBand = max(smoothstep(0.45, 0.58, mk.g) * (1.0 - smoothstep(0.76, 0.87, mk.g)), smoothstep(0.8, 0.9, mk.g) * smoothstep(1.2, 1.8, hgt) * (1.0 - smoothstep(3.0, 4.5, hgt)) * step(h1, 0.07));     // ...and now and then one lies out on the open beach
+        float here = step(0.9, mk.r) * step(0.7, hgt) * edgeBand * step(h3, 0.3) * (1.0 - smoothstep(0.02, 0.1, ov.r));        // (the whole beach counts as a track on the map, so only buildings keep them away)
         float flip = h1 > 0.5 ? 1.0 : -1.0;
         s = (4.5 + 5.5 * h2) * here;
         lp = position * vec3(1.0, 0.7 + 0.6 * h1, flip); lp.y -= 0.012;                                           // half sunk in the sand

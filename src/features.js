@@ -203,7 +203,7 @@ function buildRoads(F, scene, occ) {
         vec3 col; float a;
         if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
-          col = vec3(0.60, 0.56, 0.47) * (0.85 + 0.25 * n); a = 0.5 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // soft grey shadows of old tracks, broken along their length
+          col = vec3(0.16, 0.14, 0.11); a = 0.2 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
           col = vec3(0.92, 0.84, 0.66); a = 0.75 * dash * edge;
@@ -779,9 +779,18 @@ function buildWrecks(F, g) {
       for (const p of pts) { const dx = p[0] - cx, dz = p[1] - cz, u = dx * c + dz * s, v = -dx * s + dz * c; l0 = Math.min(l0, u); l1 = Math.max(l1, u); b0 = Math.min(b0, v); b1 = Math.max(b1, v); }
       L = clamp(l1 - l0, 14, 90); B = clamp(b1 - b0, 5, 16);
     } else { L = 26 + R() * 22; B = 6.5 + R() * 3; th = R() * Math.PI; }
+    // The two hulls charted on the bay beach north of the Big Sandhills lie right at the water's edge, along the shore (the owner photographed one from
+    // the beach track): a long, low run of rusted side with its frames standing, a tall post left at one end and the bow a little higher at the other.
+    const beached = !w.p && cx < 0 && cz > 5000 && cz < 10600;
+    if (beached) {
+      let found = false;                                    // the nearest spot to the charted position where the sand is just under the water
+      for (let r = 0; r <= 1500 && !found; r += 5) for (let k = 0; k < 28 && !found; k++) { const a = k / 28 * 6.2832, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r, h = heightAt(x, z); if (h < -0.25 && h > -0.65 && [0, 1, 2, 3, 4, 5, 6, 7].some(q => heightAt(x + Math.cos(q * 0.785) * 32, z + Math.sin(q * 0.785) * 32) > 0.9)) { cx = x; cz = z; found = true; } }      // ...and with dry beach within a few boat-lengths
+      const gx = heightAt(cx + 25, cz) - heightAt(cx - 25, cz), gz = heightAt(cx, cz + 25) - heightAt(cx, cz - 25), gl = Math.hypot(gx, gz) || 1, ux = gx / gl, uz = gz / gl;     // uphill, toward the land
+      th = Math.atan2(ux, -uz) + (R() - 0.5) * 0.5; L = 44 + R() * 8; B = 7.5;
+    }
     const sunk = /dangerous/.test(w.k) && !/non/.test(w.k) ? R() < 0.45 : /non/.test(w.k);
     const bed = Math.min(heightAt(cx, cz), -1.2);
-    const H = sunk ? -(0.5 + R() * 1.2) : 2.0 + R() * 2.6;                 // top above the sea, metres
+    const H = beached ? 1.5 + R() * 0.5 : sunk ? -(0.5 + R() * 1.2) : 2.0 + R() * 2.6;                 // top above the sea, metres
     const m = new THREE.Matrix4().makeRotationY(-th).setPosition(cx, 0, cz);
     g.at(m);
     const S = 16, rs = rng((cx * 13 + cz * 7) | 0), col = RUST[(rs() * RUST.length) | 0];
@@ -805,8 +814,13 @@ function buildWrecks(F, g) {
       if (i % 3 === 1 && i < S - 1) g.quad([x0, yb, -b0], [x0, yb, b0], [x0, t0 * 0.9, b0], [x0, t0 * 0.9, -b0], [col[0] * .7, col[1] * .7, col[2] * .7]);
       if (!sunk && brk[i] > 0.2 && i > 0 && i < S - 1) { const yd = Math.min(t0, t1) - (0.7 + 0.5 * brk[i]) * VEX; g.quad([x0, yd, -b0 * .92], [x1, yd, -b1 * .92], [x1, yd, b1 * .92], [x0, yd, b0 * .92], [col[0] * .85, col[1] * .8, col[2] * .8]); }
     }
+    if (beached) {
+      g.cyl(-0.485 * L, bed * VEX, 0, 0.34, 0.24, (H - bed + 2.9) * VEX, 7, [col[0] * .7, col[1] * .7, col[2] * .7]);                                      // the stern post
+      g.cyl(-0.19 * L, bed * VEX, B * 0.42, 0.22, 0.16, (H - bed + 1.1) * VEX, 6, [col[0] * .7, col[1] * .7, col[2] * .7]);                                // a stub of a frame standing proud amidships
+    } else {
     if (!sunk && rs() < 0.5) { const x = (0.3 + rs() * 0.15) * L; g.cyl(x, top(S - 3) - VEX, 0, 0.9, 0.8, (2.5 + rs() * 2) * VEX, 8, [col[0] * .8, col[1] * .8, col[2] * .8]); }
     if (!sunk && rs() < 0.8) { const x = (rs() - .5) * L * 0.5; g.at(m.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler((rs() - .5) * 0.5, 0, (rs() - .5) * 0.4)))); g.cyl(x, bed * VEX, 0, 0.3, 0.14, (H - bed + 3 + rs() * 4) * VEX, 7, [.2, .1, .06]); g.at(m); }      // what is left of a mast, leaning
+    }
     g.at(null);
     list.push({ x: cx, z: cz, sunk });
   });
