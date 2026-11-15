@@ -14,6 +14,7 @@ export const PERSON_FS = /* glsl */`varying vec3 vW, vObj, vNw, vShirt; varying 
     vec3 col = personColour(vObj, vPart, vShirt, vSeed), N = normalize(vNw); if(!gl_FrontFacing) N = -N;
     float nl = max(dot(N, uLightDir), 0.0), rim = pow(1.0 - max(dot(N, normalize(cameraPosition - vW)), 0.0), 3.0);
     vec3 lit = uLightCol * (nl * 0.66 + 0.24) * cloudShadow(vW) + mix(uAmbGnd, uAmbSky, N.y * 0.5 + 0.5) * (0.85 + 0.25 * rim);        // soft: light gets round a body, and skin and cloth let a little through
+    lit += carLamps(vW) * 1.2;
     gl_FragColor = vec4(applyFog(col * lit * 0.9, vW), 1.0); }`;
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);

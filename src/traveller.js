@@ -96,9 +96,12 @@ export function buildTraveller(scene, F) {
   const update = (dt, t) => {
     if (!at) return;
     const night = U.uNight ? U.uNight.value : 0;
-    if (w.askCamp !== null) { w.camped = w.askCamp; w.askCamp = null; rest = w.camped ? 1e9 : 0; if (w.camped) pitch(); }
-    if (!w.ctl && !w.camped && night > 0.8) { w.camped = true; rest = 0; pitch(); }                // dark: time to stop
-    if (w.camped && rest < 1e8 && night < 0.3) w.camped = false;                                  // up with the light (a camp you asked for lasts until you break it)
+    // Camp when asked, and break camp when asked: the tent comes down at once and they walk on, even in the dark (they will not pitch it again
+    // by themselves until the next evening). Left alone, they stop when it gets dark and are up with the light.
+    if (w.askCamp !== null) { w.camped = w.askCamp; w.askCamp = null; rest = w.camped ? 1e9 : 0; if (w.camped) pitch(); else { tent.visible = false; w.nightOwl = night > 0.3; } }
+    if (night < 0.3) w.nightOwl = false;
+    if (!w.ctl && !w.camped && !w.nightOwl && night > 0.8) { w.camped = true; rest = 0; pitch(); }
+    if (w.camped && rest < 1e8 && night < 0.3) { w.camped = false; tent.visible = false; }
     let want = 0;
     if (w.camped) { w.v += (0 - w.v) * (1 - Math.exp(-dt * 4)); w.next = 'camped' + (goal ? ' on the way to ' + goal.name : ''); }
     else if (w.ctl) {                  // walked by hand: turn, and set the pace from a stroll to a jog; no wading past the knees
@@ -121,7 +124,7 @@ export function buildTraveller(scene, F) {
     }
     w.y = Math.max(meshY(w.x, w.z), sea() - 0.8);
     phase += w.v * dt * 3.4; walk += (clamp(w.v / 1.2, 0, 1) - walk) * (1 - Math.exp(-dt * 5)); sit += ((w.camped ? 1 : 0) - sit) * (1 - Math.exp(-dt * 1.5));
-    if (!w.camped && sit < 0.05) tent.visible = false;
+    if (!w.camped) tent.visible = false;
     w.m.position.set(w.x, w.y, w.z); w.m.rotation.y = w.hd;
     uni.uAt.value.set(w.x, w.y, w.z, w.hd); uni.uGait.value.set(phase, walk, sit);
   };

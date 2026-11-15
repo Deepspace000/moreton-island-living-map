@@ -21,7 +21,7 @@ export const U = {
   uFogCol: v3(.6, .7, .85), uFogSun: v3(.9, .8, .7), uFogDens: f(0.000012),
   uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0), uUnder: f(0),
   uMoonLit: f(1), uStarRot: f(0),
-  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0),
+  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
   uHeight: { value: null }, uOver: { value: null }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
   uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
@@ -36,6 +36,7 @@ uniform float uTime, uFogDens, uNight, uOvercast, uSeaM, uVex, uCloudAlt, uCloud
 uniform vec3 uSunDir, uMoonDir, uLightDir, uLightCol, uSunCol, uAmbSky, uAmbGnd, uFogCol, uFogSun, uZenith, uHorizon, uSunGlow;
 uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, uDetail;
 uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
+uniform vec4 uCarL[8];        // the headlamps of the eight nearest 4WDs: where the front of the car is (x, z) and the way it points (zero when its lamps are off)
 uniform vec4 uWorld, uCloudRect, uCape;
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }
@@ -88,6 +89,20 @@ float fogAmount(vec3 wp){
   // thinner with height: integrate an exponential atmosphere along the ray (cheap form)
   float hm = max(0.5 * (wp.y + cameraPosition.y), 0.0);
   return 1.0 - exp(-d * uFogDens * exp(-hm / 2600.0));
+}
+// What the headlamps of the cars throw on a point of ground at night: two dipped beams from each car, widening as they go, brightest a few
+// car-lengths ahead and gone by seventy metres or so.
+vec3 carLamps(vec3 P){
+  vec3 sum = vec3(0.0);
+  for(int i = 0; i < 8; i++){
+    vec4 c = uCarL[i]; vec2 d = c.zw; if(dot(d, d) < 0.01) continue;
+    vec2 rel = P.xz - c.xy; float al = dot(rel, d), sd = dot(rel, vec2(-d.y, d.x));
+    if(al < 0.5 || al > 100.0 || abs(sd) > 36.0) continue;
+    float w = 1.5 + al * 0.24, beam = exp(-(sd - 1.3) * (sd - 1.3) / (w * w)) + exp(-(sd + 1.3) * (sd + 1.3) / (w * w));
+    float fall = smoothstep(0.5, 6.0, al) * (1.0 - smoothstep(32.0, 98.0, al)) / (1.0 + al * al * 0.0026);
+    sum += vec3(1.0, 0.92, 0.76) * beam * fall;
+  }
+  return sum;
 }
 vec3 applyFog(vec3 col, vec3 wp){
   vec3 dir = normalize(wp - cameraPosition);

@@ -48,7 +48,7 @@ function scatter(scene, n, cs, build, body, range, paint) {
         vec3 wp = vec3(xz.x + (lp.x * ca - lp.z * sa) * s, 0.0, xz.y + (lp.x * sa + lp.z * ca) * s);
         wp.y = groundY(wp.xz) + lp.y * s;
         nrm = normalize(vec3(nrm.x * ca - nrm.z * sa, nrm.y, nrm.x * sa + nrm.z * ca));
-        vec3 light = uLightCol * (max(dot(nrm, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5);
+        vec3 light = uLightCol * (max(dot(nrm, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) + carLamps(wp) * 1.2;
         vCol = c * light;
         ${paint ? 'vCol = c; vLight = light; vObj = position; vNo = normal; vK = aK; vH = vec4(h1, h2, h3, h4);' : ''}
         vW = wp;
@@ -267,6 +267,17 @@ export function fourWD(col) {
   g.computeBoundingSphere();
   return g;
 }
+// The shaft of light in front of a car at night: a faint glowing fan from the two lamps, dipping to the ground, seen from outside the car.
+const beamGeo = (() => { const g = new THREE.BufferGeometry(), p = [], u = [], ix = [], N = 10;
+  for (let i = 0; i <= N; i++) { const t = i / N, x = 2.45 + t * 15, w = 0.95 + t * 3.6, y = 0.82 - t * 0.5; p.push(x, y, -w, x, y, w); u.push(t, -1, t, 1); }
+  for (let i = 0; i < N; i++) { const o = i * 2; ix.push(o, o + 1, o + 2, o + 2, o + 1, o + 3); }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(u, 2)); g.setIndex(ix); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6); return g; })();
+const beamMat = makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  vs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
+  fs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ ${LOGF}
+    float two = exp(-pow((abs(vUv.y) - 0.55 + 0.3 * vUv.x) * 3.2, 2.0)) + 0.35 * (1.0 - vUv.y * vUv.y);      // two shafts that merge as they spread
+    float a = two * pow(1.0 - vUv.x, 1.6) * smoothstep(0.0, 0.04, vUv.x) * smoothstep(0.25, 0.6, uNight) * 0.3;
+    gl_FragColor = vec4(vec3(1.0, 0.93, 0.78) * a, a); }` });
 export const rideable = [];            // the moving 4WDs, for riding along in (see ride.js)
 // the dark patch a car throws on the sand under itself
 export function carShadow() { const g = new THREE.PlaneGeometry(6.2, 3.0); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, blobShadowMat()); m.position.y = 0.05; m.frustumCulled = false; m.renderOrder = 4; return m; }
@@ -282,7 +293,8 @@ function buildCars(scene, F, lights) {
     for (let k = 0; k < n; k++) {
       const m = new THREE.Mesh(geos[(R() * geos.length) | 0], mat); m.name = 'car'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; m.add(carShadow()); scene.add(m);
       const dir = R() < 0.5 ? 1 : -1;
-      cars.push({ m, side: r.side, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3)] });
+      cars.push({ m, side: r.side, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 2.1), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 2.1)] });
+      m.add(new THREE.Mesh(beamGeo, beamMat));
     }
   });
   rideable.push(...cars);
@@ -353,7 +365,8 @@ function buildCars(scene, F, lights) {
       const ptT = Math.atan2(yf - yb, 6 * S); c.pt = (c.pt ?? ptT) + (ptT - (c.pt ?? ptT)) * (1 - Math.exp(-dt * 5));
       c.m.rotation.set(0, c.drive ? hd : c.m.rotation.y + clamp(c.w * dt, -Math.abs(d), Math.abs(d)), c.pt);
       const fx = x + tx * 3.5 * S, fz = z + tz * 3.5 * S;
-      lights.move(c.li[0], fx - tz * 0.9, c.y + 1.2 * S, fz + tx * 0.9); lights.move(c.li[1], fx + tz * 0.9, c.y + 1.2 * S, fz - tx * 0.9);
+      const ly = c.m.visible ? c.y + 1.2 * S : -1e4;          // sat inside the car you do not see its own lamps, only what they light
+      lights.move(c.li[0], fx - tz * 0.9, ly, fz + tx * 0.9); lights.move(c.li[1], fx + tz * 0.9, ly, fz - tx * 0.9);
       const step = Math.hypot(x - c.lx, z - c.lz);
       if (step > 1.4) {               // another length of track under the back wheels
         const o = c.k * NT * 12; tp.copyWithin(o + 12, o, o + (NT - 1) * 12); td.copyWithin(o + 12, o, o + (NT - 1) * 12);
@@ -962,6 +975,9 @@ export function buildLife(scene, F) {
     update(dt, t, target, camDist) {
       for (const s of near) { s.m.visible = camDist < s.range; if (s.m.visible) s.set(target.x, target.z); }
       cars(dt); snork(dt, t); birds(dt, target); pelicans(dt, t);
+      { // which cars' headlamps light the ground: the eight nearest to the view that are under way, once it is getting dark
+        const L = U.uCarL.value, dark = U.uNight.value > 0.2, list = dark ? rideable.filter(c => !c.parked || c.drive).map(c => [c, (c.m.position.x - target.x) ** 2 + (c.m.position.z - target.z) ** 2]).sort((a, b) => a[1] - b[1]) : [];
+        for (let i = 0; i < 8; i++) { const c = list[i] && list[i][0]; if (!c) { L[i].set(0, 0, 0, 0); continue; } const yaw = c.m.rotation.y, fx = Math.cos(yaw), fz = -Math.sin(yaw); L[i].set(c.m.position.x + fx * 3.4, c.m.position.z + fz * 3.4, fx, fz); } }
     },
   };
 }

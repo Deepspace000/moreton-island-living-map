@@ -220,6 +220,7 @@ function buildRoads(F, scene, occ) {
         a *= on * mix(1.0, 0.38, smoothstep(6000.0, 35000.0, vD)) * (cls > 2.5 ? 1.0 - smoothstep(1500.0, 4000.0, vD) : mix(1.0, smoothstep(50.0, 450.0, vD), uDetRect.w));   // up close the photo itself shows the track
         float cs = cloudShadow(vW);
         col *= uLightCol * max(uLightDir.y, 0.0) * 0.85 * cs + uAmbSky * 1.1;
+        col += vec3(0.5, 0.45, 0.36) * carLamps(vW) * 1.2;
         gl_FragColor = vec4(applyFog(col, vW), a);
       }`,
   });
@@ -597,6 +598,7 @@ function buildTrees(F, scene) {
             col = mix(col, vCol * 0.07, clamp(vBark.y * (0.75 + 0.5 * b2), 0.0, 1.0));
           }
           #endif
+          col += vCol * carLamps(vWp) * 0.9;            // trunks and leaves caught in the headlamps
           gl_FragColor = vec4(mix(col, fogColor(vDir), vFog), alpha);
         }`,
     });

@@ -453,6 +453,7 @@ export function buildTerrain(scene) {
           }
         }
         lit += vec3(uFlash) * 0.25 * col;
+        lit += col * carLamps(vW) * 1.25;                 // headlamps on the sand, the track and the scrub floor
         gl_FragColor = vec4(applyFog(lit, vW), 1.0);
       }`,
   });
