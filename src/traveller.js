@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { U, VEX, Q, makeMat, LOGV, LOGF, clamp } from './common.js';
 import { T, meshY, heightAt } from './terrain.js';
-import { figure, trackGraph, shortest } from './folk.js';
+import { figure, trackGraph, shortest, PERSON_FS } from './folk.js';
+import { PERSON_POSE } from './bodies.js';
 
 export function buildTraveller(scene, F) {
   const H = Math.hypot, f = figure();
@@ -23,33 +24,31 @@ export function buildTraveller(scene, F) {
   add([[-0.2, 0.86, 0, 0.05], [-0.25, 0.95, 0, 0.17], [-0.27, 1.25, 0, 0.19], [-0.25, 1.5, 0, 0.16], [-0.2, 1.6, 0, 0.05]], 5);          // the bag
   add([[-0.24, 1.66, -0.24, 0.02], [-0.24, 1.66, -0.2, 0.085], [-0.24, 1.66, 0.2, 0.085], [-0.24, 1.66, 0.24, 0.02]], 7);                   // rolled sleeping mat across the top
   add([[-0.2, 1.0, 0.22, 0.02], [-0.2, 1.04, 0.22, 0.05], [-0.2, 1.22, 0.22, 0.05], [-0.2, 1.27, 0.22, 0.025]], 8);                        // water bottle
-  add([[0.3, 1.02, -0.27, 0.014], [0.24, 0.5, -0.27, 0.012], [0.2, 0.02, -0.27, 0.008]], 6, (y) => 0.6 * Math.max(0, 1.02 - y));             // walking pole
+  add([[0.12, 1.02, -0.235, 0.014], [0.1, 0.5, -0.235, 0.012], [0.08, 0.02, -0.235, 0.008]], 6, (y) => 0.02 + Math.max(0, 1.42 - y) / 0.55);     // walking pole, swinging with the hand that holds it
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(f.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(f.nrm, 3));
   g.setAttribute('aPS', new THREE.Float32BufferAttribute(f.part.flatMap((p, i) => [p, f.swing[i]]), 2)); g.setIndex(f.idx); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
   const uni = { uAt: { value: new THREE.Vector4() }, uGait: { value: new THREE.Vector3() } };
   const mesh = new THREE.Mesh(g, makeMat({ uniforms: uni,
     // uAt: where they stand (x, y, z) and the way they face; uGait: stride phase, how much they are walking (0..1), how far sat down (0..1)
-    vs: /* glsl */`attribute vec2 aPS; uniform vec4 uAt; uniform vec3 uGait; varying vec3 vCol, vW;
+    vs: /* glsl */`attribute vec2 aPS; uniform vec4 uAt; uniform vec3 uGait; varying vec3 vW, vObj, vNw, vShirt; varying float vPart, vSeed;
+      ${PERSON_POSE}
       void main(){
-        float part = aPS.x, stride = sin(uGait.x) * uGait.y, sit = uGait.z;
-        vec3 lp = position;
-        lp.x += aPS.y * stride * 0.36; lp.y += abs(aPS.y * stride) * 0.05;                         // legs and arms swing, the pole plants ahead
-        lp.y += abs(sin(uGait.x)) * 0.025 * uGait.y;                                                // and the whole body rises and falls with each step
-        lp.y -= sit * 0.52 * smoothstep(0.2, 0.95, position.y) + sit * 0.08;                        // sat down: the body low, the knees up
-        lp.x += sit * 0.22 * (1.0 - smoothstep(0.3, 0.95, position.y)) * step(part, 1.5) * step(0.5, part);
-        if(part > 4.5 && part < 5.5 || part > 6.5) lp = mix(lp, vec3(-0.75, 0.2 + (position.y - 0.9) * 0.25, position.z + 0.5), sit);      // pack off and set down beside
+        float part = aPS.x, sit = uGait.z;
+        vec3 lp = personPose(position, aPS, uGait.x, uGait.y);
+        // sat down beside the tent: the body low, the knees up, the pack off and set down beside
+        lp.y -= sit * 0.52 * smoothstep(0.2, 0.95, position.y) + sit * 0.08;
+        lp.x += sit * 0.22 * (1.0 - smoothstep(0.3, 0.95, position.y)) * (step(0.5, part) * step(part, 1.5) + step(9.5, part) * step(part, 10.5));
+        if((part > 4.5 && part < 5.5) || (part > 6.5 && part < 8.5)) lp = mix(lp, vec3(-0.75, 0.2 + (position.y - 0.9) * 0.25, position.z + 0.5), sit);
         vec2 d = vec2(cos(uAt.w), -sin(uAt.w)), sd = vec2(-d.y, d.x);
         lp *= 0.97;
         vec3 wp = vec3(uAt.x + d.x * lp.x + sd.x * lp.z, uAt.y + lp.y, uAt.z + d.y * lp.x + sd.y * lp.z);
-        vec3 n = normalize(vec3(d.x * normal.x + sd.x * normal.z, normal.y, d.y * normal.x + sd.y * normal.z));
-        vec3 col = part < 0.5 ? vec3(0.62, 0.22, 0.12) : part < 1.5 ? vec3(0.35, 0.33, 0.26) : part < 2.5 ? vec3(0.55, 0.38, 0.28) : part < 3.5 ? vec3(0.6, 0.55, 0.4)
-                 : part < 5.5 ? vec3(0.1, 0.25, 0.2) : part < 6.5 ? vec3(0.2, 0.2, 0.22) : part < 7.5 ? vec3(0.2, 0.3, 0.55) : vec3(0.7, 0.75, 0.8);
-        vCol = col * 0.85 * (uLightCol * (max(dot(n, uLightDir), 0.0) * 0.8 + 0.12) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, n.y * 0.5 + 0.5)); vW = wp;
+        vNw = normalize(vec3(d.x * normal.x + sd.x * normal.z, normal.y, d.y * normal.x + sd.y * normal.z));
+        vObj = position; vPart = part; vSeed = 0.137; vShirt = vec3(0.62, 0.2, 0.11); vW = wp;
         gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`,
-    fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }` }));
+    fs: PERSON_FS, side: THREE.DoubleSide }));
   mesh.frustumCulled = false; mesh.name = 'traveller'; scene.add(mesh);
   // the tent: a low dome on two crossed poles, with a porch and a door flap; it stands only while they are camped
   const tp = [], tn = [], tc = [], ti = [], NA = 14, NB = 7, R0 = 0.8, HT = 1.05, COL = [0.85, 0.5, 0.12], FLY = [0.25, 0.32, 0.2];

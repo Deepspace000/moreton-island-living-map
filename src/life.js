@@ -7,6 +7,8 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
+import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
+const loftGeo = (m) => (g) => { attr(g, 'position', m.pos, 3); attr(g, 'normal', m.nrm, 3); attr(g, 'aK', m.part, 1); g.setIndex(m.idx); };
 import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
@@ -22,7 +24,7 @@ const attr = (g, name, arr, n, inst) => g.setAttribute(name, inst ? new THREE.In
 
 // ---------------------------------------------------------------- things lying on the beach
 // One instance per grid cell around the viewer; the shader decides from the map what, if anything, lies there.
-function scatter(scene, n, cs, build, body, range) {
+function scatter(scene, n, cs, build, body, range, paint) {
   const cells = new Float32Array(n * n * 2); let k = 0;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
   const g = new THREE.InstancedBufferGeometry(); build(g);
@@ -32,6 +34,7 @@ function scatter(scene, n, cs, build, body, range) {
     uniforms: uni, side: THREE.DoubleSide,
     vs: /* glsl */`
       attribute vec2 iCell; attribute float aK; uniform vec2 uCentre; uniform float uCS, uRange, uRain; varying vec3 vCol, vW;
+      ${paint ? 'varying vec3 vObj, vNo, vLight; varying float vK; varying vec4 vH;' : ''}
       void main(){
         vec2 cell = uCentre + iCell;
         float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
@@ -45,12 +48,15 @@ function scatter(scene, n, cs, build, body, range) {
         vec3 wp = vec3(xz.x + (lp.x * ca - lp.z * sa) * s, 0.0, xz.y + (lp.x * sa + lp.z * ca) * s);
         wp.y = groundY(wp.xz) + lp.y * s;
         nrm = normalize(vec3(nrm.x * ca - nrm.z * sa, nrm.y, nrm.x * sa + nrm.z * ca));
-        vCol = c * (uLightCol * (max(dot(nrm, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5));
+        vec3 light = uLightCol * (max(dot(nrm, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5);
+        vCol = c * light;
+        ${paint ? 'vCol = c; vLight = light; vObj = position; vNo = normal; vK = aK; vH = vec4(h1, h2, h3, h4);' : ''}
         vW = wp;
         gl_Position = s * fade <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`,
-    fs: LIT_FS,
+    // (things with a painted skin work their colour out per pixel, from where on the body the pixel is)
+    fs: paint ? /* glsl */`varying vec3 vCol, vW, vObj, vNo, vLight; varying float vK; varying vec4 vH; void main(){ ${LOGF} vec3 c = vCol; ${paint} gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }` : LIT_FS,
   });
   const m = new THREE.Mesh(g, mat); m.frustumCulled = false; scene.add(m);
   return { m, range, set(x, z) { uni.uCentre.value.set(Math.floor(x / cs), Math.floor(z / cs)); } };
@@ -193,6 +199,7 @@ function buildBeachLife(scene) {
     for (const [r, y] of [[0.62, 0.86], [1.0, 0.48], [0.8, 0.16]]) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2; pos.push(Math.cos(a) * r, y, Math.sin(a) * r * 0.9); k.push(0); }
     for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(0, 1 + j, 1 + i); for (const o of [1, 1 + S]) idx.push(o + i, o + j, o + S + i, o + j, o + S + j, o + S + i); }
     for (const sd of [-1, 1]) for (let l = 0; l < 4; l++) { const q = pos.length / 3, x = 0.55 - l * 0.36, z = 0.8 * sd; pos.push(x - 0.09, 0.4, z, x + 0.09, 0.4, z, x + 0.05 * (1.5 - l), 0.62, z + 0.55 * sd, x + 0.1 * (1.5 - l), 0, z + 0.95 * sd); k.push(1, 1, 1, 1); idx.push(q, q + 1, q + 2, q + 2, q + 1, q + 3); }
+    for (const sd of [-1, 1]) { const q = pos.length / 3; pos.push(0.7, 0.42, 0.25 * sd, 0.72, 0.2, 0.3 * sd, 1.25, 0.3, 0.2 * sd, 1.2, 0.05, 0.12 * sd, 1.05, 0.5, 0.42 * sd); k.push(2, 2, 2, 2, 2); idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2, q, q + 2, q + 4); }      // two claws, held down in front
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   }, /* glsl */`
         float lowT = smoothstep(-0.2, -0.55, uSeaM);
@@ -200,10 +207,10 @@ function buildBeachLife(scene) {
         float army = smoothstep(0.5, 0.64, texture2D(uNoise, xz / 31.0).r) * step(h3, 0.7);        // thousands here, none there
         float go = fract(uTime * 0.035 * (0.7 + 0.6 * h2) + h1 * 5.0);
         vec2 way = normalize(vec2(texture2D(uNoise, xz / 90.0).g - 0.5, texture2D(uNoise, xz / 90.0 + 0.3).b - 0.5) + 0.001), walk = way * (go - 0.5) * 1.1;
-        s = (0.042 + 0.03 * h1) * lowT * bare * army * smoothstep(0.0, 0.25, sin(go * 3.1416));
+        s = (0.024 + 0.014 * h1) * lowT * bare * army * smoothstep(0.0, 0.25, sin(go * 3.1416));
         lp = position * vec3(1.0, 0.85, 1.0) + vec3(walk.x * ca + walk.y * sa, 0.0, -walk.x * sa + walk.y * ca) / max(s, 0.0005);
         nrm = normalize(vec3(position.x, 0.7, position.z));
-        c = aK > 0.5 ? vec3(0.50, 0.38, 0.46) * (0.6 + 0.6 * position.y) : mix(vec3(0.30, 0.20, 0.38), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
+        c = aK > 0.5 ? vec3(0.85, 0.78, 0.65) * (0.55 + 0.6 * position.y) : mix(vec3(0.35, 0.25, 0.45), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
   return [shells, wood, sticks, litter, tufts, belt, ferns, crabs];
 }
 
@@ -488,7 +495,7 @@ function buildSeaLife(scene, F) {
   swimmers(scene, { ...ROUND, paint: PAINT.humbug, name: 'humbug', amp: 0.12, rate: 12, colA: [0.86, 0.87, 0.84], colB: [0.9, 0.9, 0.88], colC: [0.05, 0.05, 0.05], see: 260, min: 0.6 }, humbug);
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'small', amp: 0.16, rate: 14, colA: [0.30, 0.38, 0.30], colB: [0.90, 0.92, 0.88], colC: [0.6, 0.62, 0.55], eye: [0.39, 0.012, 0.02], see: 260, min: 0.3 }, small);
   swimmers(scene, { ...SLIM, paint: PAINT.whiting, name: 'whiting', amp: 0.15, rate: 13, colA: [0.56, 0.52, 0.36], colB: [0.94, 0.93, 0.88], colC: [0.7, 0.66, 0.4], eye: [0.39, 0.012, 0.02], see: 240, min: 0.22 }, whiting);
-  swimmers(scene, { ...FLATHEAD, paint: PAINT.flathead, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.42, 0.34, 0.2], colB: [0.84, 0.8, 0.68], colC: [0.5, 0.42, 0.26], eye: [0.37, 0.055, 0.016], see: 500, min: 0.25 }, flathead);
+  swimmers(scene, { ...FLATHEAD, paint: PAINT.flathead, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.45, 0.38, 0.25], colB: [0.84, 0.8, 0.68], colC: [0.5, 0.42, 0.26], eye: [0.37, 0.05, 0.016], see: 500, min: 0.25 }, flathead);
   swimmers(scene, { ...TURTLE, paint: PAINT.turtle, name: 'turtles', vertical: 1, amp: 0.2, rate: 1.7, colA: [0.30, 0.25, 0.12], colB: [0.7, 0.66, 0.44], eye: [0.735, 0.06, 0.015], rise: [0.02, 0.07], see: 1100 }, turtles);
   swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'rays', vertical: 1, bottom: 1, tidal: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 900, min: 0.25 }, rays);
   swimmers(scene, { ...SHOVEL, paint: PAINT.shovel, name: 'shovelnose', bottom: 1, amp: 0.07, rate: 3, colA: [0.46, 0.4, 0.26], colB: [0.84, 0.8, 0.7], colC: [0.4, 0.34, 0.22], eye: [0.31, 0.075, 0.014], see: 900, min: 0.3 }, shovels);
@@ -813,7 +820,7 @@ function buildWallabies(scene) {
     parts.push({ kk: 1, st: [[0.2, 0.42, z * 0.7, 0.035], [0.3, 0.26, z * 0.8, 0.022]] });                                                   // forearm
     parts.push({ kk: 4, st: [[0.4, 0.69, z * 0.4, 0.022], [0.37, 0.8, z * 0.6, 0.014]] });                                                   // ear
   }
-  return scatter(scene, LOW ? 16 : 22, 24, tubes(parts), /* glsl */`
+  return scatter(scene, LOW ? 16 : 22, 24, loftGeo(wallaby()), /* glsl */`
         float scrub = step(0.92, mk.r) * (1.0 - smoothstep(0.25, 0.5, mk.g)) * step(2.5, hgt) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g))) * step(h3, 0.07);
         float f = fract(uTime * 0.012 * (0.7 + 0.6 * h2) + h1 * 5.0), tri = abs(2.0 * f - 1.0), fwd = f < 0.5 ? -1.0 : 1.0;
         float go = smoothstep(0.3, 0.7, tri), moving = smoothstep(0.3, 0.34, tri) * (1.0 - smoothstep(0.66, 0.7, tri));           // long rests at each end, a short run of hops between
@@ -823,9 +830,9 @@ function buildWallabies(scene) {
         if(aK > 1.5 && aK < 2.5) lp.x += hop * 0.1 * fwd * (0.3 - position.y);                                                   // the hind legs kick back in the hop
         if(aK > 2.5 && aK < 3.5) lp.y += hop * 0.12 * (-position.x - 0.25);                                                      // the tail lifts as a balance
         lp += vec3((go - 0.5) * 9.0, hop * 0.3, 0.0) / max(s, 0.001);
-        nrm = normalize(vec3(0.0, 0.5, position.z * 6.0));
-        c = aK < 0.5 ? vec3(0.115, 0.09, 0.07) : aK < 1.5 ? vec3(0.055, 0.045, 0.04) : aK < 2.5 ? vec3(0.12, 0.095, 0.07) : aK < 3.5 ? vec3(0.075, 0.06, 0.05) : vec3(0.10, 0.075, 0.065);
-        c *= 0.75 + 0.5 * smoothstep(0.1, 0.5, position.y) * (0.8 + 0.4 * h4);`, 420);
+        if(aK > 3.5) lp.y += sin(uTime * 0.5 + h1 * 30.0) * 0.012 * (1.0 - moving);                                               // at rest the head lifts and turns, listening
+        nrm = normal * vec3(fwd, 1.0, 1.0);
+        c = vec3(0.2);`, 420, WALLABY_PAINT);
 }
 // lizards: goannas walking the sand between the bushes, and smaller skinks and blue-tongues that sit, then dart
 function buildLizards(scene) {
@@ -840,10 +847,10 @@ function buildLizards(scene) {
         lp = vec3(position.x * fwd, position.y, position.z + wag * 0.045 * (0.3 + abs(position.x)));
         if(aK > 1.5) lp.x += sin(uTime * ${big ? '5.0' : '14.0'} + position.x * 20.0 + position.z * 30.0) * 0.04 * moving;
         lp += vec3((go - 0.5) * ${big ? '14.0' : '3.0'}, 0.0, 0.0) / max(s, 0.001);
-        nrm = normalize(vec3(0.0, 0.6, position.z * 8.0));
+        nrm = normal * vec3(fwd, 1.0, 1.0);
         float band = step(0.5, fract(position.x * ${big ? '9.0' : '5.0'} + h4));
         c = ${big ? 'mix(vec3(0.06, 0.065, 0.06), vec3(0.30, 0.27, 0.13), band * 0.55)' : 'mix(mix(vec3(0.36, 0.28, 0.18), vec3(0.20, 0.16, 0.12), band), vec3(0.42, 0.44, 0.40), step(0.6, h4) * 0.6)'} * (0.8 + 0.4 * smoothstep(0.02, 0.1, position.y));`;
-  return [scatter(scene, LOW ? 14 : 20, 28, tubes(parts), body(true), 300), scatter(scene, LOW ? 30 : 44, 3.6, tubes(parts, 4), body(false), 70)];
+  return [scatter(scene, LOW ? 14 : 20, 28, loftGeo(goanna()), body(true), 300, LIZARD_PAINT(true)), scatter(scene, LOW ? 30 : 44, 3.6, loftGeo(bluetongue()), body(false), 70, LIZARD_PAINT(false))];
 }
 
 // ---------------------------------------------------------------- pelicans on the wing
@@ -851,7 +858,7 @@ function buildLizards(scene) {
 // hinged wings), so one can be followed, and flown: when it is, it goes where it is steered, and settles on the water if brought down to it.
 export const flyers = [];
 function buildPelicans(scene, F) {
-  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.6;
+  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.4;
   const homes = [...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] - 500, p.p[1]]), ...F.views.filter(v => /Wrecks/.test(v.n || '')).map(v => [(v.c || v.p)[0] - 200, (v.c || v.p)[1]])];
   const N = MOBILE ? 9 : 16;
   const shGeo = new THREE.PlaneGeometry(1, 1); shGeo.rotateX(-Math.PI / 2);
@@ -872,7 +879,7 @@ function buildPelicans(scene, F) {
   const roosts = [cape, ...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] + 500, p.p[1] - 300]), ...peaks].filter(Boolean);
   for (let i = 0; i < (MOBILE ? 5 : 8) && roosts.length; i++) {
     const h = roosts[i % roosts.length];
-    make(eb, ew, 1.9, [0.05, 0.085, 0.1], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
+    make(eb, ew, 1.4, [0.05, 0.085, 0.1], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
   }
   // A pair of sea eagles sitting in a dead tree, as the owner saw them: a bare grey stag with two long limbs, one bird on each, at a few places
   // round the island (by the Little and the Big Sandhills, near the wrecks, and on the cape).
@@ -889,7 +896,7 @@ function buildPelicans(scene, F) {
       let at = null; for (let r = 60; r < 900 && !at; r += 45) for (let a = 0; a < 12 && !at; a++) { const x = c[0] + Math.cos(a * 0.524 + k) * r, z = c[1] + Math.sin(a * 0.524 + k) * r, h = heightAt(x, z), mk = maskAt(x, z); if (h > 2 && h < 40 && mk.sand < 0.75 && mk.land > 0.9) at = [x, z]; }
       if (!at) return;
       const g = new THREE.Group(), tree = new THREE.Mesh(tg, mat); g.add(tree);
-      for (const [px, py, pz, ry] of [[-2.0, 5.1, 0.28, 0.4], [1.65, 6.47, -0.42, 2.6]]) { const e = new THREE.Mesh(perch, mat); e.position.set(px, py, pz); e.rotation.y = ry + k; e.scale.setScalar(1.05); g.add(e); }
+      for (const [px, py, pz, ry] of [[-2.0, 5.1, 0.28, 0.4], [1.65, 6.47, -0.42, 2.6]]) { const e = new THREE.Mesh(perch, mat); e.position.set(px, py, pz); e.rotation.y = ry + k; e.scale.setScalar(0.85); g.add(e); }
       g.userData.birds = g.children.slice(1);
       g.position.set(at[0], meshY(at[0], at[1]), at[1]); g.rotation.y = k * 1.7; g.scale.setScalar(1.35); for (const m of g.children) m.frustumCulled = false; scene.add(g); (flyers.stags ||= []).push(g);
     });

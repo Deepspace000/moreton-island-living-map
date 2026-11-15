@@ -95,7 +95,7 @@ export const ROUND = fish({ prof: DEEP(1.2), tail: { len: 0.17, fork: 0.25, spre
 const SLENDER = [[0.50, 0.004, 0.004, 0], [0.45, 0.032, 0.026, 0], [0.34, 0.066, 0.046, 0], [0.18, 0.09, 0.058, 0], [0.0, 0.098, 0.06, 0], [-0.16, 0.085, 0.05, 0], [-0.3, 0.052, 0.03, 0], [-0.39, 0.03, 0.016, 0], [-0.43, 0.028, 0.009, 0]];
 export const SLIM = fish({ prof: SLENDER, tail: { len: 0.17, fork: 0.5, spread: 0.75 }, dorsal: [[0.14, -0.02, 0.06, { spines: 6, sweep: 0.8 }], [-0.08, -0.3, 0.045, { sweep: 0.8 }]], anal: [-0.1, -0.3, 0.04, {}], pelv: [0.1, 0.07, 0.022], pect: [0.24, -0.02, 0.1, 0.035], NS: 10 });
 export const FLATHEAD = (() => {
-  const m = new Shape().body([[0.50, 0.004, 0.01, 0], [0.46, 0.02, 0.07, 0], [0.36, 0.034, 0.125, 0], [0.22, 0.046, 0.135, 0], [0.06, 0.052, 0.1, 0], [-0.12, 0.046, 0.07, 0], [-0.28, 0.034, 0.042, 0], [-0.4, 0.022, 0.02, 0], [-0.44, 0.02, 0.01, 0]], { belly: 0.55 });
+  const m = new Shape().body([[0.50, 0.004, 0.012, 0], [0.46, 0.017, 0.085, 0], [0.36, 0.028, 0.15, 0], [0.22, 0.042, 0.145, 0], [0.06, 0.052, 0.1, 0], [-0.12, 0.046, 0.07, 0], [-0.28, 0.034, 0.042, 0], [-0.4, 0.022, 0.02, 0], [-0.44, 0.02, 0.01, 0]], { belly: 0.55 });
   m.tail(0.15, { fork: 0.08, spread: 0.7 }); m.ridge(0.12, -0.04, 0.05, { spines: 6 }); m.ridge(-0.08, -0.36, 0.045, {}); m.ridge(-0.08, -0.36, 0.035, { dir: -1, belly: 0.55 });
   for (const sd of [-1, 1]) m.leaf([0.2, -0.01, sd * 0.12], [-0.55, 0, sd * 0.83], [0.83, 0.05, sd * 0.55], 0.13, 0.06);
   return m.done();
@@ -161,21 +161,22 @@ function bird(build, colours) {
 const pelicanRest = (m) => {
   m.body([[0.44, 0.01, 0.02, 0.2], [0.38, 0.1, 0.12, 0.17], [0.22, 0.18, 0.21, 0.14], [0.0, 0.21, 0.245, 0.13], [-0.22, 0.19, 0.21, 0.155], [-0.42, 0.11, 0.12, 0.21], [-0.58, 0.01, 0.02, 0.29]], { NR: 14, NS: 12, belly: 0.75 });
   for (const sd of [-1, 1]) {
-    m.leaf([0.2, 0.25, sd * 0.15], [-1, 0.05, sd * 0.1], [0, -0.74, sd * 0.67], 0.6, 0.17, { part: 0, flex: () => 0, curl: [0, -0.06, sd * -0.04], tip: 0.6 });       // white coverts: a half shell over the flank
-    m.leaf([-0.08, 0.27, sd * 0.2], [-1, 0.12, sd * -0.2], [0, -0.6, sd * 0.8], 0.56, 0.1, { part: 1, flex: () => 0, curl: [0, -0.05, 0], tip: 0.55 });               // black primaries, meeting over the tail
+    m.leaf([0.24, 0.25, sd * 0.15], [-1, 0.05, sd * 0.1], [0, -0.74, sd * 0.67], 0.3, 0.12, { part: 0, flex: () => 0, curl: [0, -0.06, sd * -0.04], tip: 0.6 });      // a white patch at the shoulder
+    m.leaf([0.15, 0.262, sd * 0.165], [-1, 0.06, sd * -0.04], [0, -0.7, sd * 0.71], 0.78, 0.17, { part: 1, flex: () => 0, curl: [0, -0.06, sd * -0.1], tip: 0.55 });   // the folded wing: black, meeting its fellow over the tail
   }
   m.tube((t) => [0.3 + 0.11 * Math.sin(t * PI) - 0.17 * t, 0.2 + 0.37 * t, 0, 0.078 - 0.022 * t], 10, 8, 0);                                        // neck, folded back
-  m.tube((t) => [0.09 + 0.22 * t, 0.59 - 0.025 * t, 0, 0.012 + 0.064 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);                  // head, over the shoulders
+  m.tube((t) => [0.07 + 0.26 * t, 0.59 - 0.03 * t, 0, 0.01 + 0.047 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);                    // head: small and long for the size of the bird
   m.tube((t) => [0.27 + 0.36 * t, 0.565 - 0.27 * t - 0.03 * t * t, 0, 0.031 - 0.021 * t], 8, 6, 2);                                                 // the bill, down on the breast
   m.tube((t) => [0.26 + 0.32 * t, 0.53 - 0.25 * t, 0, 0.008 + 0.042 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                    // pouch
-  m.tube((t) => [0.235 + 0.012 * t, 0.59, 0, 0.076 * Math.sin(PI * t)], 3, 6, 4);                                                                   // the yellow ring round the eye
+  for (const sd of [-1, 1]) m.tube((t) => [0.262 + 0.006 * t, 0.578, sd * 0.045, 0.014 * Math.sin(PI * t)], 3, 6, 4);                               // the pale yellow skin round each eye
 };
 export const PELICAN = () => bird(pelicanRest, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2]]);
 // the same bird standing on the sand: up on its short grey legs and broad webbed feet
 export const PELICAN_STAND = () => bird((m) => {
-  pelicanRest(m); for (let i = 1; i < m.pos.length; i += 3) m.pos[i] += 0.2;
-  for (const sd of [-1, 1]) { m.tube((t) => [-0.03 + 0.02 * t, 0.26 - 0.25 * t, sd * 0.09, 0.03 - 0.008 * t], 4, 6, 5); m.leaf([-0.05, 0.012, sd * 0.09], [1, 0, sd * 0.1], [0, 0, 1], 0.17, 0.07, { part: 5, flex: () => 0, tip: 1.6 }); }
-}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2], [.42, .44, .48]]);
+  pelicanRest(m); const ca = Math.cos(0.4), sa = Math.sin(0.4);                    // ashore it stands with its breast up and its tail down
+  for (let i = 0; i < m.pos.length; i += 3) { const x = m.pos[i] + 0.1, y = m.pos[i + 1] - 0.2; m.pos[i] = -0.1 + x * ca - y * sa; m.pos[i + 1] = 0.42 + x * sa + y * ca; }
+  for (const sd of [-1, 1]) { m.tube((t) => [-0.05 + 0.02 * t, 0.3 - 0.29 * t, sd * 0.09, 0.03 - 0.008 * t], 4, 6, 5); m.leaf([-0.05, 0.012, sd * 0.09], [1, 0, sd * 0.1], [0, 0, 1], 0.17, 0.07, { part: 5, flex: () => 0, tip: 1.6 }); }
+}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2], [.35, .38, .42]]);
 // the same bird on the wing: neck folded back so the head rides on the shoulders, the long bill out ahead, feet trailing
 export const PELICAN_FLY = () => bird((m) => {
   m.body([[0.5, 0.01, 0.02, 0.05], [0.42, 0.09, 0.1, 0.04], [0.24, 0.15, 0.17, 0.02], [0.0, 0.16, 0.19, 0.0], [-0.24, 0.13, 0.15, 0.0], [-0.44, 0.07, 0.09, 0.02], [-0.6, 0.01, 0.05, 0.03]], { NR: 14, NS: 12 });
@@ -188,8 +189,9 @@ export const PELICAN_FLY = () => bird((m) => {
 }, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.45, .5, .55]]);
 // one wing, hinged at the shoulder (the origin) and reaching out along +z: white coverts in front, black flight feathers behind and at the tip
 export const PELICAN_WING = () => bird((m) => {
-  m.leaf([0.1, 0, 0.02], [-0.08, 0.02, 1], [1, 0, 0.04], 1.28, 0.17, { part: 0, flex: () => 0, curl: [-0.28, -0.1, 0], ns: 12, tip: 0.6 });
-  m.leaf([-0.12, -0.005, 0.02], [-0.1, 0.02, 1], [1, 0, 0.0], 1.36, 0.2, { part: 1, flex: () => 0, curl: [-0.34, -0.1, 0], ns: 12, tip: 0.55 });
+  m.leaf([0.12, 0, 0.02], [-0.03, 0.02, 1], [1, 0, 0.04], 1.2, 0.25, { part: 0, flex: () => 0, curl: [-0.1, -0.08, 0], ns: 12, tip: 0.45 });         // broad white fore-wing
+  m.leaf([-0.14, -0.005, 0.02], [-0.04, 0.02, 1], [1, 0, 0.0], 1.26, 0.3, { part: 1, flex: () => 0, curl: [-0.14, -0.08, 0], ns: 12, tip: 0.42 });    // black flight feathers behind
+  for (let i = 0; i < 6; i++) { const dx = 0.2 - 0.1 * i, l = Math.hypot(dx, 0.05, 1), a = [dx / l, 0.04 / l, 1 / l]; m.leaf([0.12 - 0.075 * i, -0.02, 1.08], a, [a[2], 0, -a[0]], 0.3 - 0.02 * Math.abs(i - 2), 0.07, { part: 1, flex: () => 0, ns: 6, tip: 0.8 }); }    // six short black fingers at the tip
 }, [[.93, .93, .9], [.04, .04, .045]]);
 // White-bellied sea eagle on the wing. Nothing like a pelican: a heavy grey bird with a white head, breast and short wedge of a tail, a hooked
 // bill, and broad plank-like wings held up in a shallow V, their tips spread into separate fingers.
@@ -197,42 +199,51 @@ export const EAGLE_FLY = () => bird((m) => {
   m.body([[0.34, 0.01, 0.015, 0.0], [0.27, 0.065, 0.07, 0.004], [0.1, 0.11, 0.125, 0.0], [-0.12, 0.115, 0.13, 0.0], [-0.34, 0.075, 0.09, 0.005], [-0.5, 0.015, 0.04, 0.01]], { NR: 12, NS: 10 });
   m.tube((t) => [0.24 + 0.19 * t, 0.04 + 0.025 * Math.sin(t * PI), 0, 0.012 + 0.068 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);     // the white head
   m.tube((t) => [0.41 + 0.1 * t, 0.045 - 0.07 * t * t, 0, 0.027 - 0.022 * t], 5, 5, 2);                                                           // heavy hooked bill
-  m.leaf([0.16, 0.112, 0], [-1, 0.0, 0], [0, 0, 1], 0.6, 0.15, { part: 1, flex: () => 0, curl: [0, -0.05, 0] });                                  // the grey mantle along the back
+  m.leaf([0.18, 0.114, 0], [-1, 0.0, 0], [0, 0, 1], 0.66, 0.21, { part: 1, flex: () => 0, curl: [0, -0.07, 0] });                                 // grey over the whole back and rump
   m.leaf([-0.42, 0.02, 0], [-1, 0.02, 0], [0, 0, 1], 0.36, 0.2, { part: 0, flex: () => 0, tip: 1.6 });                                            // short, broad white wedge of a tail
   for (const sd of [-1, 1]) m.tube((t) => [-0.14 - 0.2 * t, -0.085 - 0.02 * t, sd * 0.05, 0.024 - 0.008 * t], 3, 5, 3);                             // yellow feet tucked back
-}, [[.94, .94, .92], [.33, .35, .39], [.42, .44, .46], [.8, .72, .3]]);
+}, [[.94, .94, .92], [.36, .38, .41], [.42, .44, .46], [.8, .72, .3]]);
 export const EAGLE_WING = () => bird((m) => {
   m.leaf([0.07, 0, 0.02], [-0.02, 0.03, 1], [1, 0, 0.02], 0.98, 0.27, { part: 0, flex: () => 0, curl: [-0.08, -0.03, 0], ns: 12, tip: 0.42 });      // grey coverts: a broad arm
   m.leaf([-0.16, -0.004, 0.02], [-0.04, 0.03, 1], [1, 0, 0.0], 1.02, 0.3, { part: 1, flex: () => 0, curl: [-0.1, -0.03, 0], ns: 12, tip: 0.38 });   // dark flight feathers behind
   for (let i = 0; i < 5; i++) {                                                                                                                    // five fingers at the tip, spread like a hand
     const dx = 0.3 - 0.17 * i, l = Math.hypot(dx, 0.07, 1), a = [dx / l, (0.05 + 0.015 * i) / l, 1 / l];
-    m.leaf([0.15 - 0.1 * i, 0.0, 0.86], a, [a[2], 0, -a[0]], 0.5 - 0.035 * Math.abs(i - 1.5), 0.045, { part: 1, flex: () => 0, ns: 6, tip: 0.8 });
+    m.leaf([0.15 - 0.1 * i, 0.0, 0.88], a, [a[2], 0, -a[0]], 0.36 - 0.03 * Math.abs(i - 1.5), 0.085, { part: 1, flex: () => 0, ns: 6, tip: 0.8 });       // broad, overlapping at the base
   }
-}, [[.36, .38, .42], [.09, .09, .11]]);
+  { const i = 5, dx = 0.3 - 0.17 * i, l = Math.hypot(dx, 0.07, 1), a = [dx / l, 0.12 / l, 1 / l]; m.leaf([0.15 - 0.1 * i, 0.0, 0.88], a, [a[2], 0, -a[0]], 0.3, 0.085, { part: 1, flex: () => 0, ns: 6, tip: 0.8 }); }
+}, [[.36, .38, .41], [.17, .18, .2]]);
 // The same eagle perched, as the owner photographed a pair in a dead tree: sitting bolt upright, white head and breast, the folded slate-grey wings
 // wrapping the flanks and crossing over the back, the white wedge of the tail hanging below the perch, big yellow feet gripping it.
 export const EAGLE_PERCH = () => {
   const g = bird((m) => {
-    m.body([[0.3, 0.01, 0.015, 0.0], [0.24, 0.07, 0.075, 0.0], [0.08, 0.118, 0.128, 0.0], [-0.14, 0.122, 0.132, 0.0], [-0.36, 0.085, 0.095, 0.0], [-0.52, 0.02, 0.04, 0.0]], { NR: 12, NS: 10 });
-    m.tube((t) => [0.22 + 0.2 * t, 0.05 + 0.03 * Math.sin(t * PI), 0, 0.012 + 0.072 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);          // head, with the shaggy nape
-    m.tube((t) => [0.4 + 0.1 * t, 0.06 - 0.075 * t * t, 0, 0.028 - 0.023 * t], 5, 5, 2);                                                              // hooked bill
+    m.body([[0.32, 0.012, 0.018, 0.0], [0.25, 0.095, 0.1, 0.0], [0.08, 0.16, 0.17, 0.0], [-0.14, 0.16, 0.17, 0.0], [-0.36, 0.11, 0.12, 0.0], [-0.52, 0.025, 0.045, 0.0]], { NR: 12, NS: 10 });      // deep-chested and heavy
+    m.tube((t) => [0.2 + 0.24 * t, 0.06 + 0.04 * Math.sin(t * PI), 0, 0.014 + 0.088 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);          // a big white head, the nape shaggy
+    m.tube((t) => [0.41 + 0.13 * t, 0.085 - 0.1 * t * t, 0, 0.036 - 0.029 * t], 5, 6, 2);                                                              // heavy hooked bill
     for (const sd of [-1, 1]) {
-      m.leaf([0.17, 0.05, sd * 0.118], [-1, -0.05, sd * 0.02], [0, 1, sd * 0.3], 0.82, 0.135, { part: 1, flex: () => 0, curl: [0, -0.02, sd * -0.05], tip: 0.6 });    // a folded wing down each flank
-      m.tube((t) => [-0.2 - 0.2 * t, -0.085 - 0.09 * t, sd * 0.06, 0.03 - 0.008 * t], 4, 6, 3);                                                       // feathered leg and foot
+      m.leaf([0.19, 0.06, sd * 0.158], [-1, -0.05, sd * 0.02], [0, 1, sd * 0.3], 0.86, 0.17, { part: 1, flex: () => 0, curl: [0, -0.02, sd * -0.07], tip: 0.6 });     // a folded wing down each flank
+      m.tube((t) => [-0.16 - 0.14 * t, -0.11 - 0.08 * t, sd * 0.07, 0.055 - 0.015 * t], 4, 6, 0);                                                      // white feathered thigh
+      m.tube((t) => [-0.3 - 0.1 * t, -0.19 - 0.05 * t, sd * 0.07, 0.03 - 0.006 * t], 3, 6, 3);                                                         // foot
     }
-    m.leaf([0.18, 0.122, 0], [-1, 0.0, 0], [0, 0, 1], 0.7, 0.135, { part: 1, flex: () => 0, curl: [0, -0.07, 0] });                                   // the back
-    m.leaf([-0.46, 0.0, 0], [-1, -0.06, 0], [0, 0, 1], 0.36, 0.11, { part: 0, flex: () => 0, tip: 1.5 });                                             // tail
-  }, [[.94, .94, .91], [.21, .22, .25], [.3, .32, .34], [.8, .74, .45]]);
-  g.rotateZ(1.2); g.computeBoundingBox(); g.translate(0, -g.boundingBox.min.y, 0); return g;
+    m.leaf([0.2, 0.16, 0], [-1, 0.0, 0], [0, 0, 1], 0.74, 0.17, { part: 1, flex: () => 0, curl: [0, -0.09, 0] });                                     // the back
+    m.leaf([-0.46, 0.0, 0], [-1, -0.06, 0], [0, 0, 1], 0.26, 0.12, { part: 0, flex: () => 0, tip: 1.5 });                                             // a short white tail showing below the wings
+  }, [[.94, .94, .91], [.33, .35, .38], [.25, .27, .3], [.8, .74, .45]]);
+  g.rotateZ(1.35); g.computeBoundingBox(); g.translate(0, -g.boundingBox.min.y, 0); return g;
 };
 // pied cormorant swimming: the back all but awash, the snaky neck stretched forward at an angle, the thin hooked bill tilted up
-export const CORMORANT = () => bird((m) => {
-  m.body([[0.3, 0.01, 0.015, 0.05], [0.24, 0.045, 0.07, 0.045], [0.1, 0.07, 0.1, 0.03], [-0.08, 0.07, 0.1, 0.03], [-0.26, 0.045, 0.06, 0.035], [-0.48, 0.008, 0.03, 0.03]], { NR: 12, NS: 10, belly: 0.8 });
-  m.tube((t) => [0.2 + 0.24 * t + 0.03 * Math.sin(t * PI), 0.05 + 0.36 * t, 0, 0.036 - 0.014 * t], 9, 7, 0);
-  m.tube((t) => [0.42 + 0.13 * t, 0.4 + 0.045 * t, 0, 0.007 + 0.027 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 6, 7, 0);
-  m.tube((t) => [0.53 + 0.14 * t, 0.44 + 0.06 * t - 0.035 * t * t * t, 0, 0.011 - 0.007 * t], 6, 5, 1);
-  m.leaf([-0.4, 0.035, 0], [-1, 0.0, 0], [0, 0, 1], 0.2, 0.06, { part: 0, flex: () => 0 });                                                         // stiff tail lying on the water
-}, [[.05, .05, .06], [.75, .6, .2]]);
+export const CORMORANT = () => {
+  const neck = (t) => [0.2 + 0.17 * t + 0.035 * Math.sin(t * PI), 0.05 + 0.27 * t, 0, 0.047 - 0.016 * t];      // a thick neck held up in a shallow S, half the length of the body
+  const g = bird((m) => {
+    m.body([[0.3, 0.012, 0.018, 0.05], [0.24, 0.055, 0.075, 0.05], [0.1, 0.085, 0.105, 0.04], [-0.08, 0.085, 0.105, 0.04], [-0.26, 0.055, 0.065, 0.04], [-0.48, 0.01, 0.03, 0.035]], { NR: 12, NS: 10, belly: 0.8 });
+    m.tube(neck, 9, 8, 0);
+    m.tube((t) => { const q = neck(t); return [q[0] + 0.014, q[1] - 0.006, 0, q[3] * 0.9]; }, 9, 8, 2);                                                 // white down the front of the neck
+    m.tube((t) => [0.345 + 0.12 * t, 0.315 + 0.03 * t, 0, 0.008 + 0.034 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 6, 8, 0);                    // head, flat-crowned
+    m.tube((t) => [0.37 + 0.09 * t, 0.3 + 0.025 * t, 0, 0.006 + 0.03 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 6, 8, 2);                       // white cheek and throat
+    m.tube((t) => [0.45 + 0.02 * t, 0.336 + 0.004 * t, 0, 0.022 * Math.sin(PI * t)], 3, 6, 3);                                                          // the orange-yellow patch of bare skin before the eye
+    m.tube((t) => [0.455 + 0.12 * t, 0.342 + 0.035 * t - 0.03 * t * t * t, 0, 0.013 - 0.008 * t], 6, 5, 1);                                              // long grey bill, hooked at the tip
+    m.leaf([-0.4, 0.04, 0], [-1, 0.0, 0], [0, 0, 1], 0.2, 0.06, { part: 0, flex: () => 0 });                                                           // stiff tail lying on the water
+  }, [[.045, .05, .055], [.5, .5, .46], [.9, .9, .87], [.85, .55, .12]]);
+  g.scale(0.52, 0.52, 0.52); g.translate(0, 0.045, 0); return g;         // (the birds afloat share one scale, set for the pelican: a cormorant is half its size)
+};
 
 // ---------------------------------------------------------------- how each kind is painted
 // body: GLSL run for the skin of the body (u nose to tail, tone back to belly, n and n2 are noise, alb the colour so far); fin: the same for fins.
@@ -250,7 +261,7 @@ export const PAINT = {
   bait: { body: `alb = mix(alb, vec3(0.92, 0.97, 1.0), smoothstep(0.1, 0.02, abs(tone - 0.48)) * 0.9);`, fin: `alb *= 1.2;`, scales: 40 },
   whiting: { body: `alb *= 0.86 + 0.28 * n; alb = mix(alb, alb * 0.75, smoothstep(0.55, 0.75, n2) * (1.0 - tone) * 0.6);`, fin: `alb = mix(alb, vec3(0.86, 0.72, 0.22), 0.55);`, scales: 44 },
   // dusky flathead: mottled like the sand it lies on
-  flathead: { body: `alb = mix(alb, vec3(0.16, 0.12, 0.07), smoothstep(0.45, 0.7, n) * (1.0 - tone) * 0.8); alb *= 0.75 + 0.5 * n2; alb *= 1.0 - 0.25 * smoothstep(0.3, 0.1, abs(fract(u * 4.0 + 0.2) - 0.5)) * (1.0 - tone);`, fin: `alb *= 0.6 + 0.6 * step(0.5, fract(vUV.y * 3.0));`, scales: 50, top: 1 },
+  flathead: { body: `alb = mix(alb, vec3(0.16, 0.12, 0.07), smoothstep(0.45, 0.7, n) * (1.0 - tone) * 0.5); alb = mix(alb, vec3(0.1, 0.075, 0.05), step(0.8, n2) * (1.0 - tone) * 0.8); alb = mix(alb, vec3(0.04, 0.035, 0.03), smoothstep(0.9, 0.97, u) * (1.0 - tone)); alb *= 0.8 + 0.4 * n2; alb *= 1.0 - 0.25 * smoothstep(0.3, 0.1, abs(fract(u * 4.0 + 0.2) - 0.5)) * (1.0 - tone);`, fin: `alb *= 0.6 + 0.6 * step(0.5, fract(vUV.y * 3.0));`, scales: 50, top: 1 },
   // a small whaler shark: bronze-grey above, white below, dark tips to the fins, five gill slits
   shark: { body: `alb = mix(uColA, uColB, smoothstep(0.50, 0.58, tone + (n - 0.5) * 0.05)); { float gu = (u - 0.215) / 0.022; alb *= 1.0 - 0.5 * smoothstep(0.2, 0.08, abs(fract(gu) - 0.5)) * step(0.0, gu) * step(gu, 5.0) * smoothstep(0.2, 0.35, tone) * smoothstep(0.62, 0.5, tone); }`, fin: `alb = mix(alb, vec3(0.03, 0.035, 0.04), smoothstep(0.62, 0.96, vUV.y));`, shade: [0.5, 0.58], gill: 0 },
   shovel: { body: `alb *= 0.85 + 0.3 * n; alb = mix(alb, uColB, smoothstep(0.6, 1.0, abs(vL.z) / 0.25) * 0.5 * (1.0 - tone)); alb = mix(alb, vec3(0.85, 0.82, 0.7), smoothstep(0.6, 0.85, n2) * 0.25 * (1.0 - tone));`, fin: ``, top: 1 },

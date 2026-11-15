@@ -6,6 +6,15 @@ import { U, VEX, MOBILE, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng } fr
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { GB, makeLights } from './geo.js';
 import { fourWD, carShadow } from './life.js';
+import { human, PERSON_POSE, PERSON_PAINT } from './bodies.js';
+// people are lit per pixel, so cloth, skin and faces show
+export const PERSON_FS = /* glsl */`varying vec3 vW, vObj, vNw, vShirt; varying float vPart, vSeed;
+  ${PERSON_PAINT}
+  void main(){ ${LOGF}
+    vec3 col = personColour(vObj, vPart, vShirt, vSeed), N = normalize(vNw); if(!gl_FrontFacing) N = -N;
+    float nl = max(dot(N, uLightDir), 0.0), rim = pow(1.0 - max(dot(N, normalize(cameraPosition - vW)), 0.0), 3.0);
+    vec3 lit = uLightCol * (nl * 0.66 + 0.24) * cloudShadow(vW) + mix(uAmbGnd, uAmbSky, N.y * 0.5 + 0.5) * (0.85 + 0.25 * rim);        // soft: light gets round a body, and skin and cloth let a little through
+    gl_FragColor = vec4(applyFog(col * lit * 0.9, vW), 1.0); }`;
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const near = (F, re) => F.places.find(p => re.test(p.n || ''))?.p;
@@ -14,28 +23,7 @@ const TOWNS = [[/^Tangalooma/, 26, 650], [/Bulwer/, 14, 520], [/Kooringal/, 16, 
 // ---------------------------------------------------------------- people
 // One rounded figure, drawn many times. Parts: 0 shirt, 1 trousers, 2 skin, 3 hat, 4 fishing rod.
 // swing says how far a point of a leg or arm moves in the stride (legs and arms on opposite sides swing together).
-export function figure() {
-  const pos = [], nrm = [], part = [], swing = [], idx = [], S = 6;
-  const tube = (st, pt, sw) => {
-    const base = pos.length / 3, n = st.length;
-    st.forEach((c, i) => {
-      const a = st[Math.min(n - 1, i + 1)], b = st[Math.max(0, i - 1)]; let t = [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; const l = Math.hypot(...t) || 1; t = t.map(v => v / l);
-      const ref = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]; let sd = [t[1] * ref[2] - t[2] * ref[1], t[2] * ref[0] - t[0] * ref[2], t[0] * ref[1] - t[1] * ref[0]]; const sl = Math.hypot(...sd) || 1; sd = sd.map(v => v / sl);
-      const up = [sd[1] * t[2] - sd[2] * t[1], sd[2] * t[0] - sd[0] * t[2], sd[0] * t[1] - sd[1] * t[0]];
-      for (let j = 0; j < S; j++) { const an = j / S * Math.PI * 2, ca = Math.cos(an), sa = Math.sin(an), nx = sd[0] * ca + up[0] * sa, ny = sd[1] * ca + up[1] * sa, nz = sd[2] * ca + up[2] * sa; pos.push(c[0] + nx * c[3], c[1] + ny * c[3], c[2] + nz * c[3]); nrm.push(nx, ny, nz); part.push(pt); swing.push(sw ? sw(c[1]) : 0); }
-    });
-    for (let i = 0; i < n - 1; i++) for (let j = 0; j < S; j++) { const q = base + i * S, j2 = (j + 1) % S; idx.push(q + j, q + S + j, q + j2, q + j2, q + S + j, q + S + j2); }
-  };
-  tube([[0, 0.9, 0, 0.15], [0, 1.18, 0, 0.16], [0, 1.4, 0, 0.17], [0, 1.5, 0, 0.08]], 0);                                  // trunk
-  tube([[0, 1.48, 0, 0.06], [0.01, 1.58, 0, 0.105], [0.01, 1.69, 0, 0.1], [0, 1.77, 0, 0.045]], 2);                         // head
-  tube([[0, 1.7, 0, 0.19], [0, 1.73, 0, 0.19], [0, 1.8, 0, 0.1], [0, 1.83, 0, 0.03]], 3);                                   // hat
-  for (const sg of [-1, 1]) {
-    tube([[0, 0.94, 0.09 * sg, 0.085], [0.01, 0.5, 0.09 * sg, 0.065], [0, 0.1, 0.09 * sg, 0.05], [0.11, 0.04, 0.09 * sg, 0.045]], 1, (y) => sg * Math.max(0, 0.94 - y) / 0.9);
-    tube([[0, 1.4, 0.21 * sg, 0.05], [0.02, 1.12, 0.23 * sg, 0.042], [0.06, 0.86, 0.23 * sg, 0.035]], 2, (y) => -sg * Math.max(0, 1.4 - y) / 0.55);
-  }
-  tube([[0.1, 0.95, 0.22, 0.012], [1.2, 1.9, 0.22, 0.009], [2.4, 3.0, 0.22, 0.004]], 4);                                    // rod, held by those who fish
-  return { pos, nrm, part, swing, idx };
-}
+export function figure() { return human(); }
 function buildPeople(scene, list) {
   const f = figure(), n = list.length / 11, g = new THREE.InstancedBufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(f.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(f.nrm, 3));
@@ -44,33 +32,41 @@ function buildPeople(scene, list) {
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 11, i * 11 + 4), i * 4); b.set(list.slice(i * 11 + 4, i * 11 + 8), i * 4); c.set(list.slice(i * 11 + 8, i * 11 + 11), i * 3); }
   g.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 4)); g.setAttribute('iC', new THREE.InstancedBufferAttribute(c, 3)); g.instanceCount = n; g.boundingSphere = FAR;
   const mat = makeMat({
+    side: THREE.DoubleSide,
     vs: /* glsl */`
-      attribute vec2 aPS; attribute vec4 iA, iB; attribute vec3 iC; varying vec3 vCol, vW;
+      attribute vec2 aPS; attribute vec4 iA, iB; attribute vec3 iC; varying vec3 vW, vObj, vNw, vShirt; varying float vPart, vSeed;
+      ${PERSON_POSE}
       void main(){
         // iA: the two ends of a beat; iB: start, pace (m/s), kind (0 walks the beat, 1 stands fishing, 2 just stands), size
         float len = max(distance(iA.xy, iA.zw), 1.0), f = fract(iB.x + uTime * iB.y / len * 0.5), tri = abs(2.0 * f - 1.0), walks = step(iB.z, 0.5);
-        vec2 p = mix(iA.xy, mix(iA.xy, iA.zw, smoothstep(0.03, 0.97, tri)), walks);
+        float along = smoothstep(0.03, 0.97, tri), moving = walks * smoothstep(0.0, 0.06, tri) * (1.0 - smoothstep(0.94, 1.0, tri));      // they slow and stop at each end before turning back
+        vec2 p = mix(iA.xy, mix(iA.xy, iA.zw, along), walks);
         vec2 dir = normalize(iA.zw - iA.xy + 1e-4) * mix(1.0, f < 0.5 ? -1.0 : 1.0, walks), side = vec2(-dir.y, dir.x);
-        float stride = sin(uTime * 5.0 * iB.y + iB.x * 40.0) * walks, part = aPS.x;
-        vec3 lp = position;
-        lp.x += aPS.y * stride * 0.34; lp.y += abs(aPS.y * stride) * 0.05;                    // legs and arms swing as it walks
-        if(part > 3.5 && (iB.z < 0.5 || iB.z > 1.5)) lp = vec3(0.0, 1.0, 0.0);                // only those fishing hold a rod
-        if(part > 3.5) lp.y += sin(uTime * 0.7 + iB.x * 9.0) * 0.06 * lp.x;
+        float part = aPS.x;
+        // not everyone is the same build: women (narrower shoulders, wider hips, longer hair, a little shorter) and children (small, with a big head)
+        float woman = step(0.5, fract(iB.x * 7.1)), child = step(fract(iB.x * 17.3), 0.13), build = mix(1.0, 0.93, woman) * mix(1.0, 0.64, child);
+        vec3 q0 = position;
+        q0.z *= mix(1.0, mix(1.07, 0.88, smoothstep(1.0, 1.3, q0.y)), woman * step(q0.y, 1.5));
+        if(part > 8.5 && part < 9.5 && q0.y < 1.7) q0.y = 1.7 - (1.7 - q0.y) * mix(1.0, 2.9, woman * step(0.3, fract(iB.x * 3.9)));          // long hair, to the shoulders
+        if(q0.y > 1.5 && part < 4.5 || part > 8.5 && part < 9.5) q0 = vec3(0.0, 1.5, 0.0) + (q0 - vec3(0.0, 1.5, 0.0)) * mix(1.0, 1.22, child);
+        vec3 lp = personPose(q0, aPS, uTime * 4.6 * iB.y / build + iB.x * 40.0, moving);
+        if(part > 3.5 && part < 4.5 && (iB.z < 0.5 || iB.z > 1.5)) lp = vec3(0.0, 1.0, 0.0);              // only those fishing hold a rod
+        if(part > 3.5 && part < 4.5) lp.y += sin(uTime * 0.7 + iB.x * 9.0) * 0.06 * lp.x;
+        if(part > 2.5 && part < 3.5 && fract(iB.x * 11.3) > 0.55) lp = vec3(0.0, 1.7, 0.0);               // not everyone wears a hat
+        float sway = sin(uTime * 0.6 + iB.x * 30.0) * 0.012 * (1.0 - moving) * smoothstep(0.9, 1.7, position.y);  // standing, they shift their weight
+        lp.z += sway;
         float gy = max(groundY(p), uSeaM * uVex - 0.5 * iB.w);                                // on the sand, or wading no deeper than the thigh
         // most people are indoors or in their swags after dark
         float awake = 1.0 - smoothstep(0.55, 0.85, uNight) * step(0.2, fract(iB.x * 7.7));
         float ok = awake * (1.0 - smoothstep(700.0, 1000.0, length(vec3(p.x, gy, p.y) - cameraPosition)));
-        lp *= iB.w;
+        lp *= iB.w * 0.97 * build;
         vec3 wp = vec3(p.x + dir.x * lp.x + side.x * lp.z, gy + lp.y, p.y + dir.y * lp.x + side.y * lp.z);
-        vec3 n = normalize(vec3(dir.x * normal.x + side.x * normal.z, normal.y, dir.y * normal.x + side.y * normal.z));
-        float h1 = fract(iB.x * 3.3), h2 = fract(iB.x * 5.9);
-        vec3 col = part < 0.5 ? iC : part < 1.5 ? mix(vec3(0.16, 0.2, 0.3), vec3(0.55, 0.5, 0.4), step(0.5, h1)) : part < 2.5 ? mix(vec3(0.58, 0.40, 0.30), vec3(0.33, 0.22, 0.16), step(0.7, h2))
-                 : part < 3.5 ? mix(vec3(0.62, 0.56, 0.40), vec3(0.14, 0.2, 0.17), step(0.5, h2)) : vec3(0.1, 0.1, 0.1);
-        vCol = col * 0.8 * (uLightCol * (max(dot(n, uLightDir), 0.0) * 0.8 + 0.12) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, n.y * 0.5 + 0.5)); vW = wp;
+        vNw = normalize(vec3(dir.x * normal.x + side.x * normal.z, normal.y, dir.y * normal.x + side.y * normal.z));
+        vObj = position; vPart = part; vSeed = iB.x; vShirt = iC; vW = wp;
         gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`,
-    fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`,
+    fs: PERSON_FS,
   });
   const m = new THREE.Mesh(g, mat); m.name = 'people'; m.frustumCulled = false; scene.add(m);
 }
