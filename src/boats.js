@@ -141,12 +141,16 @@ export function buildBoats(scene, F) {
     fly: [flybridge(WHITE), flybridge(HC[2])], jet: [[.9, .15, .1], [.1, .45, .8], [.95, .8, .1], [.1, .1, .1]].map(jetski),
   };
   const pick = (a) => a[(R() * a.length) | 0];
+  // where you stand when you go aboard each kind of boat (metres forward of midships, and above the keel line)
+  const EYES = new Map(); const eyes = (list, e) => [].concat(list).forEach(g => EYES.set(g, e));
+  eyes(geo.sail, [-4.4, 2.75]); eyes(geo.moor, [-4.4, 2.75]); eyes(geo.cru, [-3.9, 3.1]); eyes(geo.fly, [0.2, 4.75]); eyes(geo.tin, [-1.9, 1.65]); eyes(geo.jet, [-1.05, 1.8]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
   const boats = [], lights = makeLights(260);
   const mk = (g, x, z, o = {}) => {
     const m = new THREE.Mesh(g, mat); m.rotation.order = 'YZX'; m.scale.setScalar(S * (o.scale || 1)); m.frustumCulled = false; scene.add(m);
     const b = { m, x, z, ax: x, az: z, hd: R() * 6.28, sp: 0, ph: R() * 10, mast: o.mast || 3, ...o };
     b.li = lights.add([x, 0, z], [1, 1, .92], 0, 1, 0, o.big ? 1.6 : 0.9);
     if (o.move) { b.lr = lights.add([x, 0, z], [1, .1, .08], 0, 1, 0, 0.8); b.lg = lights.add([x, 0, z], [.1, 1, .3], 0, 1, 0, 0.8); }
+    b.eye = EYES.get(g) || [-3, 3]; if (!g.boundingBox) g.computeBoundingBox(); b.len = (g.boundingBox.max.x - g.boundingBox.min.x) * S * (o.scale || 1);
     boats.push(b); return b;
   };
   const depth = (x, z) => U.uSeaM.value - heightAt(x, z);
@@ -289,18 +293,24 @@ export function buildBoats(scene, F) {
           }
           let want = Math.atan2(-dz, dx);
           if (shoal) want = b.hd + (ahead(200, 0.7) > ahead(200, -0.7) ? 1.2 : -1.2);
-          let cruise = b.cruise;
+          const helm = b.helm;                        // someone aboard has taken the wheel: the boat goes where it is steered
+          if (helm) want = b.hd;
+          let cruise = b.cruise * (helm ? helm.throttle : 1);
           if (b.sail) {
             let off = ((want - upwind + Math.PI * 3) % (Math.PI * 2)) - Math.PI;      // angle off the wind
-            if (Math.abs(off) < 0.75) { if (Math.random() < dt / 45) b.tack *= -1; want = upwind + 0.78 * b.tack; off = 0.78 * b.tack; }
-            const pt = clamp(Math.abs(off) / 1.6, 0.45, 1);
-            cruise = clamp(1.6 + wx.wind * 0.13, 1.6, 6.5) * pt;
+            if (!helm && Math.abs(off) < 0.75) { if (Math.random() < dt / 45) b.tack *= -1; want = upwind + 0.78 * b.tack; off = 0.78 * b.tack; }
+            const pt = clamp(Math.abs(off) / 1.6, helm ? 0.06 : 0.45, 1);         // steered too close to the wind, the sails empty and she stops
+            cruise = clamp(1.6 + wx.wind * 0.13, 1.6, 6.5) * pt * (helm ? Math.min(helm.throttle, 1.15) : 1);
             const side = Math.sin(((b.hd - upwind + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > 0 ? 1 : -1;
             roll = side * clamp(wx.wind * 0.011, 0.03, 0.42) * (1.25 - pt * 0.5);
             b.m.scale.z = S * (side > 0 ? 1 : -1);                                    // boom and sails set to leeward
           }
           turn(b, want, b.sail ? 0.16 : b.jet ? 1.0 : 0.3, dt);
           if (b.jet) roll = clamp(((want - b.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI, -1, 1) * 0.45;      // a jet ski leans hard into its turns
+          if (helm) {
+            b.hd -= helm.turn * (b.sail ? 0.3 : b.jet ? 0.8 : 0.45) * dt * clamp(b.sp / 3, 0.25, 1); if (b.jet) roll = helm.turn * 0.45; else if (!b.sail) roll = helm.turn * 0.08;
+            if (depth(b.x + Math.cos(b.hd) * 9, b.z - Math.sin(b.hd) * 9) < (b.sail ? 1.5 : 0.6)) { cruise = 0; b.sp *= Math.max(0, 1 - dt * 3); }      // she takes the ground in the shallows
+          }
           b.sp += (cruise * 1.6 - b.sp) * Math.min(1, dt * 0.4);
           b.x += Math.cos(b.hd) * b.sp * dt; b.z -= Math.sin(b.hd) * b.sp * dt;
         }
