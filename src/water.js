@@ -181,7 +181,8 @@ export function buildWater(scene) {
           float lines = zone * (clamp(lace * sqrt(band) + edge * (0.65 + 0.35 * ff), 0.0, 1.0) * nearF + 0.45 * (1.0 - nearF));
           float swash = smoothstep(0.3 + 0.12 * sin(t * 0.5 + fn * 12.0), 0.0, z) * (0.15 + 0.85 * oexp);       // a calm bay shore has hardly any
           foam = clamp(swash * (0.55 + 0.6 * fg) + lines * (0.25 + 0.75 * oexp), 0.0, 1.0);
-          foam = max(foam, smoothstep(0.55, 0.9, vBreak / max(0.8 * surf, 0.05)) * (0.6 + 0.4 * ff));        // the crest itself: tumbling white water where the wave stands highest
+          float ragged = (texture2D(uNoise, vW.xz / 9.0 + uTime * 0.03).g - 0.5) * 0.5 + (texture2D(uNoise, vW.xz / 2.6 - uTime * 0.05).r - 0.5) * 0.25;      // the white water has a torn edge, not the saw-teeth of the mesh
+          foam = max(foam, smoothstep(0.5, 0.95, vBreak / max(0.8 * surf, 0.05) + ragged) * (0.6 + 0.4 * ff));        // the crest itself: tumbling white water where the wave stands highest
           foam *= smoothstep(-0.25, 0.02, depth);
         }
         // whitecaps offshore when it blows

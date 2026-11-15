@@ -191,6 +191,7 @@ function travel(kind, control) {
   }
   seenAt.push([pick.obj.m.position.x, pick.obj.m.position.z]); if (seenAt.length > 3) seenAt.shift();
   enterRide({ ...pick, control }); syncTravel();
+  if (innerWidth < 640) { const tv = $('travel'); if (!tv.classList.contains('min')) tv.querySelector('.win-min')?.click(); }       // on a phone the list folds away once you have chosen, so you can see where you are
 }
 function syncTravel() {
   const k = travelKind();

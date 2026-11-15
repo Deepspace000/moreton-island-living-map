@@ -141,7 +141,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   const rears = [...el.querySelectorAll('.rear')]; let rearW = 0;
   const cab = el.querySelector('.cab'), helmEl = el.querySelector('.helm'), wheelEl = el.querySelector('.wheel'), $ = (id) => el.querySelector('#' + id), v = new THREE.Vector3(), d = new THREE.Vector3(), q = new THREE.Vector3();
   const R = { active: false, kind: '', car: null, boat: null, bird: null, pos: new THREE.Vector3(), look: 0, tilt: 0, zoom: 0, helm: false, onExit: null }, S = 1.45, COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  let fov0 = 38, near0 = 3, uiT = 0, shake = 0, drag = null, steer = 0, gas = 0, sm = {};
+  let tipT = 0, fov0 = 38, near0 = 3, uiT = 0, shake = 0, drag = null, steer = 0, gas = 0, sm = {};
   // Smooth following. A value eases toward its target at a rate that does not depend on the frame time, so nothing the eye rides on
   // (height, pitch, roll, heading) can jump from one frame to the next; angles go the short way round.
   const ease = (key, to, rate, dt, ang) => { let v0 = sm[key]; if (v0 === undefined || !(dt >= 0)) return (sm[key] = to); let d0 = to - v0; if (ang) d0 -= Math.PI * 2 * Math.round(d0 / (Math.PI * 2)); return (sm[key] = v0 + d0 * (1 - Math.exp(-dt * rate))); };
@@ -174,6 +174,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'walker' ? 'Drag to look around · walk them yourself, or press Camp to rest' : R.bird.kind === 'plane' ? 'Drag to look around · fly it yourself: steer, climb, and land on a strip' : R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor'; $('rideTip').textContent += ' · scroll or pinch to watch from outside';
     sync(); syncZoom(); if (hit.control === true || (b && b.jet && hit.control !== false)) take(true);       // a jet ski is yours to ride as soon as you are on it (unless you asked only to watch)
     el.style.display = 'block'; uiT = 0; R.update(0, 0);
+    const tip = $('rideTip'); tip.style.opacity = 1; clearTimeout(tipT); tipT = setTimeout(() => { tip.style.opacity = 0; }, 7000);       // the hint says its piece and goes
   };
   const canSteer = () => !!(R.car || R.bird || (R.boat && R.boat.move && !R.boat.ferry));
   const WORDS = { car: ['Take the wheel', 'Let it drive itself'], boat: ['Take the helm', 'Let her sail herself'], bird: ['Fly it yourself', 'Let it fly on'], walker: ['Walk them yourself', 'Let them walk on'] };

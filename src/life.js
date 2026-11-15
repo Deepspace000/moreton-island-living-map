@@ -181,7 +181,7 @@ function buildBeachLife(scene) {
         // patches of brown ones where a fire has been through or the old fronds have died off (as the owner describes)
         float edge = smoothstep(0.2, 0.33, mk.g) * (1.0 - smoothstep(0.5, 0.66, mk.g)) * step(1.0, hgt) * step(0.92, mk.r) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * smoothstep(0.38, 0.55, texture2D(uNoise, xz / 23.0).b);
         float atEdge = step(wet, 0.5) * step(0.01, edge), burntPatch = step(0.64, texture2D(uNoise, xz / 70.0 + 0.3).g), brown = atEdge * step(mix(0.85, 0.25, burntPatch), fract(h1 * 7.0));
-        s = (0.5 + 0.55 * h1) * max(step(h3, 0.9) * wet, step(h3, 0.62 * edge));
+        s = (0.5 + 0.55 * h1) * max(step(h3, 0.62) * wet, step(h3, 0.62 * edge));
         lp = position * vec3(0.85 + 0.3 * h4, (0.7 + 0.6 * fract(h2 * 9.0)) * (1.0 - 0.35 * brown), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same; the dead ones sag
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(mix(vec3(0.065, 0.09, 0.03), vec3(0.12, 0.135, 0.05), h2), vec3(0.16, 0.115, 0.06), step(0.68, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);
@@ -854,12 +854,14 @@ function buildPelicans(scene, F) {
   const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.6;
   const homes = [...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] - 500, p.p[1]]), ...F.views.filter(v => /Wrecks/.test(v.n || '')).map(v => [(v.c || v.p)[0] - 200, (v.c || v.p)[1]])];
   const N = MOBILE ? 9 : 16;
+  const shGeo = new THREE.PlaneGeometry(1, 1); shGeo.rotateX(-Math.PI / 2);
   const make = (bodyG, wingG, scale, sh, o) => {
     const g = new THREE.Group(), b = new THREE.Mesh(bodyG, mat), wl = new THREE.Mesh(wingG, mat), wr = new THREE.Mesh(wingG, mat);
     wl.position.set(sh[0], sh[1], sh[2]); wr.position.set(sh[0], sh[1], -sh[2]); wr.scale.z = -1; g.add(b, wl, wr); g.scale.setScalar(scale); g.rotation.order = 'YZX';
     for (const m of [b, wl, wr]) m.frustumCulled = false;
     scene.add(g);
-    const p = { m: g, wl, wr, ph: R() * 6.283, x: o.home[0], z: o.home[1], y: 8, hd: 0, ctl: null, afloat: false, len: 5, way: 1, ...o }; flyers.push(p); return p;
+    const shade = new THREE.Mesh(shGeo, blobShadowMat()); shade.frustumCulled = false; shade.renderOrder = 4; scene.add(shade);        // its shadow on the ground or the water below
+    const p = { m: g, wl, wr, sh: shade, span: scale * 2.9, ph: R() * 6.283, x: o.home[0], z: o.home[1], y: 8, hd: 0, ctl: null, afloat: false, len: 5, way: 1, ...o }; flyers.push(p); return p;
   };
   for (let i = 0; i < N && homes.length; i++) {
     const h = homes[(i / 3 | 0) % homes.length], lead = i % 3 === 0;
@@ -888,6 +890,7 @@ function buildPelicans(scene, F) {
       if (!at) return;
       const g = new THREE.Group(), tree = new THREE.Mesh(tg, mat); g.add(tree);
       for (const [px, py, pz, ry] of [[-2.0, 5.1, 0.28, 0.4], [1.65, 6.47, -0.42, 2.6]]) { const e = new THREE.Mesh(perch, mat); e.position.set(px, py, pz); e.rotation.y = ry + k; e.scale.setScalar(1.05); g.add(e); }
+      g.userData.birds = g.children.slice(1);
       g.position.set(at[0], meshY(at[0], at[1]), at[1]); g.rotation.y = k * 1.7; g.scale.setScalar(1.35); for (const m of g.children) m.frustumCulled = false; scene.add(g); (flyers.stags ||= []).push(g);
     });
   }
@@ -896,6 +899,7 @@ function buildPelicans(scene, F) {
   const clearY = (x, z, sea) => { const h = heightAt(x, z); if (h < 0.5) return sea; const mk = maskAt(x, z); return Math.max(sea, meshY(x, z)) + (mk.sand > 0.8 ? 3 : 38); };
   return (dt, t) => {
     const sea = U.uSeaM.value * VEX;
+    for (const g of flyers.stags || []) g.userData.birds.forEach((e, i) => { const q = t * 0.23 + i * 2.1 + g.position.x; e.rotation.y += (Math.sin(q) * Math.sin(q * 0.37) > 0.55 ? 0.5 : -0.5) * dt * 0.6 * Math.sign(Math.sin(q * 1.9)); e.rotation.z = Math.sin(t * 0.9 + i) * 0.02; });       // they shift and look about now and then
     for (const p of flyers) {
       let bank = 0, flap;
       // the ground it must clear, here and a few seconds ahead along its course, so it starts to rise before the hill or the tree line arrives
@@ -933,6 +937,10 @@ function buildPelicans(scene, F) {
       p.roll = (p.roll ?? 0) + (bank - (p.roll ?? 0)) * Math.min(1, dt * 3);
       p.nose = (p.nose ?? 0) + ((p.afloat ? 0 : p.ctl ? p.ctl.climb * 0.18 : clamp((p.vy ?? 0) * 0.04, -0.2, 0.2)) - (p.nose ?? 0)) * (1 - Math.exp(-dt * 3));      // nose up in the climb, down in the slide
       p.m.rotation.set(p.roll, p.hd, p.nose);
+      { // the shadow falls where the sun puts it: straight below at noon, well off to one side when the sun is low; it fades out as the bird climbs
+        const L = U.uLightDir.value, gy0 = Math.max(sea, meshY(p.x, p.z)), hgt = p.y - gy0, k = L.y > 0.12 ? hgt / L.y : 0, sx = p.x - L.x * k, sz = p.z - L.z * k, gy = Math.max(sea, meshY(sx, sz));
+        const show = L.y > 0.12 && hgt < 160 && p.m.visible !== false; p.sh.visible = show;
+        if (show) { const f = 1 + hgt * 0.012, a = Math.max(0.15, 1 - hgt / 160); p.sh.position.set(sx, gy + 0.12, sz); p.sh.rotation.y = p.hd; p.sh.scale.set(1.3 * f * a, 1, p.span * f * a); } }
     }
   };
 }

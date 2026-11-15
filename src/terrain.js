@@ -315,11 +315,15 @@ export function buildTerrain(scene) {
           col *= 1.0 + ((nE.r - 0.5) * 0.7 + (nF.b - 0.5) * 0.6 + (nG.b - 0.5) * 0.7 * (1.0 - smoothstep(4.0, 30.0, dist)) + (nE.g - 0.45) * 0.45 * (1.0 - sand)) * close * mix(1.0, 0.07, sand);            // fine, clean sand: almost no blotches
           col = mix(col, col * vec3(0.72, 0.9, 0.5), smoothstep(0.5, 0.78, nF.g) * 0.6 * close * (1.0 - sand));        // grass tufts and leaf litter
           col *= 1.0 - 0.05 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + 2.2 * sin(dot(vW.xz, vec2(-0.5, 0.9))) + 1.4 * sin(dot(vW.xz, vec2(0.21, 0.13)) + nE.r * 2.0)) * 0.5 + 0.5);      // wind ripples in the sand, wandering and forking
+          { // footprints: here and there a line of them wanders over the dry sand (a faint winding trail of small hollows, each with a lit rim)
+            float tr = abs(texture2D(uNoise, vW.xz / 55.0 + 0.13).r - 0.5), band = 1.0 - smoothstep(0.004, 0.012, tr), hol = texture2D(uNoise, vW.xz / 1.15).g;
+            float fp = band * sand * (1.0 - smoothstep(10.0, 45.0, dist)) * smoothstep(uSeaM + 0.5, uSeaM + 1.2, h) * smoothstep(0.45, 0.6, texture2D(uNoise, vW.xz / 400.0).b);
+            col *= 1.0 - 0.17 * fp * smoothstep(0.6, 0.72, hol) + 0.07 * fp * smoothstep(0.5, 0.58, hol) * (1.0 - smoothstep(0.58, 0.64, hol)); }
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
           col = mix(col, mix(vec3(0.085, 0.13, 0.05), vec3(0.19, 0.17, 0.09), smoothstep(0.35, 0.75, nF.b)) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long grass: dull green going to straw, never lawn
           if(wetK > 0.0){                                                                                                          // ferns: fresh green, patches of dead brown fronds
-            vec3 fern = mix(vec3(0.03, 0.055, 0.02), vec3(0.08, 0.115, 0.04), nE.g) * (0.7 + 0.6 * nF.g);          // bracken is olive, not lawn green
+            vec3 fern = mix(vec3(0.055, 0.05, 0.03), vec3(0.11, 0.1, 0.055), nE.g) * (0.7 + 0.6 * nF.g);          // bracken is olive, not lawn green
             fern = mix(fern, vec3(0.15, 0.10, 0.05), smoothstep(0.72, 0.88, nF.b) * 0.5);
             col = mix(col, fern, wetK * close * 0.92 * (1.0 - smoothstep(0.4, 0.9, ov.g)));
           }
@@ -366,6 +370,9 @@ export function buildTerrain(scene) {
         float depth = uSeaM - h;                       // metres of water above this point
         float sh = 1.0;
         if(mk.b > 0.33 && L.y > 0.0) sh = duneShadow(vec3(vW.x, max(max(vW.y, h * uVex), uSeaM * uVex), vW.z) + vec3(0.0, 1.5, 0.0), L);
+        { // buildings throw shadows too: the map of where they stand, looked up a little way toward the sun (further when the sun is low)
+          vec2 so = L.xz / max(L.y, 0.14); float bs = max(texture2D(uOver, worldUV(vW.xz + so * 3.0)).r, texture2D(uOver, worldUV(vW.xz + so * 7.0)).r * 0.85);
+          sh *= 1.0 - 0.55 * smoothstep(0.25, 0.7, bs) * (1.0 - smoothstep(0.3, 0.8, ov.r)) * step(0.02, L.y); }
         float tsh = mk.b > 0.4 ? treeShade(vW, L, dist) : 0.0;
         sh *= 1.0 - mix(0.6, 0.82, sand) * tsh;
         float cs = cloudShadow(vW);

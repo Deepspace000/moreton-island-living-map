@@ -100,7 +100,11 @@ function buildBuildings(F, g, occ, casters, lights) {
     const area = Math.abs(A2) / 2; cx /= n; cz /= n;
     if (area < 6) continue;
     let base = meshY(cx, cz), hi = base;
-    for (const p of pts) { const y = meshY(p[0], p[1]); base = Math.min(base, y); hi = Math.max(hi, y); occ.add(cellKey(p[0], p[1], 6)); }
+    for (let i = 0; i < n; i++) {             // the floor goes on the highest ground under the walls (felt every few metres along them, not only at the corners), so no wall is buried
+      const p = pts[i], q = pts[(i + 1) % n], m = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 4));
+      for (let k = 0; k < m; k++) { const x = p[0] + (q[0] - p[0]) * k / m, z = p[1] + (q[1] - p[1]) * k / m, y = Math.max(meshY(x, z), meshY((x + cx) / 2, (z + cz) / 2)); base = Math.min(base, y); hi = Math.max(hi, y); }
+      occ.add(cellKey(p[0], p[1], 6));
+    }
     occ.add(cellKey(cx, cz, 6));
     let h = b.ht > 0 ? b.ht : b.lv > 0 ? b.lv * 3.1 : area < 45 ? 2.5 : area < 300 ? (R() < 0.3 ? 5.6 : 3.0) : area < 900 ? (R() < 0.5 ? 6.2 : 3.6) : 7.6;
     h *= VEX * 0.9;
@@ -256,6 +260,11 @@ function buildOverlay(F) {
   const X = (x) => (x / T.sx + .5) * cw, Z = (z) => (z / T.sz + .5) * ch;
   c.strokeStyle = '#00ff00';
   for (const r of F.roads) { c.lineWidth = r.c === 2 ? 0.9 : 1.5; c.beginPath(); r.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.stroke(); }
+  // the two airstrips: a broad cleared lane, run on well past each end, so that no tree, bush or fern stands on the strip or in the way of a take-off
+  { const mpp = T.sx / cw; c.strokeStyle = '#00ff00';
+    for (const r of F.runways || []) { if (!r.p || r.p.length < 2) continue; const a = r.p[0], b = r.p[r.p.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
+      for (const [ext, wid] of [[260, 46], [90, 78]]) { c.lineWidth = Math.max(2.5, wid / mpp); c.lineCap = 'butt'; c.beginPath(); c.moveTo(X(a[0] - ux * ext), Z(a[1] - uz * ext)); c.lineTo(X(b[0] + ux * ext), Z(b[1] + uz * ext)); c.stroke(); } }
+    c.lineCap = 'round'; }
   c.globalCompositeOperation = 'lighten'; c.fillStyle = '#240000';             // a faint red halo round every building: the yards of a settlement
   for (const b of F.buildings) { if (b.k === 'ship') continue; c.beginPath(); c.arc(X(b.p[0][0]), Z(b.p[0][1]), 5, 0, 6.2832); c.fill(); }
   c.globalCompositeOperation = 'lighter';
@@ -416,6 +425,9 @@ function buildTrees(F, scene) {
           if(hgt < 1.7 && shoreD < 130.0){                                               // dark growth at the tide line: mangroves
             sp = 4.0; dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - sandm);
           }
+          { // and on the sheltered south-western shore (below the sandhills, as the owner photographed) clumps of mangroves stand out in the shallows, their feet in the water
+            float bay = 1.0 - smoothstep(0.25, 0.4, texture2D(uHeight, uv).g), stand = step(0.6, texture2D(uNoise, xz / 240.0 + 0.4).r);
+            if(hgt > -0.5 && hgt < 0.9 && shoreD > -70.0 && shoreD < 40.0 && xz.y > 9000.0 && bay * stand > 0.5){ sp = 4.0; dens = 0.55 * clr; } }
           #endif
           if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
@@ -437,21 +449,21 @@ function buildTrees(F, scene) {
             // spread and bow, how much it leans and wanders. form picks between the distinct forms of a kind.
             float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), form = hash12(cell * 3.1 + 11.0);
             float H, tr, lean, wig, fork, spread, top0, arch, kink, twig, rbK, hang = 0.2; vec3 sc = vec3(1.0), bark, tint;
-            if(sp < 0.5){ H = 14.0; tr = 0.011; vPor = 0.67; rbK = 0.115; sc.y = 1.05; twig = 0.2;                      // eucalypt: pale scribbly gum or dark rough bloodwood
+            if(sp < 0.5){ H = 14.0; tr = 0.0165; vPor = 0.67; rbK = 0.115; sc.y = 1.05; twig = 0.2;                      // eucalypt: pale scribbly gum or dark rough bloodwood
               bark = hs2 < 0.45 ? vec3(0.62, 0.60, 0.54) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
               if(form < 0.38){ fork = 0.46; spread = 0.24; top0 = 0.76; arch = 0.12; kink = 0.09; lean = 0.16; wig = 0.07; }           // tall, forking high
               else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
               else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.38; wig = 0.13; } }                 // leaning and crooked
-            else if(sp < 1.5){ H = 11.0; tr = 0.011; vPor = 0.75; rbK = 0.085; sc = vec3(0.85, 2.1, 0.85); twig = 0.17; hang = -0.8;                               // she-oak (casuarina): slender dark stems,
+            else if(sp < 1.5){ H = 11.0; tr = 0.0145; vPor = 0.75; rbK = 0.085; sc = vec3(0.85, 2.1, 0.85); twig = 0.17; hang = -0.8;                               // she-oak (casuarina): slender dark stems,
               bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.66, 0.78, 0.70); top0 = 0.72; arch = 0.1; kink = 0.07; wig = 0.05;                                      // grey-green tassels of needles hanging from the twig ends
               if(form < 0.55){ fork = 0.16; spread = 0.22; lean = 0.1; }               // the classic form: several stems rising from low down
               else if(form < 0.8){ fork = 0.4; spread = 0.14; lean = 0.08; }           // one stem, branching higher
               else { fork = 0.3; spread = 0.16; lean = 0.42; } }                       // bent over by the sea wind
-            else if(sp < 2.5){ H = 6.0; tr = 0.022; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
+            else if(sp < 2.5){ H = 6.0; tr = 0.029; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
               fork = 0.14 + 0.2 * form; spread = 0.46; top0 = 0.55; arch = 0.1; kink = 0.2; lean = 0.38; wig = 0.14; }
-            else if(sp < 3.5){ H = 10.0; tr = 0.016; vPor = 0.62; rbK = 0.13; sc.y = 1.15; twig = 0.09; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
+            else if(sp < 3.5){ H = 10.0; tr = 0.021; vPor = 0.62; rbK = 0.13; sc.y = 1.15; twig = 0.09; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
               fork = 0.1 + 0.3 * form; spread = 0.18; top0 = 0.8; arch = 0.04; kink = 0.05; lean = 0.12; wig = 0.05; }
-            else { H = 4.2; tr = 0.02; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
+            else { H = 4.2; tr = 0.026; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
             float dense = smoothstep(0.30, 0.12, lum);                                  // closed forest: crowns spread until they meet
@@ -545,7 +557,8 @@ function buildTrees(F, scene) {
           #ifdef LEAFY
           if(vTrunk < 0.5){
             #ifdef SPECIES
-            float n = texture2D(uNoise, vec2(vObj.x * 0.5 + vObj.z * 0.42, vObj.y * 0.085)).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;     // long hanging leaves: streaks that run downward
+            // foliage stands in clumps a couple of metres across at the ends of the branches, with sky between them (not in stripes down the crown)
+            float n = texture2D(uNoise, vec2(vObj.x * 0.21 + vObj.z * 0.17, vObj.y * 0.15 + vObj.z * 0.09)).g * 0.66 + texture2D(uNoise, vec2(vObj.x * 0.52 - vObj.z * 0.38, vObj.y * 0.34) + 0.21).r * 0.34, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #else
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #endif
@@ -569,7 +582,8 @@ function buildTrees(F, scene) {
             }
             if(alpha < 0.03 || length(vWp - cameraPosition) < 1.1) discard;       // leaves right in front of the eye are not drawn, rather than fill the view
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
-            if(!gl_FrontFacing) col *= 0.8;                                  // the shaded inside of the crown seen through the gaps
+            col *= (0.7 + 0.45 * smoothstep(-0.3, 0.75, normalize(vN).y)) * (0.78 + 0.34 * smoothstep(vPor, vPor + 0.22, n));      // lit on top, dark underneath; the heart of each clump fuller than its ragged edge
+            if(!gl_FrontFacing) col *= 0.72;                                 // the shaded inside of the crown seen through the gaps
             col += vCol * 0.7 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
             col = max(col, vec3(0.035, 0.06, 0.022) * (uLightCol * 0.12 + uAmbSky));        // a leaf in the shade is dark green, never black
           }

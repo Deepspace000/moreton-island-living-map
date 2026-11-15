@@ -364,7 +364,7 @@ export function buildBoats(scene, F) {
   const smesh = new THREE.Mesh(sgeo, makeMat({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     // iA: where the boat is (x, y of the water, z) and its heading; iB: length of the sheet, its height, which side (-1, 1, or 0 for the plume astern), how hard she is going (0..1)
-    vs: /* glsl */`attribute vec4 iA, iB; varying vec3 vW; varying vec3 vS;
+    vs: /* glsl */`attribute vec4 iA, iB; varying vec3 vW; varying vec3 vS; varying float vPl;
       void main(){
         float u = position.x, v = position.y, L = iB.x, H = iB.y, side = iB.z, k = iB.w;
         vec2 f = vec2(cos(iA.w), -sin(iA.w)), r = vec2(sin(iA.w), cos(iA.w));
@@ -374,19 +374,20 @@ export function buildBoats(scene, F) {
           along = L * (0.42 - 1.25 * u) - v * H * 0.5; outw = side * (0.25 + L * 0.085 * smoothstep(0.0, 0.3, u) + v * reach);
           up = H * (1.0 - 0.6 * u) * 4.0 * v * (1.0 - v * 0.92) * smoothstep(0.0, 0.12, u);
         } else {                            // the jet: it leaves the stern as a tight stream, arches up and back, and spreads as it comes down
-          along = -L * 0.2 - u * L * 1.5; outw = (v - 0.5) * (0.25 + 1.7 * u) * H; up = 0.2 + H * 1.25 * 4.0 * u * (1.0 - u) * (0.7 + 0.3 * sin(v * 3.1416));
+          along = -L * 0.42 - u * L * 1.1; outw = (v - 0.5) * (0.1 + 0.85 * u) * H; up = 0.15 + H * 0.75 * 4.0 * u * (1.0 - u) * (0.75 + 0.25 * sin(v * 3.1416));
         }
         vec3 wp = vec3(iA.x + f.x * along + r.x * outw, iA.y + up, iA.z + f.y * along + r.y * outw);
-        vW = wp; vS = vec3(u, v, k * (abs(side) > 0.5 ? 1.0 : 1.15));
+        vW = wp; vS = vec3(u, v, k); vPl = abs(side) > 0.5 ? 0.0 : 1.0;
         gl_Position = k <= 0.01 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`,
-    fs: /* glsl */`varying vec3 vW; varying vec3 vS;
+    fs: /* glsl */`varying vec3 vW; varying vec3 vS; varying float vPl;
       void main(){ ${LOGF}
         float u = vS.x, v = vS.y, k = vS.z;
         float n = texture2D(uNoise, vec2(u * 1.3 + uTime * 0.9, v * 0.8) + vW.xz * 0.07).r * 0.6 + texture2D(uNoise, vec2(u * 4.0 + uTime * 2.3, v * 2.6)).g * 0.4;      // streaming aft
-        float body = (1.0 - smoothstep(0.55, 1.0, v)) * (1.0 - smoothstep(0.6, 1.0, u)) * smoothstep(0.0, 0.06, u);
-        float a = smoothstep(0.62 - 0.45 * k * body, 0.8, n + 0.25 * (1.0 - v)) * body * smoothstep(0.02, 0.3, k);          // solid near the hull, torn to drops at the edges
+        float body = mix(1.0 - smoothstep(0.55, 1.0, v), 1.0 - smoothstep(0.22, 0.5, abs(v - 0.5)), vPl) * (1.0 - smoothstep(0.6, 1.0, u)) * smoothstep(0.0, 0.06, u);
+        // the jet is a thin stream that breaks into drops; the bow sheets are fuller
+        float a = smoothstep(mix(0.62 - 0.45 * k * body, 0.74 - 0.22 * k * body, vPl), 0.82, n + 0.25 * (1.0 - v) * (1.0 - vPl)) * body * smoothstep(0.02, 0.3, k) * mix(1.0, 0.8, vPl);          // solid near the hull, torn to drops at the edges
         vec3 c = vec3(0.95, 0.97, 0.98) * (uLightCol * 0.42 * cloudShadow(vW) + uAmbSky * 0.85);
         gl_FragColor = vec4(applyFog(c, vW), a * 0.9); }`,
   }));
@@ -484,7 +485,7 @@ export function buildBoats(scene, F) {
           // spray: nothing below a walking pace, in full flight at planing speed; a yacht only lifts a small bow wave
           const go = clamp((b.sp - (b.sail ? 1.2 : 2.5)) / (b.jet ? 7 : b.sail ? 6 : 9), 0, 1) * (b.py - sea < 1.5 ? 1 : 0), sy = sea + 0.1 + wy * 0.6;
           const sl = b.big ? b.len * 0.5 : b.len * 0.85, sh = (b.big ? 2.2 : b.jet ? 0.95 : b.small ? 0.6 : b.sail ? 0.45 : 0.9) * (0.35 + 0.65 * go);
-          setSpray(b.wk * 3, b, sl, sh, -1, go, sy); setSpray(b.wk * 3 + 1, b, sl, sh, 1, go, sy); setSpray(b.wk * 3 + 2, b, b.len, b.jet ? 1.5 : 0, 0, b.jet ? go : 0, sy);
+          setSpray(b.wk * 3, b, sl, sh, -1, go, sy); setSpray(b.wk * 3 + 1, b, sl, sh, 1, go, sy); setSpray(b.wk * 3 + 2, b, b.len, b.jet ? 1.3 : 0, 0, b.jet ? go : 0, sy);
         }
       }
       wg.attributes.position.needsUpdate = true; wg.attributes.aA.needsUpdate = true; sgeo.attributes.iA.needsUpdate = true; sgeo.attributes.iB.needsUpdate = true;

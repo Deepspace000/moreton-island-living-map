@@ -1,7 +1,7 @@
 // A light aircraft: a high-wing single (the kind that flies people over to the island). It waits at one of the two airstrips, takes off,
 // flies a tour of the island, lines up on the other strip, lands, turns round and waits again. You can go along with it, or fly it yourself.
 import * as THREE from 'three';
-import { U, VEX, Q, objectMat, makeMat, LOGV, LOGF, clamp } from './common.js';
+import { U, VEX, Q, objectMat, makeMat, blobShadowMat, LOGV, LOGF, clamp } from './common.js';
 import { T, meshY, heightAt, maskAt } from './terrain.js';
 import { GB } from './geo.js';
 
@@ -89,6 +89,7 @@ export function buildPlanes(scene, F) {
       vec3 c = vec3(0.09) * (uLightCol * 0.5 + uAmbSky); gl_FragColor = vec4(applyFog(c, vW), al); }` }));
   prop.rotation.y = Math.PI / 2; prop.position.set(3.6, 1.02, 0); prop.frustumCulled = false; prop.renderOrder = 14; g.add(prop);
   g.scale.setScalar(S); g.rotation.order = 'YZX'; scene.add(g);
+  const shGeo = new THREE.PlaneGeometry(1, 1); shGeo.rotateX(-Math.PI / 2); const shadow = new THREE.Mesh(shGeo, blobShadowMat()); shadow.frustumCulled = false; shadow.renderOrder = 4; scene.add(shadow);
   const p = { kind: 'plane', m: g, x: 0, y: 0, z: 0, hd: 0, v: 0, roll: 0, nose: 0, ctl: null, afloat: false, state: 'park', wait: 12, strip: 0, dir: 1, sp: 52, fpEye: [2.0, 2.05], zoom0: 24, hideInFP: false, next: '' };
   const TOUR = [
     [[find(F.views, /Tangalooma Wrecks/, [-2262, -2174]), 300], [find(F.places, /Desert/, [-1556, 1204]), 340], [find(F.views, /Tempest/, [1232, -4525]), 620], [[5600, 2500], 380], [find(F.sandnames, /Big Sand/, [1555, 10824]), 360], [find(F.sandnames, /Little Sand/, [2310, 13342]), 300]],
@@ -161,6 +162,9 @@ export function buildPlanes(scene, F) {
     p.nose += ((onGround ? (p.state === 'roll' && p.v > 26 ? 0.07 : 0) : clamp((p.vy ?? 0) * 0.022, -0.16, 0.2)) - p.nose) * (1 - Math.exp(-dt * 2));
     spin += ((p.state === 'park' && p.wait > 6 ? 0.0 : 1) - spin) * (1 - Math.exp(-dt * 0.8)); prop.material.uniforms.uSpin.value = spin;
     g.position.set(p.x, p.y, p.z); g.rotation.set(p.roll, p.hd, p.nose);
+    { // its shadow, on the strip under the wheels and sliding away to one side as it climbs
+      const L = U.uLightDir.value, gy0 = Math.max(sea(), meshY(p.x, p.z)), hgt = p.y - gy0, k = L.y > 0.12 ? hgt / L.y : 0, sx = p.x - L.x * k, sz = p.z - L.z * k;
+      shadow.visible = L.y > 0.12 && hgt < 400; if (shadow.visible) { const a = Math.max(0.2, 1 - hgt / 400); shadow.position.set(sx, Math.max(sea(), meshY(sx, sz)) + 0.15, sz); shadow.rotation.y = p.hd; shadow.scale.set(13 * a, 1, 17 * a); } }
   };
   update(0, 0);
   return { planes: [p], update, strips };

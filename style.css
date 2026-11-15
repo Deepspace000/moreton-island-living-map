@@ -181,7 +181,8 @@ body.riding #title, body.riding #places, body.riding #hint, body.riding #labels 
 #ride.incar .helm .spokes { display: none; }
 #ride .helm i { font-style: normal; }
 #ride .wheel { transform-origin: 50% 50%; filter: drop-shadow(0 1.2vmin 1.2vmin rgba(0,0,0,.55)); }
-@media (max-width: 640px) { #ride .tip { top: 48px; } }
+#ride .tip { transition: opacity 1.2s; }
+@media (max-width: 640px) { #ride .tip { top: 92px; left: 12px; right: 12px; font-size: 11.5px; } }
 #ride .helm { left: 14px; transform: none; align-items: flex-start; }      /* down in the corner, clear of whatever you are riding */
 
 /* the Travel menu: choose what to go along with, and whether to watch or take control */
