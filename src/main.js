@@ -177,13 +177,19 @@ const TRAVEL = {
 };
 const riding = () => (ride.active ? ride.car || ride.boat || ride.bird : null);
 const travelKind = () => { const o = riding(); return !o ? '' : ride.car ? 'car' : ride.bird ? o.kind : o.jet ? 'jetski' : o.sail ? 'yacht' : o.ferry || o.anchor ? '' : 'boat'; };
+const seenAt = [];
 function travel(kind, control) {
   if (!boats) return; const list = TRAVEL[kind](); if (!list.length) return;
   const cur = riding(), at = list.findIndex(h => h.obj === cur);
   if (at >= 0 && ride.helm !== control) { ride.take(control); return syncTravel(); }        // already with one of these: just take or give back control
   let pick;
   if (at >= 0) pick = list[(at + 1) % list.length];                                          // asked again: on to the next one
-  else { const from = ride.active ? ride.pos : walk.active ? walk.pos : controls.target; pick = list.reduce((a, h) => (h.obj.m.position.distanceToSquared(from) < a.obj.m.position.distanceToSquared(from) ? h : a)); }
+  else {
+    // not the nearest one every time (that kept you round Tangalooma): one somewhere else on the island, well away from where the last few rides were
+    const far = (h) => seenAt.reduce((m, q) => Math.min(m, Math.hypot(h.obj.m.position.x - q[0], h.obj.m.position.z - q[1])), 1e9), few = list.slice().sort(() => Math.random() - 0.5).slice(0, Math.max(1, Math.ceil(list.length * 0.6)));
+    pick = seenAt.length ? few.reduce((a, h) => (far(h) > far(a) ? h : a)) : few[0];
+  }
+  seenAt.push([pick.obj.m.position.x, pick.obj.m.position.z]); if (seenAt.length > 3) seenAt.shift();
   enterRide({ ...pick, control }); syncTravel();
 }
 function syncTravel() {

@@ -1,7 +1,7 @@
 // Boats: yachts and cruisers at anchor (swinging to the real wind), yachts under sail,
 // the island ferries on their charted routes, wakes and navigation lights.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
+import { U, VEX, MOBILE, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
 import { T, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
@@ -135,10 +135,7 @@ function tinny() {
   hull(g, 4.8, 1.9, 0.22, 0.55, AL, [.5, .53, .54], 0, [.45, .47, .48], { style: 5 });
   g.box(-2.5, 0.25, 0, 0.45, 0.9, 0.4, [.12, .12, .13]);
   g.box(-0.9, 0.5, 0, 0.35, 0.12, 1.6, AL); g.box(0.7, 0.5, 0, 0.35, 0.12, 1.5, AL);
-  { const SH = [.72, .2, .15], SK = [.82, .64, .52], HAT = [.78, .72, .5];            // whoever is at the tiller: a rounded body, a head and a wide straw hat, one arm back to the outboard
-    g.cyl(-1.4, 0.62, 0.2, 0.25, 0.2, 0.72, 10, SH, SH); g.cyl(-1.4, 1.34, 0.2, 0.08, 0.08, 0.08, 8, SK); g.cyl(-1.4, 1.41, 0.2, 0.14, 0.125, 0.25, 10, SK, SK);
-    g.cyl(-1.4, 1.62, 0.2, 0.3, 0.29, 0.025, 12, HAT, HAT); g.cyl(-1.4, 1.645, 0.2, 0.15, 0.13, 0.1, 10, HAT, HAT);
-    rod(g, [-1.42, 1.22, 0.42], [-2.25, 0.95, 0.1], 0.055, SK); rod(g, [-1.4, 1.22, -0.02], [-1.15, 0.8, -0.1], 0.055, SK); }
+  // (no figure at the tiller: the boats are shown without people)
   return finish(g);
 }
 function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm up top under a hardtop
@@ -165,9 +162,7 @@ function jetski(col) {       // a jet ski and its rider
   hull(g, 3.2, 1.15, 0.18, 0.42, col, col, 0, [.15, .15, .16]);
   g.box(0.5, 0.42, 0, 1.3, 0.3, 0.8, WHITE); g.box(-0.5, 0.42, 0, 1.3, 0.34, 0.5, [.1, .1, .11]);          // cowl and seat
   g.box(0.55, 0.72, 0, 0.12, 0.35, 0.7, [.1, .1, .11]);                                                     // handlebar
-  g.cyl(-0.35, 0.76, 0, 0.23, 0.2, 0.6, 10, [.95, .5, .1], [.95, .5, .1]); g.cyl(-0.3, 1.36, 0, 0.075, 0.075, 0.07, 8, SKIN); g.cyl(-0.28, 1.42, 0, 0.13, 0.12, 0.24, 10, SKIN, [.16, .12, .1]);     // rider in a life jacket: rounded body, neck, head
-  for (const z of [-1, 1]) rod(g, [-0.3, 1.26, 0.22 * z], [0.52, 1.02, 0.3 * z], 0.05, SKIN);                                                                                          // arms out to the handlebar
-  if (0) g.box(0, 0, 0, 0, 0, 0, SKIN); g.box(-0.3, 0.42, 0.3, 0.6, 0.36, 0.16, [.1, .2, .5]); g.box(-0.3, 0.42, -0.3, 0.6, 0.36, 0.16, [.1, .2, .5]);
+  // (no rider: the boats are shown without people)
   return finish(g);
 }
 function flyer() {            // fast passenger catamaran
@@ -252,35 +247,40 @@ export function buildBoats(scene, F) {
 
   // ---- under way ----
   const NAV = MOBILE ? 6 : 10;
-  const homes = [[-6500, -9000, 3500], [-7000, 0, 3800], [-5500, 8000, 3000], [-3500, -14000, 3000], [7500, -6000, 2800], [8500, 6000, 2800], [-7500, -4000, 3500], [-6000, 13000, 2800], [-8000, 5000, 3000], [2000, -20500, 1500]];
+  // Where the boats are is different every time the map is opened: each kind is dealt out afresh over the waters all round the island, not gathered
+  // off Tangalooma. (Test pictures ask for the same deal every time.)
+  const RR = Q.has('shot') ? R : Math.random, deal = (list) => { const a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const k = (RR() * (i + 1)) | 0; [a[i], a[k]] = [a[k], a[i]]; } return a; };
+  const spot = (h, deep) => { for (let t = 0; t < 80; t++) { const px = h[0] + (RR() - .5) * h[2], pz = h[1] + (RR() - .5) * h[2]; if (depth(px, pz) > deep) return [px, pz]; } return null; };
+  // close inshore, right round the island: off Bulwer, Cowan Cowan, Tangalooma, the Desert shore, the middle of the west coast, the Big and Little
+  // Sandhills, Kooringal, the north end, and off the ocean beach
+  const INSHORE = [[-3300, -12300, 1500], [-3700, -7200, 1500], [-3300, -2700, 1600], [-2800, 1800, 1500], [-2300, 6000, 1500], [-2000, 10200, 1500], [-800, 14000, 1400], [1800, 19300, 1400], [5200, -19400, 1400], [7700, -8500, 1600], [8300, 3000, 1600], [7000, 11500, 1600]];
+  const homes = deal([[-6500, -9000, 3500], [-7000, 0, 3800], [-5500, 8000, 3000], [-3500, -14000, 3000], [7500, -6000, 2800], [8500, 6000, 2800], [-7500, -4000, 3500], [-6000, 13000, 2800], [-8000, 5000, 3000], [2000, -20500, 1500]]);
   for (let i = 0; i < NAV; i++) {
     const h = homes[i % homes.length], sail = i % 3 !== 2;
     let x = h[0], z = h[1];
     for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
     mk(sail ? pick(geo.sail) : pick(geo.cru), x, z, { move: 1, sail, home: h, tx: x, tz: z, tt: 0, tack: R() < .5 ? 1 : -1, mast: sail ? 15.5 : 5.3, cruise: sail ? 0 : 8 + R() * 5 });
   }
-  // flybridge cruisers working up and down the west coast, and a few lying at anchor off the settlements
+  // flybridge cruisers working up and down both coasts, and a few lying at anchor off the settlements
+  let flyHomes;
   for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
-    const h = [[-6000, -9500, 3200], [-6500, -3000, 3500], [-5500, 4500, 3200], [-4500, 10500, 2600], [-6800, -6000, 3000]][i];
-    let x = h[0], z = h[1];
-    for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
+    const h = (i === 0 ? (flyHomes = deal([[-6000, -9500, 3200], [-6500, -3000, 3500], [-5500, 4500, 3200], [-4500, 10500, 2600], [-6800, -6000, 3000], [9500, -12000, 3000], [10000, 0, 3200], [9000, 12000, 3000], [3000, -21500, 2200], [500, 21500, 2200]])) : flyHomes)[i];
+    const at = spot(h, 5) || [h[0], h[1]], x = at[0], z = at[1];
     mk(pick(geo.fly), x, z, { move: 1, sail: false, home: h, tx: x, tz: z, tt: 0, tack: 1, mast: 7.4, cruise: 7 + R() * 4 });
   }
   if (tg) moor(tg[0] - 500, tg[1] - 300, 2, 500, ['fly'], 2.5, 12);
   if (bw) moor(bw[0] - 450, bw[1], 1, 420, ['fly'], 2.5, 12);
   if (cc) moor(cc[0] - 400, cc[1], 1, 400, ['fly'], 2.5, 12);
-  // jet skis tearing about off Tangalooma
-  if (tg) for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
-    const h = [tg[0] - 700, tg[1] - 500, 1500];
-    let x = h[0], z = h[1];
-    for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 3) { x = px; z = pz; break; } }
+  // jet skis tearing about close inshore, each off a different part of the island
+  const jetHomes = deal(INSHORE);
+  for (let i = 0, k = 0; i < (MOBILE ? 3 : 5) && k < jetHomes.length; k++) {
+    const h = jetHomes[k], at = spot(h, 2.5); if (!at) continue; const x = at[0], z = at[1]; i++;
     mk(geo.jet[i % geo.jet.length], x, z, { move: 1, sail: false, jet: 1, home: h, tx: x, tz: z, tt: 0, tack: 1, mast: 1.4, small: 1, cruise: 8 + R() * 3 });
   }
-  // small boats pottering between the resort and the wrecks
-  if (tg) for (let i = 0; i < (MOBILE ? 3 : 5); i++) {
-    const h = [tg[0] - 1000, tg[1] - 900, 1700], tin = i % 2 === 0;
-    let x = h[0], z = h[1];
-    for (let t = 0; t < 60; t++) { const px = h[0] + (R() - .5) * h[2], pz = h[1] + (R() - .5) * h[2]; if (depth(px, pz) > 5) { x = px; z = pz; break; } }
+  // small boats pottering about inshore, again each somewhere different
+  const tinHomes = deal(INSHORE);
+  for (let i = 0, k = 0; i < (MOBILE ? 3 : 5) && k < tinHomes.length; k++) {
+    const h = [tinHomes[k][0], tinHomes[k][1], tinHomes[k][2] + 400], at = spot(h, 3.5); if (!at) continue; const x = at[0], z = at[1], tin = i % 2 === 0; i++;
     mk(tin ? geo.tin[0] : pick(geo.cru), x, z, { move: 1, sail: false, home: h, tx: x, tz: z, tt: 0, tack: 1, mast: tin ? 1.2 : 5.3, small: tin ? 1 : 0, cruise: tin ? 5 + R() * 3 : 7 + R() * 4 });
   }
   // ---- ferries on their charted routes ----

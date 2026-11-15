@@ -1,7 +1,7 @@
 // A light aircraft: a high-wing single (the kind that flies people over to the island). It waits at one of the two airstrips, takes off,
 // flies a tour of the island, lines up on the other strip, lands, turns round and waits again. You can go along with it, or fly it yourself.
 import * as THREE from 'three';
-import { U, VEX, objectMat, makeMat, LOGV, LOGF, clamp } from './common.js';
+import { U, VEX, Q, objectMat, makeMat, LOGV, LOGF, clamp } from './common.js';
 import { T, meshY, heightAt, maskAt } from './terrain.js';
 import { GB } from './geo.js';
 
@@ -96,7 +96,7 @@ export function buildPlanes(scene, F) {
   // which way to use a strip: the way whose approach comes in over the lower ground
   const bestDir = (s) => { let hi = [0, 0]; [1, -1].forEach((d, k) => { const e = end(s, d); for (let t = 200; t <= 2200; t += 200) hi[k] = Math.max(hi[k], heightAt(e[0] - s.ux * d * t, e[1] - s.uz * d * t)); }); return hi[0] <= hi[1] ? 1 : -1; };
   const place = (k, d) => { const s = strips[k], e = end(s, d); p.x = e[0] + s.ux * d * 25; p.z = e[1] + s.uz * d * 25; p.hd = Math.atan2(-s.uz * d, s.ux * d); p.y = meshY(p.x, p.z) + GEAR; p.v = 0; p.strip = k; p.dir = d; };
-  place(0, bestDir(strips[0])); let wp = 0, dest = strips.length > 1 ? 1 : 0, ldir = 1, spin = 0;
+  { const k0 = Q.has('shot') ? 0 : (Math.random() * strips.length) | 0; place(k0, bestDir(strips[k0])); p.wait = Q.has('shot') ? 12 : 5 + Math.random() * 40; } let wp = 0, dest = strips.length > 1 ? 1 : 0, ldir = 1, spin = 0;
   const sea = () => U.uSeaM.value * VEX;
   const clear = (x, z) => { const h = heightAt(x, z); return h < 0.5 ? sea() + 25 : Math.max(sea(), meshY(x, z)) + (maskAt(x, z).sand > 0.8 ? 30 : 70); };
   const steer = (tx, tz, dt, rate) => { let d = Math.atan2(-(tz - p.z), tx - p.x) - p.hd; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2)); const w = clamp(d * 1.2, -rate, rate); p.hd += w * dt; return w; };

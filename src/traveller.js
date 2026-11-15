@@ -1,7 +1,7 @@
 // The traveller: someone with a pack on their back and a tent, walking the whole island along the tracks and the beaches, to every township,
 // camping area, lookout and named place in turn. At night (or when you ask) they pitch the tent and rest. You can go along, or walk them yourself.
 import * as THREE from 'three';
-import { U, VEX, makeMat, LOGV, LOGF, clamp } from './common.js';
+import { U, VEX, Q, makeMat, LOGV, LOGF, clamp } from './common.js';
 import { T, meshY, heightAt } from './terrain.js';
 import { figure, trackGraph, shortest } from './folk.js';
 
@@ -78,7 +78,8 @@ export function buildTraveller(scene, F) {
   for (const q of F.peaks || []) addPoi(q.n, q.p);
   for (const q of F.misc || []) addPoi(q.n, q.p);
   for (const q of F.lakes || []) if (q.n) addPoi(q.n, q.c || (Array.isArray(q.p[0]) ? q.p[0] : q.p));
-  const start = pois.find(q => /Tangalooma$/.test(q.name)) || pois[0];
+  // they set out from a different place each time the map is opened (test pictures always start them at Tangalooma)
+  const start = (Q.has('shot') ? pois.find(q => /Tangalooma$/.test(q.name)) : pois[(Math.random() * pois.length) | 0]) || pois[0];
   const w = { kind: 'walker', m: new THREE.Object3D(), x: 0, y: 0, z: 0, hd: 0, v: 0, ctl: null, afloat: false, camped: false, askCamp: null, sp: 1.8, fpEye: [0.15, 1.62], zoom0: 6.5, next: '', visited: 0, total: pois.length, pois };
   let at = start ? start.node : net[0], to = null, goal = null, route = null, phase = 0, sit = 0, walk = 0, rest = 0;
   if (at) { w.x = at.p[0]; w.z = at.p[1]; }
