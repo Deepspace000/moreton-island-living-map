@@ -250,7 +250,7 @@ export function buildTerrain(scene) {
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
           col = mix(col, vec3(0.10, 0.19, 0.055) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long green grass
           if(wetK > 0.0){                                                                                                          // ferns: fresh green, patches of dead brown fronds
-            vec3 fern = mix(vec3(0.025, 0.10, 0.018), vec3(0.09, 0.22, 0.04), nE.g) * (0.7 + 0.6 * nF.g);
+            vec3 fern = mix(vec3(0.03, 0.055, 0.02), vec3(0.08, 0.115, 0.04), nE.g) * (0.7 + 0.6 * nF.g);          // bracken is olive, not lawn green
             fern = mix(fern, vec3(0.15, 0.10, 0.05), smoothstep(0.72, 0.88, nF.b) * 0.5);
             col = mix(col, fern, wetK * close * 0.92 * (1.0 - smoothstep(0.4, 0.9, ov.g)));
           }
@@ -275,7 +275,7 @@ export function buildTerrain(scene) {
             col = mix(col, lf, floorK * close * 0.97);
           }
         }
-        col = mix(col, vec3(0.05, 0.15, 0.03) * (0.75 + 0.5 * nC.g), wetK * (1.0 - close) * (1.0 - smoothstep(600.0, 3500.0, dist)) * 0.7);
+        col = mix(col, vec3(0.05, 0.085, 0.03) * (0.75 + 0.5 * nC.g), wetK * (1.0 - close) * (1.0 - smoothstep(600.0, 3500.0, dist)) * 0.7);
         // farther off the same floor shows between the bushes as sand dulled by its litter
         // (but where the photograph is dark with forest the canopy is closed: from outside you see leaves, not the floor)
         col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));

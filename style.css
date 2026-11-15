@@ -167,3 +167,5 @@ body.riding #title, body.riding #places, body.riding #hint, body.riding #labels 
 #ride.incar .helm .spokes { display: none; }
 #ride .helm i { font-style: normal; }
 #ride .wheel { transform-origin: 50% 50%; transition: transform .1s linear; }
+@media (max-width: 640px) { #ride .tip { top: 48px; } }
+#ride.incar .helm { left: 14px; transform: none; }

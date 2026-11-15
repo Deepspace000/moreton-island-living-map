@@ -150,7 +150,7 @@ function buildBeachLife(scene) {
         s = (0.5 + 0.55 * h1) * step(h3, 0.9) * wet;
         lp = position * vec3(0.85 + 0.3 * h4, 0.7 + 0.6 * fract(h2 * 9.0), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same
         nrm = vec3(0.0, 1.0, 0.0);
-        c = mix(mix(vec3(0.05, 0.095, 0.03), vec3(0.105, 0.15, 0.05), h2), vec3(0.20, 0.13, 0.06), step(0.74, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);`, 260);        // bracken: olive, a quarter of the fronds dead and brown, dark at the base
+        c = mix(mix(vec3(0.05, 0.095, 0.03), vec3(0.105, 0.15, 0.05), h2), vec3(0.15, 0.12, 0.065), step(0.8, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);`, 260);        // bracken: olive, a quarter of the fronds dead and brown, dark at the base
   // soldier crabs: when the tide is well out they come up on the bared flats in armies, small round sky-blue crabs that
   // walk a little way together and then screw themselves back down into the wet sand
   const crabs = scatter(scene, LOW ? 100 : 140, 0.24, (g) => {
