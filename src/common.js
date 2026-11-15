@@ -69,7 +69,7 @@ vec3 skyColor(vec3 d){
   float az = dot(normalize(d.xz + 1e-5), normalize(uSunDir.xz + 1e-5));          // +1 toward the sun, -1 opposite
   vec3 anti = mix(uHorizon, uZenith * 2.6 + vec3(0.20, 0.06, 0.13) * dot(uHorizon, vec3(0.45)), 0.8);   // cool violet-pink opposite the sun
   vec3 hz = mix(uHorizon, mix(anti, uHorizon, smoothstep(-0.75, 0.9, az)), low);
-  vec3 c = mix(hz, uZenith, pow(y, 0.45));
+  vec3 c = mix(hz, uZenith, pow(y, 0.62));              // a broad pale band above the horizon, deepening slowly overhead
   float sd = max(dot(d, uSunDir), 0.0);
   c += uSunGlow * (pow(sd, 5.0) * 0.22 * (0.4 + low) + pow(sd, 40.0) * 0.5 + pow(sd, 400.0) * 1.2) * (1.0 - 0.6 * y);
   // warm band hugging the horizon at sunrise / sunset
@@ -84,7 +84,7 @@ vec3 fogColor(vec3 dir){
 }
 float fogAmount(vec3 wp){
   float d = length(wp - cameraPosition);
-  if(uUnder > 0.5) return 1.0 - exp(-d * 0.05);
+  if(uUnder > 0.5) return 1.0 - exp(-d * 0.085);             // you see about fifteen metres under water
   // thinner with height: integrate an exponential atmosphere along the ray (cheap form)
   float hm = max(0.5 * (wp.y + cameraPosition.y), 0.0);
   return 1.0 - exp(-d * uFogDens * exp(-hm / 2600.0));
@@ -107,6 +107,19 @@ export function makeMat({ vs, fs, uniforms = {}, ...rest }) {
     vertexShader: LOGV_PARS + GLSL_COMMON + vs,
     fragmentShader: LOGF_PARS + GLSL_COMMON + fs,
     ...rest,
+  });
+}
+
+// A soft dark patch on the ground under something, so it stands on the sand instead of floating over it (there are no cast shadows):
+// darkest in the middle, gone at the edge, a little stronger in sunshine. Draw it on any flat quad that has uv from 0 to 1.
+let blobMaterial = null;
+export function blobShadowMat() {
+  return blobMaterial ||= makeMat({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+    vs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
+    fs: /* glsl */`varying vec2 vUv; varying vec3 vW;
+      void main(){ ${LOGF} float r = length(vUv - 0.5) * 2.0, a = (1.0 - smoothstep(0.2, 1.0, r)) * (0.26 + 0.3 * clamp(uLightDir.y * 2.5, 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight));
+        gl_FragColor = vec4(applyFog(vec3(0.04, 0.05, 0.085) * (uAmbSky + 0.15), vW), a); }`,
   });
 }
 
@@ -159,6 +172,7 @@ export function objectMat(opts = {}) {
         vec3 gloss = vec3(0.0);
         #ifdef WINDOWS
           if(vFx.x > 0.5){                       // a wall: vFx.y is metres along it, vFx.z metres above the floor
+            alb = mix(vec3(dot(alb, vec3(0.3333))), alb, 0.6);          // paint fades in the sun and salt: no wall is as bright as the colour card
             float kind = floor(vFx.x + 0.1), plain = step(0.2, fract(vFx.x + 0.1)), fy = fwidth(vFx.y), fz = fwidth(vFx.z);
             if(kind < 1.5){                      // weatherboards: each board laps the one below and throws a line of shadow
               float b = fract(vFx.z / 0.19), k = 1.0 - smoothstep(0.25, 0.9, fz / 0.19);
@@ -211,6 +225,7 @@ export function objectMat(opts = {}) {
             }
           }
           if(vFx.x < -0.5){                      // corrugated iron: ribs running down the roof, weathered in streaks, rows of screws, rust where the coating has gone
+            alb = mix(vec3(dot(alb, vec3(0.3333))), alb, 0.62) * 0.9;
             float rib = sin(vFx.y * 14.0) * (1.0 - smoothstep(0.06, 0.3, fwidth(vFx.y)));
             alb *= 0.93 + 0.07 * rib + 0.14 * (texture2D(uNoise, vec2(vFx.y * 0.11, vW.y * 0.02 + vW.x * 0.004)).r - 0.5);
             alb *= 1.0 - 0.10 * smoothstep(0.035, 0.0, abs(fract(vFx.z / 0.9 + 0.5) - 0.5)) * (1.0 - smoothstep(0.02, 0.12, fwidth(vFx.z)));

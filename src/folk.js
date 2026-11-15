@@ -2,10 +2,10 @@
 // camps dotted behind the beaches (tent, 4WD, a fire at night), name signs on the tracks and at the towns,
 // and, out in deeper water, patches of reef: rocks, weed and sea cucumbers.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, makeMat, objectMat, LOGV, LOGF, rng } from './common.js';
+import { U, VEX, MOBILE, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng } from './common.js';
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { GB, makeLights } from './geo.js';
-import { fourWD } from './life.js';
+import { fourWD, carShadow } from './life.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const near = (F, re) => F.places.find(p => re.test(p.n || ''))?.p;
@@ -193,10 +193,10 @@ function buildSigns(scene, posts) {
 }
 
 // ---------------------------------------------------------------- camps
-function buildCamps(scene, F, people, R) {
+function buildCamps(scene, F, people, R, shade) {
   const g = new GB(), lights = makeLights(90), K = VEX * 0.9, cars = []; let fires = 0;
   const TENT = [[.85, .35, .15], [.2, .45, .7], [.3, .6, .35], [.9, .75, .2], [.75, .75, .7], [.55, .25, .5], [.2, .3, .25]];
-  const dome = (x, z, r, col) => {            // a dome tent: rounded, with a darker door panel
+  const dome = (x, z, r, col) => { shade.push([x, z, r * 1.5, r * 1.5]);            // a dome tent: rounded, with a darker door panel
     const y = meshY(x, z) - 0.05, rings = 4, S = 10, a0 = R() * 6.283, P = (i, j) => { const e = i / rings * Math.PI / 2, a = a0 + j / S * Math.PI * 2; return [x + Math.cos(a) * Math.cos(e) * r, y + Math.sin(e) * r * 0.78 * K, z + Math.sin(a) * Math.cos(e) * r]; };
     for (let i = 0; i < rings; i++) for (let j = 0; j < S; j++) g.quad(P(i, j + 1), P(i, j), P(i + 1, j), P(i + 1, j + 1), j === 0 && i < 2 ? [col[0] * .45, col[1] * .45, col[2] * .45] : [col[0] * (0.9 + 0.1 * (j % 2)), col[1] * (0.9 + 0.1 * (j % 2)), col[2] * (0.9 + 0.1 * (j % 2))]);
   };
@@ -223,7 +223,7 @@ function buildCamps(scene, F, people, R) {
   for (const [x, z, a] of cars) {             // parked on its four wheels: it takes the slope of the ground it stands on
     const m = new THREE.Mesh(geos[(R() * geos.length) | 0], carMat), S = 1.45, fx = Math.cos(a), fz = -Math.sin(a), Y = (f, s) => meshY(x + (fx * f * 1.5 + -fz * s * 0.9) * S, z + (fz * f * 1.5 + fx * s * 0.9) * S);
     const yFL = Y(1, -1), yFR = Y(1, 1), yBL = Y(-1, -1), yBR = Y(-1, 1), pitch = Math.atan2((yFL + yFR - yBL - yBR) / 2, 3 * S), roll = -Math.atan2((yFR + yBR - yFL - yBL) / 2, 1.8 * S);
-    m.rotation.order = 'YZX'; m.position.set(x, (yFL + yFR + yBL + yBR) / 4 + 0.02, z); m.rotation.set(roll, a, pitch); m.scale.setScalar(S); m.frustumCulled = false; scene.add(m);
+    m.rotation.order = 'YZX'; m.position.set(x, (yFL + yFR + yBL + yBR) / 4 + 0.02, z); m.rotation.set(roll, a, pitch); m.scale.setScalar(S); m.frustumCulled = false; m.add(carShadow()); scene.add(m);
   }
   scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
   return spots;
@@ -318,7 +318,14 @@ export function buildFolk(scene, F) {
       else people.push(x + 7, z - 20 - R() * 30, x + 7, z + 20 + R() * 30, R(), 1.0 + R() * 0.4, 0, 1.25 + R() * 0.15, ...shirt());   // walking the beach
     }
   }
-  const camps = buildCamps(scene, F, people, R), signs = collectSigns(F);
+  const shade = [], camps = buildCamps(scene, F, people, R, shade), signs = collectSigns(F);
+  for (let i = 0; i < people.length; i += 11) if (people[i + 6] > 0.5) shade.push([people[i], people[i + 1], 0.75, 0.75]);          // those who stand still (fishing, or by their tent)
+  { // one flat patch of shade under each, laid on the ground as it slopes
+    const pos = [], uv = [], idx = [];
+    for (const [x, z, rx, rz] of shade) { const q = pos.length / 3; for (const [u, w] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const px = x + (u * 2 - 1) * rx, pz = z + (w * 2 - 1) * rz; pos.push(px, meshY(px, pz) + 0.06, pz); uv.push(u, w); } idx.push(q, q + 1, q + 2, q, q + 2, q + 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.boundingSphere = FAR;
+    const m = new THREE.Mesh(g, blobShadowMat()); m.name = 'shade'; m.frustumCulled = false; m.renderOrder = 4; scene.add(m);
+  }
   buildPeople(scene, people);
   buildSigns(scene, signs);
   return { people, camps, signs, reefs: buildReefs(scene, R) };

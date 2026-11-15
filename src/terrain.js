@@ -340,12 +340,12 @@ export function buildTerrain(scene) {
           vec3 bl = bed * (uLightCol * sun * vis * (0.72 + caus) * bsh + amb * 0.9);
           float cosr = sqrt(1.0 - (1.0 - V.y * V.y) / 1.77);         // refracted view ray
           float path = depth * (1.0 + 1.0 / max(cosr, 0.3));
-          vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * uTurb * path);
+          vec3 Tm = exp(-vec3(0.45, 0.09, 0.105) * uTurb * path * 1.12);
           float ex = texture2D(uHeight, cuv).g, big = texture2D(uNoise, vW.xz / 9000.0).r;
           vec3 deep = mix(uWaterDeep * vec3(1.0, 1.25, 0.85), uWaterDeep * vec3(1.0, 0.72, 1.12), smoothstep(0.3, 0.9, ex)) * (0.82 + 0.36 * big);   // green bay, indigo ocean
           vec3 scat = deep * (uLightCol * (0.10 + 0.22 * sun) * (0.5 + 0.5 * cs) + uAmbSky * 0.8);
           // a touch of turquoise back-scatter over bright sand
-          scat += vec3(0.0, 0.05, 0.04) * exp(-depth * 0.2) * (uLightCol * sun * vis + uAmbSky) * 0.22;
+          scat += vec3(0.0, 0.05, 0.04) * exp(-depth * 0.2) * (uLightCol * sun * vis + uAmbSky) * 0.13;
           lit = bl * Tm + scat * (1.0 - Tm);
           if(uContour > 0.0){                                               // chart-style depth contours: every 2 m to 12 m, every 10 m beyond
             float dch = -h, f2 = dch / 2.0, f10 = dch / 10.0;

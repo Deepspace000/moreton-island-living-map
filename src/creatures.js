@@ -165,6 +165,21 @@ export const PELICAN = () => bird((m) => {
   m.tube((t) => [0.44 + 0.46 * t, 0.705 - 0.15 * t, 0, 0.008 + 0.042 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                  // pouch
   m.tube((t) => [0.415 + 0.012 * t, 0.775, 0, 0.074 * Math.sin(PI * t)], 3, 6, 4);                                                                 // eye ring (a dark band round the head)
 }, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.75, .65, .2]]);
+// the same bird on the wing: neck folded back so the head rides on the shoulders, the long bill out ahead, feet trailing
+export const PELICAN_FLY = () => bird((m) => {
+  m.body([[0.5, 0.01, 0.02, 0.05], [0.42, 0.09, 0.1, 0.04], [0.24, 0.15, 0.17, 0.02], [0.0, 0.16, 0.19, 0.0], [-0.24, 0.13, 0.15, 0.0], [-0.44, 0.07, 0.09, 0.02], [-0.6, 0.01, 0.05, 0.03]], { NR: 14, NS: 12 });
+  m.tube((t) => [0.34 + 0.16 * t, 0.1 + 0.1 * Math.sin(t * PI), 0, 0.07 - 0.015 * t], 6, 8, 0);                                                      // the folded neck
+  m.tube((t) => [0.44 + 0.2 * t, 0.12 + 0.01 * Math.sin(t * PI), 0, 0.012 + 0.06 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);     // head
+  m.tube((t) => [0.6 + 0.5 * t, 0.115 - 0.07 * t, 0, 0.028 - 0.019 * t], 8, 6, 2);                                                                 // bill
+  m.tube((t) => [0.6 + 0.44 * t, 0.075 - 0.06 * t, 0, 0.008 + 0.036 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                   // pouch
+  for (const sd of [-1, 1]) m.tube((t) => [-0.5 - 0.3 * t, -0.03 - 0.02 * t, sd * 0.05, 0.022 - 0.008 * t], 4, 5, 4);                               // legs trailing
+  m.leaf([-0.52, 0.03, 0], [-1, 0.02, 0], [0, 0, 1], 0.22, 0.12, { part: 1, flex: () => 0 });                                                      // tail
+}, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.45, .5, .55]]);
+// one wing, hinged at the shoulder (the origin) and reaching out along +z: white coverts in front, black flight feathers behind and at the tip
+export const PELICAN_WING = () => bird((m) => {
+  m.leaf([0.1, 0, 0.02], [-0.08, 0.02, 1], [1, 0, 0.04], 1.28, 0.17, { part: 0, flex: () => 0, curl: [-0.28, -0.1, 0], ns: 12, tip: 0.6 });
+  m.leaf([-0.12, -0.005, 0.02], [-0.1, 0.02, 1], [1, 0, 0.0], 1.36, 0.2, { part: 1, flex: () => 0, curl: [-0.34, -0.1, 0], ns: 12, tip: 0.55 });
+}, [[.93, .93, .9], [.04, .04, .045]]);
 // little pied / pied cormorant: black above, low in the water, the thin neck up and the hooked bill tilted
 export const CORMORANT = () => bird((m) => {
   m.body([[0.3, 0.01, 0.015, 0.07], [0.24, 0.05, 0.07, 0.06], [0.1, 0.08, 0.1, 0.04], [-0.08, 0.08, 0.1, 0.04], [-0.24, 0.05, 0.06, 0.05], [-0.42, 0.01, 0.03, 0.05]], { NR: 12, NS: 10, belly: 0.8 });

@@ -508,7 +508,7 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-            if(uMode > 0.5 && uMode < 1.5) c = mix(c, alb * 1.55, 0.8) * (0.9 + 0.3 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
+            if(uMode > 0.5 && uMode < 1.5) c = mix(alb * 1.45, vec3(0.055, 0.085, 0.032), 0.45) * (0.8 + 0.35 * h1);          // distant crowns take the colour of the forest in the photograph, so they sit in it and do not stand out as dark lumps
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.28, h2 + (lum - 0.1) * 2.0); c = mix(mix(vec3(0.30, 0.25, 0.20), alb * 1.3, 0.55), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
@@ -517,7 +517,10 @@ function buildTrees(F, scene) {
           #endif
           vec3 wp = base + lp;
           float cs = cloudShadow(wp);
-          float wrap = aPart > 0.5 ? 0.12 : uMode > 0.5 && uMode < 1.5 ? 0.7 : 0.5, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
+          float wrap = aPart > 0.5 ? 0.12 : uMode > 0.5 && uMode < 1.5 ? 1.0 : 0.5, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
+          // no leaf is greener than nature allows; and the green varies by the patch of bush, not by the single plant
+          if(aPart < 0.5){ c.g = min(c.g, 1.4 * c.r + 0.015); c = mix(vec3(dot(c, vec3(0.3, 0.5, 0.2))), c, 0.82) * (0.8 + 0.42 * texture2D(uNoise, base.xz / 130.0).g); }
+          if(uMode > 0.5 && uMode < 1.5) ao = mix(0.5, 1.0, smoothstep(-0.25, 0.85, nrm.y));        // a distant crown is lit from the top down: bright cap, dim skirt
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
           vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
@@ -549,9 +552,9 @@ function buildTrees(F, scene) {
             // near the eye the clusters resolve into single leaves (three layers of them, at different sizes); far away only the clusters are drawn
             vec3 an = abs(normalize(vN)); vec2 lp = an.y > 0.75 ? vObj.xz : an.x > an.z ? vObj.zy : vObj.xy;
             #ifdef SPECIES
-            vec2 slim = vec2(4.4, 1.12); float lsc = 3.1;
+            vec2 slim = vec2(4.4, 1.12); float lsc = 7.0;        // gum leaves a hand long
             #else
-            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5); float lsc = 4.6;        // bare scrub shows thin twigs, not leaves
+            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5); float lsc = 9.0;        // bare scrub shows thin twigs, not leaves
             #endif
             float lw = fwidth(lp.x * lsc) + fwidth(lp.y * lsc), nearL = 1.0 - smoothstep(0.18, 0.6, lw), dens = clamp(clump * 1.25 + 0.12, 0.0, 1.0);
             alpha = clump;
@@ -586,7 +589,7 @@ function buildTrees(F, scene) {
   };
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 8, LOW ? 2 : 3), true);          // single trees close to the view, each its own kind
-  ring(n, 30, 9, 17, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
+  ring(n, 30, 6.5, 12, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
   ring(LOW ? 90 : 150, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
   ring(LOW ? 70 : 104, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
   const grass = buildGrassTrees(scene);

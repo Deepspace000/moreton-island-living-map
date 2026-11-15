@@ -133,10 +133,10 @@ export function buildWater(scene) {
           vec3 Nd = -normalize(vec3(-vSlope.x - n.x * rip, 1.0, -vSlope.y - n.y * rip));
           float ci = max(dot(Nd, V), 0.0), kk = 1.0 - 1.7689 * (1.0 - ci * ci), win = smoothstep(-0.04, 0.3, kk);         // soft edge to the window
           vec3 up = normalize(-V * 1.33 + Nd * (1.33 * ci - sqrt(max(kk, 0.0))) + vec3(0.0, 0.0001, 0.0));       // the ray bent on its way out into the air
-          vec3 skyl = skyColor(normalize(vec3(up.x, max(up.y, 0.04), up.z))) * 0.85 + uLightCol * (pow(max(dot(up, uLightDir), 0.0), 60.0) * 1.2 + pow(max(dot(up, uLightDir), 0.0), 6.0) * 0.12) * cloudShadow(vW);
+          vec3 skyl = skyColor(normalize(vec3(up.x, max(up.y, 0.04), up.z))) * 1.2 + uLightCol * (pow(max(dot(up, uLightDir), 0.0), 60.0) * 1.2 + pow(max(dot(up, uLightDir), 0.0), 6.0) * 0.12) * cloudShadow(vW);
           vec3 Rd = reflect(-V, Nd); vec3 deep = fogColor(vec3(Rd.x, -abs(Rd.y) - 0.15, Rd.z)) * (0.75 + 0.5 * n.x);
           vec3 c = mix(deep, skyl, win);
-          c = mix(c, fogColor(-V), (1.0 - exp(-dist * 0.05)) * (1.0 - 0.6 * win));
+          c = mix(c, fogColor(-V), (1.0 - exp(-dist * 0.085)) * (1.0 - 0.6 * win));
           gl_FragColor = vec4(c, 1.0); return;
         }
         float ndv = max(dot(N, V), 0.0);

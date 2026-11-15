@@ -143,7 +143,7 @@ export function buildBoats(scene, F) {
   const pick = (a) => a[(R() * a.length) | 0];
   // where you stand when you go aboard each kind of boat (metres forward of midships, and above the keel line)
   const EYES = new Map(); const eyes = (list, e) => [].concat(list).forEach(g => EYES.set(g, e));
-  eyes(geo.sail, [-4.4, 2.75]); eyes(geo.moor, [-4.4, 2.75]); eyes(geo.cru, [-3.9, 3.1]); eyes(geo.fly, [0.2, 4.75]); eyes(geo.tin, [-1.9, 1.65]); eyes(geo.jet, [-1.05, 1.8]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
+  eyes(geo.sail, [-4.5, 3.3]); eyes(geo.moor, [-4.5, 3.3]); eyes(geo.cru, [-3.9, 3.1]); eyes(geo.fly, [0.2, 4.75]); eyes(geo.tin, [-1.9, 1.65]); eyes(geo.jet, [0.02, 1.64]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
   const boats = [], lights = makeLights(260);
   const mk = (g, x, z, o = {}) => {
     const m = new THREE.Mesh(g, mat); m.rotation.order = 'YZX'; m.scale.setScalar(S * (o.scale || 1)); m.frustumCulled = false; scene.add(m);

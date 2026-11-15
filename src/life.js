@@ -3,11 +3,11 @@
 // shorebirds and butterflies. Small things are grown by the GPU in a grid that follows the viewer;
 // animals that swim or fly are instanced and animated in their vertex shaders.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
-import { T, meshY, heightAt, maskAt } from './terrain.js';
+import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng, clamp } from './common.js';
+import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
-import { swimmers, PAINT, PELICAN, CORMORANT, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
+import { swimmers, PAINT, PELICAN, CORMORANT, PELICAN_FLY, PELICAN_WING, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const LIT_FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
@@ -135,7 +135,7 @@ function buildBeachLife(scene) {
         s = (0.3 + 0.5 * h1) * (1.0 + 0.8 * headland) * step(h3, mix(0.035, 0.95, headland)) * step(0.92, mk.r) * (1.0 - smoothstep(0.45, 0.8, mk.g)) * step(1.2, hgt);
         lp = position * vec3(1.0, 0.7 + 0.6 * h2, 1.0) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK * aK;
         nrm = vec3(0.0, 1.0, 0.0);
-        c = mix(vec3(0.20, 0.32, 0.11), vec3(0.52, 0.50, 0.24), step(0.6, h2)) * (0.55 + 0.6 * aK) * (0.8 + 0.4 * h4);`, 200);
+        c = mix(vec3(0.22, 0.27, 0.12), vec3(0.50, 0.48, 0.28), step(0.4, h2)) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4);`, 200);
   // ferns: on the low wet flats they cover the ground knee to waist high, each a ring of arching fronds
   const ferns = scatter(scene, LOW ? 70 : 104, 1.0, (g) => {
     const pos = [], k = [], idx = [];
@@ -150,7 +150,7 @@ function buildBeachLife(scene) {
         s = (0.5 + 0.55 * h1) * step(h3, 0.9) * wet;
         lp = position * vec3(0.85 + 0.3 * h4, 0.7 + 0.6 * fract(h2 * 9.0), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same
         nrm = vec3(0.0, 1.0, 0.0);
-        c = mix(mix(vec3(0.035, 0.13, 0.02), vec3(0.11, 0.25, 0.045), h2), vec3(0.17, 0.11, 0.05), step(0.93, fract(h1 * 7.0))) * (0.45 + 0.75 * aK);`, 260);
+        c = mix(mix(vec3(0.05, 0.095, 0.03), vec3(0.105, 0.15, 0.05), h2), vec3(0.20, 0.13, 0.06), step(0.74, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);`, 260);        // bracken: olive, a quarter of the fronds dead and brown, dark at the base
   // soldier crabs: when the tide is well out they come up on the bared flats in armies, small round sky-blue crabs that
   // walk a little way together and then screw themselves back down into the wet sand
   const crabs = scatter(scene, LOW ? 100 : 140, 0.24, (g) => {
@@ -226,6 +226,8 @@ export function fourWD(col) {
   return g;
 }
 export const rideable = [];            // the moving 4WDs, for riding along in (see ride.js)
+// the dark patch a car throws on the sand under itself
+export function carShadow() { const g = new THREE.PlaneGeometry(6.2, 3.0); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, blobShadowMat()); m.position.y = 0.05; m.frustumCulled = false; m.renderOrder = 4; return m; }
 function buildCars(scene, F, lights) {
   const routes = (F.beach || []).filter(r => r.p.length > 30);
   if (!routes.length) return () => {};
@@ -236,12 +238,18 @@ function buildCars(scene, F, lights) {
     const cum = [0]; for (let i = 1; i < r.p.length; i++) cum.push(cum[i - 1] + Math.hypot(r.p[i][0] - r.p[i - 1][0], r.p[i][1] - r.p[i - 1][1]));
     const len = cum[cum.length - 1], n = clamp(Math.round(len / (MOBILE ? 4200 : 2600)), 1, MOBILE ? 5 : 9);
     for (let k = 0; k < n; k++) {
-      const m = new THREE.Mesh(geos[(R() * geos.length) | 0], mat); m.name = 'car'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; scene.add(m);
+      const m = new THREE.Mesh(geos[(R() * geos.length) | 0], mat); m.name = 'car'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; m.add(carShadow()); scene.add(m);
       const dir = R() < 0.5 ? 1 : -1;
       cars.push({ m, side: r.side, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 1.3)] });
     }
   });
   rideable.push(...cars);
+  // taking the wheel and giving it back: a car left close to its beach run picks the run up again; one left elsewhere stays parked there
+  for (const c of cars) c.setDrive = (on) => {
+    if (on) { c.drive = { turn: 0, throttle: clamp(c.sp / 15, 0.2, 1), v: c.sp }; c.parked = false; return; }
+    c.drive = null; let bi = 1, bd = 1e9; for (let i = 1; i < c.p.length; i++) { const d = Math.hypot(c.p[i][0] - c.m.position.x, c.p[i][1] - c.m.position.z); if (d < bd) { bd = d; bi = i; } }
+    if (bd < 45) { c.s = clamp(c.cum[bi], 41, c.len - 41); c.i = bi; c.parked = false; const fwd = Math.cos(c.m.rotation.y) * (c.p[bi][0] - c.p[bi - 1][0]) - Math.sin(c.m.rotation.y) * (c.p[bi][1] - c.p[bi - 1][1]); c.dir = fwd >= 0 ? 1 : -1; c.lane = Math.abs(c.lane) * c.dir; } else c.parked = true;
+  };
   // fresh tyre marks: each car lays two ribbons of tread behind it, which fade over a couple of minutes and wash out near the water
   const NT = 110, tp = new Float32Array(cars.length * NT * 4 * 3), td = new Float32Array(cars.length * NT * 4 * 3), ti = [];
   cars.forEach((c, k) => { c.k = k; c.lx = 1e9; c.lz = 0; c.run = 0; for (let j = 0; j < NT - 1; j++) for (const h of [0, 2]) { const o = (k * NT + j) * 4 + h; ti.push(o, o + 1, o + 4, o + 4, o + 1, o + 5); } });
@@ -264,13 +272,25 @@ function buildCars(scene, F, lights) {
   return (dt) => {
     let laid = false;
     for (const c of cars) {
-      c.s += c.sp * c.dir * dt;
-      if (c.s > c.len - 40 || c.s < 40) { c.dir *= -1; c.lane *= -1; c.s = clamp(c.s, 40, c.len - 40); }
-      while (c.i < c.cum.length - 1 && c.cum[c.i] < c.s) c.i++;
-      while (c.i > 1 && c.cum[c.i - 1] > c.s) c.i--;
-      const a = c.p[c.i - 1], b = c.p[c.i], f = (c.s - c.cum[c.i - 1]) / Math.max(1, c.cum[c.i] - c.cum[c.i - 1]);
-      let tx = (b[0] - a[0]) * c.dir, tz = (b[1] - a[1]) * c.dir; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-      const x = a[0] + (b[0] - a[0]) * f + tz * c.lane, z = a[1] + (b[1] - a[1]) * f - tx * c.lane;
+      let tx, tz, x, z;
+      if (c.drive || c.parked) {            // someone aboard has the wheel (or left it parked where they stopped): it goes where it is steered, over any ground but not into the sea
+        const dr = c.drive || { turn: 0, throttle: 0, v: 0 }; let hd = c.m.rotation.y;
+        dr.v = (dr.v || 0) + (dr.throttle * 15 - (dr.v || 0)) * Math.min(1, dt * 1.3);
+        hd -= dr.turn * 0.75 * dt * clamp(Math.abs(dr.v) / 4, 0, 1) * (dr.v < 0 ? -1 : 1);
+        tx = Math.cos(hd); tz = -Math.sin(hd); x = c.m.position.x; z = c.m.position.z;
+        const nx = x + tx * dr.v * dt, nz = z + tz * dr.v * dt;
+        if (groundH(nx + tx * 2, nz + tz * 2) > U.uSeaM.value - 0.45 && Math.abs(nx) < T.sx / 2 - 200 && Math.abs(nz) < T.sz / 2 - 200) { x = nx; z = nz; } else dr.v *= 0.6;
+        c.sp = Math.abs(dr.v); c.m.rotation.y = hd;
+      } else {
+        c.sp = c.sp0 || (c.sp0 = c.sp);
+        c.s += c.sp * c.dir * dt;
+        if (c.s > c.len - 40 || c.s < 40) { c.dir *= -1; c.lane *= -1; c.s = clamp(c.s, 40, c.len - 40); }
+        while (c.i < c.cum.length - 1 && c.cum[c.i] < c.s) c.i++;
+        while (c.i > 1 && c.cum[c.i - 1] > c.s) c.i--;
+        const a = c.p[c.i - 1], b = c.p[c.i], f = (c.s - c.cum[c.i - 1]) / Math.max(1, c.cum[c.i] - c.cum[c.i - 1]);
+        tx = (b[0] - a[0]) * c.dir; tz = (b[1] - a[1]) * c.dir; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+        x = a[0] + (b[0] - a[0]) * f + tz * c.lane; z = a[1] + (b[1] - a[1]) * f - tx * c.lane;
+      }
       const y = Math.max(meshY(x, z), U.uSeaM.value * VEX - 0.2), yf = meshY(x + tx * 3, z + tz * 3), yb = meshY(x - tx * 3, z - tz * 3);
       c.y += (y - c.y) * Math.min(1, dt * 8);
       c.m.position.set(x, c.y, z);
@@ -678,15 +698,63 @@ function buildLizards(scene) {
   return [scatter(scene, LOW ? 14 : 20, 28, tubes(parts), body(true), 300), scatter(scene, LOW ? 30 : 44, 3.6, tubes(parts, 4), body(false), 70)];
 }
 
+// ---------------------------------------------------------------- pelicans on the wing
+// Australian pelicans in loose lines low over the water: a few slow beats, then a long glide. Each is its own object (body and two
+// hinged wings), so one can be followed, and flown: when it is, it goes where it is steered, and settles on the water if brought down to it.
+export const flyers = [];
+function buildPelicans(scene, F) {
+  const R = rng(7117), mat = objectMat({ side: THREE.DoubleSide }), body = PELICAN_FLY(), wing = PELICAN_WING(), S = 1.9;
+  const homes = [...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] - 500, p.p[1]]), ...F.views.filter(v => /Wrecks/.test(v.n || '')).map(v => [(v.c || v.p)[0] - 200, (v.c || v.p)[1]])];
+  const N = MOBILE ? 9 : 16;
+  for (let i = 0; i < N && homes.length; i++) {
+    const h = homes[(i / 3 | 0) % homes.length], g = new THREE.Group(), b = new THREE.Mesh(body, mat), wl = new THREE.Mesh(wing, mat), wr = new THREE.Mesh(wing, mat);
+    wl.position.set(0.06, 0.1, 0.12); wr.position.set(0.06, 0.1, -0.12); wr.scale.z = -1; g.add(b, wl, wr); g.scale.setScalar(S); g.rotation.order = 'YZX';
+    for (const m of [b, wl, wr]) m.frustumCulled = false;
+    scene.add(g);
+    const lead = i % 3 === 0;
+    flyers.push({ m: g, wl, wr, home: h, rad: 260 + ((i / 3 | 0) * 97) % 240, ang: (lead ? R() * 6.283 : flyers[i - 1].ang - 0.045), way: (i / 3 | 0) % 2 ? 1 : -1, alt: 5 + ((i / 3 | 0) * 3.7) % 9 + (i % 3) * 0.6, sp: 11.5, ph: R() * 6.283, x: h[0], z: h[1], y: 8, hd: 0, ctl: null, afloat: false, len: 5 });
+  }
+  return (dt, t) => {
+    const sea = U.uSeaM.value * VEX;
+    for (const p of flyers) {
+      let bank = 0, flap;
+      if (p.ctl) {                      // flown by hand: turn, climb and sink; down on the water it folds its wings and paddles
+        const c = p.ctl; p.hd -= c.turn * 0.85 * dt; bank = c.turn * 0.5;
+        p.y += c.climb * 5 * dt; const floor = sea + 0.25;
+        if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
+        p.y = Math.min(p.y, sea + 160); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
+        const nx = p.x + Math.cos(p.hd) * p.v * dt, nz = p.z - Math.sin(p.hd) * p.v * dt; if (Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { p.x = nx; p.z = nz; }
+        p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : 1.2));
+        flap = c.climb > 0.1 || p.y < sea + 3;
+      } else {                          // on its own: a wide circle off the shore, in line astern, rising and falling a little
+        p.afloat = false; p.v = p.sp; p.ang += p.way * p.sp / p.rad * dt;
+        const tx = p.home[0] + Math.cos(p.ang) * p.rad, tz = p.home[1] + Math.sin(p.ang) * p.rad * 1.6, want = Math.atan2(-(tz - p.z), tx - p.x);
+        let d = ((want - p.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI; const turn = clamp(d, -dt * 0.9, dt * 0.9); p.hd += turn; bank = -turn / Math.max(dt, 1e-3) * 0.5;
+        p.x += Math.cos(p.hd) * p.sp * dt; p.z -= Math.sin(p.hd) * p.sp * dt;
+        const goal = Math.max(sea + p.alt + Math.sin(t * 0.13 + p.ph) * 2.5, meshY(p.x, p.z) + 6); p.y += (goal - p.y) * Math.min(1, dt * 0.6);
+        flap = Math.sin(t * 0.21 + p.ph * 3) > 0.25;       // beats in bursts, glides between
+      }
+      p.beat = (p.beat ?? 0) + ((flap ? 1 : 0) - (p.beat ?? 0)) * Math.min(1, dt * 2.5);
+      const w = p.afloat ? 1.25 : 0.1 + p.beat * Math.sin(t * 7.0 + p.ph) * 0.55 + (1 - p.beat) * 0.06;      // wings folded to the body, beating, or held out in the glide
+      p.fold = (p.fold ?? 0) + ((p.afloat ? 1 : 0) - (p.fold ?? 0)) * Math.min(1, dt * 3);
+      p.wl.rotation.set(-w * (1 - p.fold) - 0.2 * p.fold, -1.25 * p.fold, 0); p.wr.rotation.set(w * (1 - p.fold) + 0.2 * p.fold, 1.25 * p.fold, 0);
+      p.m.position.set(p.x, p.y + (p.afloat ? 0 : p.beat * Math.sin(t * 7.0 + p.ph + 1.2) * 0.12), p.z);
+      p.roll = (p.roll ?? 0) + (bank - (p.roll ?? 0)) * Math.min(1, dt * 3);
+      p.m.rotation.set(p.roll, p.hd, p.ctl && !p.afloat ? p.ctl.climb * 0.18 : 0);
+    }
+  };
+}
+
 export function buildLife(scene, F) {
   const lights = makeLights(64); scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
   const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene), buildGnats(scene), buildWallabies(scene), ...buildLizards(scene)];
   const cars = buildCars(scene, F, lights), snork = buildSnorkelers(scene, F), birds = buildBirds(scene, F);
+  const pelicans = buildPelicans(scene, F);
   buildSeaLife(scene, F);
   return {
     update(dt, t, target, camDist) {
       for (const s of near) { s.m.visible = camDist < s.range; if (s.m.visible) s.set(target.x, target.z); }
-      cars(dt); snork(dt, t); birds(dt, target);
+      cars(dt); snork(dt, t); birds(dt, target); pelicans(dt, t);
     },
   };
 }

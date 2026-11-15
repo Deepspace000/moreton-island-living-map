@@ -20,7 +20,7 @@ import { buildFolk } from './folk.js';
 import { makeSound } from './sound.js';
 import { makeDive } from './dive.js';
 import { makeRide } from './ride.js';
-import { rideable } from './life.js';
+import { rideable, flyers } from './life.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
@@ -67,7 +67,7 @@ const rideWhere = (x, z) => {
   let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
   return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
 };
-const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
+const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, sea: () => U.uSeaM.value * VEX, where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
@@ -153,13 +153,13 @@ function enterRide(hit) {
 }
 function exitRide() {
   if (!ride.active) return;
-  const m = (ride.car || ride.boat).m, yaw = m.rotation.y, far = ride.boat ? Math.max(140, (ride.boat.len || 12) * 6) : 110; ride.exit(); controls.enabled = true; document.body.classList.remove('riding');
+  const m = (ride.car || ride.boat || ride.bird).m, yaw = m.rotation.y, far = ride.boat ? Math.max(140, (ride.boat.len || 12) * 6) : ride.bird ? 70 : 110; ride.exit(); controls.enabled = true; document.body.classList.remove('riding');
   controls.target.set(m.position.x, m.position.y, m.position.z);
   camera.position.set(m.position.x - Math.cos(yaw) * far, m.position.y + far * 0.55, m.position.z + Math.sin(yaw) * far);
   resize();
 }
 ride.onExit = exitRide;
-{ let down = null;                 // a tap (not a drag) on a 4WD or a boat
+{ let down = null;                 // a tap (not a drag) on a 4WD, a boat or a pelican in flight
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
     if (!down || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
@@ -276,7 +276,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
