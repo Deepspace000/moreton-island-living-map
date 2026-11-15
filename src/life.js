@@ -160,9 +160,9 @@ function buildBeachLife(scene) {
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   };
   const belt = scatter(scene, LOW ? 80 : 130, 0.5, fineGeo, /* glsl */`
-        float band = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.8, 0.93, mk.g));                 // the map's sand value is mid-way here: neither bush nor bare beach
-        float dry = step(0.7, h2), thick = mix(1.0, 0.22, smoothstep(0.62, 0.9, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
-        s = (0.55 + 0.5 * h1) * step(h3, thick * band * smoothstep(1.4, 2.4, hgt)) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * (1.0 - smoothstep(0.02, 0.1, ov.r));       // behind the beach only, starting at the foot of the dune: the lower beach is bare
+        float band = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.68, 0.84, mk.g));                // the map's sand value is mid-way here: neither bush nor bare beach
+        float dry = step(0.7, h2), thick = mix(1.0, 0.1, smoothstep(0.55, 0.8, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
+        s = (0.55 + 0.5 * h1) * step(h3, thick * band * smoothstep(2.5, 3.4, hgt)) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * (1.0 - smoothstep(0.02, 0.1, ov.r));       // behind the beach only, starting at the foot of the dune: the lower beach is bare
         lp = position * mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.5 + 0.2 * h4, 1.5), dry) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry);
         nrm = vec3(0.0, 1.0, 0.0);
         vec3 green = mix(vec3(0.13, 0.25, 0.08), vec3(0.20, 0.30, 0.17), step(0.5, h4)), straw = mix(vec3(0.50, 0.46, 0.33), vec3(0.36, 0.33, 0.27), h1);
@@ -187,7 +187,7 @@ function buildBeachLife(scene) {
         float wet = (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0) * step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * (1.0 - smoothstep(0.05, 0.13, max(ov.r, max(ov.g, ov.b))));
         // ...and bracken stands in patches along the back of the beaches too, just where the grass gives way to the scrub: fresh green fronds, and whole
         // patches of brown ones where a fire has been through or the old fronds have died off (as the owner describes)
-        float edge = smoothstep(0.2, 0.33, mk.g) * (1.0 - smoothstep(0.5, 0.66, mk.g)) * step(1.0, hgt) * step(0.92, mk.r) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * smoothstep(0.38, 0.55, texture2D(uNoise, xz / 23.0).b);
+        float edge = smoothstep(0.2, 0.33, mk.g) * (1.0 - smoothstep(0.5, 0.66, mk.g)) * smoothstep(2.4, 3.2, hgt) * step(0.92, mk.r) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * smoothstep(0.38, 0.55, texture2D(uNoise, xz / 23.0).b);
         float atEdge = step(wet, 0.5) * step(0.01, edge), burntPatch = step(0.64, texture2D(uNoise, xz / 70.0 + 0.3).g), brown = atEdge * step(mix(0.85, 0.25, burntPatch), fract(h1 * 7.0));
         s = (0.5 + 0.55 * h1) * max(step(h3, 0.62) * wet, step(h3, 0.62 * edge));
         lp = position * vec3(0.85 + 0.3 * h4, (0.7 + 0.6 * fract(h2 * 9.0)) * (1.0 - 0.35 * brown), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same; the dead ones sag
@@ -786,8 +786,8 @@ function buildCreeper(scene) {
     for (let e = 0; e < 2; e++) fan((R() - 0.5) * 0.16, 0.06 + R() * 0.06, (R() - 0.5) * 0.16, 0.05 + R() * 0.02, 0, R() * 6.28, 0.5, 1);      // a knot of leaves where the runners start
   }
   return scatter(scene, LOW ? 44 : 64, 1.5, (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); }, /* glsl */`
-        float edge = smoothstep(0.5, 0.6, mk.g) * (1.0 - smoothstep(0.74, 0.86, mk.g));                              // it creeps out from the foot of the scrub onto the edge of the open sand
-        float here = step(0.9, mk.r) * smoothstep(1.5, 2.3, hgt) * (1.0 - smoothstep(5.0, 8.0, hgt)) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * edge * step(h3, mix(0.6, 0.2, smoothstep(0.55, 0.8, mk.g))) * smoothstep(0.3, 0.5, texture2D(uNoise, xz / 19.0).g) * (1.0 - smoothstep(0.02, 0.1, ov.r));      // thick mats in places near the scrub, thinner further out
+        float edge = smoothstep(0.45, 0.55, mk.g) * (1.0 - smoothstep(0.66, 0.8, mk.g));                             // it creeps out from the foot of the scrub onto the edge of the open sand
+        float here = step(0.9, mk.r) * smoothstep(2.6, 3.4, hgt) * (1.0 - smoothstep(6.0, 9.0, hgt)) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * edge * step(h3, mix(0.6, 0.2, smoothstep(0.55, 0.8, mk.g))) * smoothstep(0.3, 0.5, texture2D(uNoise, xz / 19.0).g) * (1.0 - smoothstep(0.02, 0.1, ov.r));      // thick mats in places near the scrub, thinner further out
         s = (1.7 + 1.8 * h2) * here;
         lp = position; nrm = normalize(vec3(position.x * 0.6, 1.0, position.z * 0.6));
         c = aK < 0.5 ? mix(vec3(0.11, 0.25, 0.055), vec3(0.21, 0.37, 0.09), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))

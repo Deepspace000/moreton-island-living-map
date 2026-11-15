@@ -9,7 +9,7 @@ import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp, expect, getBlob } from './com
 import { loadTerrainData, buildTerrain, followTerrain, meshY, heightAt, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
-import { wx, live, fetchWeather, stepWeather, setTideDate, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
+import { wx, live, fetchWeather, stepWeather, setTideDate, freeTide, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
 import { makeWalk, pickGround } from './walk.js';
 import { buildFeatures } from './features.js';
 import { buildBoats } from './boats.js';
@@ -235,9 +235,9 @@ function layoutLeft() {
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
 canvas.addEventListener('dblclick', (e) => { if (walk.active || ride.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
 addEventListener('keydown', (e) => { if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
-$('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); syncButtons(); });
-$('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); syncButtons(); };
-$('btPlay').onclick = () => { st.play = !st.play; st.live = false; syncButtons(); };
+$('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); freeTide(); syncButtons(); syncWeatherUI(); });
+$('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); freeTide(); syncButtons(); syncWeatherUI(); };
+$('btPlay').onclick = () => { st.play = !st.play; st.live = false; freeTide(); syncButtons(); syncWeatherUI(); };
 function syncButtons() { $('btLive').classList.toggle('on', st.live); $('btPlay').classList.toggle('on', st.play); $('btPlay').textContent = st.play ? '❚❚ Day cycle' : '▶ Day cycle'; }
 let showLabels = Q.get('labels') !== '0', showClouds = true;
 $('btLabels').classList.toggle('on', showLabels);

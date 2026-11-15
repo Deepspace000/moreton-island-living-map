@@ -14,13 +14,30 @@ const target = { ...wx };
 // ---- tide ----
 // The sea level follows the clock: the main twice-daily tide, its fortnightly swing between springs and neaps, and the
 // daily inequality, as five harmonic parts sized for Moreton Bay (about 2 m between a spring high and low). The timing
-// is a model, not a tide table; when the live sea level is known the model is shifted to agree with it. Moving the tide
-// slider takes over until the weather is set back to Live or a preset.
+// is a model, not a tide table. When online, the real hour-by-hour sea level for the days around now is fetched and used instead, and the
+// model's clock is set to agree with it for other dates. The level itself is never shifted up or down (doing that once held the sea near
+// high water all day and drowned the beaches). Moving the tide slider takes over until the weather is set back to Live or a preset.
+// The sea is kept between a spring low and a spring high, so there is always beach left at the top of the tide.
 const TIDE0 = Date.UTC(2000, 0, 8, 0, 0), TIDES = [[0.62, 12.4206012], [0.17, 12], [0.12, 12.65834751], [0.19, 23.93447213], [0.10, 25.81933871]];
 export const tideModel = (ms) => { const h = (ms - TIDE0) / 3600e3; let y = 0; for (const [a, p] of TIDES) y += a * Math.cos(2 * Math.PI * h / p); return y; };
-let tideDate = Date.now(), tideManual = false, tideBias = 0;
+let tideDate = Date.now(), tideManual = false, tideTable = null, tideShift = 0;
 export function setTideDate(ms) { tideDate = ms; }
-export const tideLevel = () => tideManual ? custom.tide : clamp(tideModel(tideDate) + tideBias, -1.3, 1.3);
+// times in ms, levels in metres: the real tide for a run of hours. Its own mean is taken out, so it swings about the same zero as the land heights.
+export function setTideTable(times, levels) {
+  const ok = Array.isArray(times) && Array.isArray(levels) && times.length === levels.length && times.length >= 24 && levels.every(v => typeof v === 'number' && isFinite(v));
+  if (!ok) { tideTable = null; tideShift = 0; return false; }
+  const mean = levels.reduce((a, v) => a + v, 0) / levels.length, v = levels.map(q => q - mean), lo = Math.min(...v), hi = Math.max(...v);
+  if (hi - lo < 0.3 || hi - lo > 4) { tideTable = null; tideShift = 0; return false; }
+  tideTable = { t0: times[0], step: (times[times.length - 1] - times[0]) / (times.length - 1), v };
+  let best = 1e9; tideShift = 0;            // set the model's clock: the shift (within half a tide either way) that fits the real hours best
+  for (let s = -6.3; s <= 6.3; s += 1 / 6) { let e = 0; for (let i = 0; i < v.length; i += 2) e += (tideModel(times[i] + s * 3600e3) - v[i]) ** 2; if (e < best) { best = e; tideShift = s * 3600e3; } }
+  return true;
+}
+const tideAt = (ms) => {
+  if (tideTable) { const f = (ms - tideTable.t0) / tideTable.step, n = tideTable.v.length; if (f >= 0 && f <= n - 1) { const i = Math.min(n - 2, Math.floor(f)), t = f - i, k = t * t * (3 - 2 * t); return tideTable.v[i] + (tideTable.v[i + 1] - tideTable.v[i]) * k; } }
+  return tideModel(ms + tideShift);
+};
+export const tideLevel = () => tideManual ? custom.tide : clamp(tideAt(tideDate), -1.15, 1.05);
 export let mode = 'live';
 // hand-set weather (the sliders)
 export const custom = { sun: 85, cloud: 25, ctype: 'cumulus', wind: 14, windDir: 120, rain: 0, fog: 5, swell: 0.9, tide: 0, storm: 0 };
@@ -43,6 +60,8 @@ export function seedCustom() {          // start the sliders from what is showin
   Object.assign(custom, { sun: Math.round((1 - liveOvercast(live)) * 100), cloud: Math.round(live.cloud), wind: Math.round(live.wind), windDir: Math.round(live.windDir), rain: Math.round(clamp(live.rain / 6, 0, 1) * 100), fog: (live.code === 45 || live.code === 48) ? 80 : 5, swell: Math.round(live.wave * 10) / 10, tide: Math.round(live.tide * 10) / 10, storm: live.code >= 95 ? 1 : 0, ctype: live.code >= 95 ? 'storm' : live.rain > 1 ? 'towering' : live.cloud > 92 ? 'stratus' : 'cumulus' });
 }
 export function setMode(m) { if (m !== 'live' && PRESETS[m]) { seedCustom(); Object.assign(custom, PRESETS[m]); } tideManual = false; mode = m; apply(); }
+// changing the time of day hands the tide back to the clock (if the Tide slider had been holding it)
+export function freeTide() { if (tideManual) { tideManual = false; custom.tide = Math.round(tideLevel() * 10) / 10; apply(); } }
 export function setCustom(key, val) { seedCustom(); if (key === 'tide') tideManual = true; else if (!tideManual) custom.tide = Math.round(tideLevel() * 10) / 10; custom[key] = val; mode = 'custom'; apply(); }
 export function current() {
   if (mode === 'live') return { ...live, tide: tideLevel() };
@@ -113,7 +132,8 @@ export async function fetchWeather() {
       const n = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
       Object.assign(live, { wave: n(m.wave_height, live.wave), waveDir: n(m.wave_direction, live.waveDir), wavePeriod: n(m.wave_period, live.wavePeriod), windWave: n(m.wind_wave_height, live.windWave), swell: n(m.swell_wave_height, live.swell), swellDir: n(m.swell_wave_direction, live.swellDir), swellPeriod: n(m.swell_wave_period, live.swellPeriod), sst: n(m.sea_surface_temperature, live.sst), tide: clamp(n(m.sea_level_height_msl, 0), -1.3, 1.3) });
     }
-    if (fb && fb.current && typeof fb.current.sea_level_height_msl === 'number') tideBias = clamp(fb.current.sea_level_height_msl - tideModel(Date.now()), -0.7, 0.7);
+    fetch('https://marine-api.open-meteo.com/v1/marine?latitude=-27.15&longitude=153.50&hourly=sea_level_height_msl&past_days=1&forecast_days=7&timeformat=unixtime&timezone=GMT').then(r => r.json())
+      .then(j => { if (j && j.hourly) setTideTable((j.hourly.time || []).map(s => s * 1000), j.hourly.sea_level_height_msl || []); }).catch(() => {});      // the real tide, hour by hour, when it can be had
   } catch (e) { console.warn('weather unavailable, using defaults', e); }
   apply();
   return live;
