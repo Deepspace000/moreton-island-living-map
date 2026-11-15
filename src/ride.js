@@ -249,8 +249,9 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
       if (p.m.visible !== show) p.m.visible = show; if (p.kind === 'walker' && env.showWalker) env.showWalker(show);
       if (!fp) chase(p.hd, p.x, by + (p.kind === 'walker' ? 1.3 : p.kind === 'plane' ? 2.2 : 0.5), p.z, zm, dt, sea);
       else {                 // through its own eyes: the horizon tips as it banks, lifts and drops as it climbs and dives
-        const a = ease('ca', p.hd, 7, dt, true), e = p.fpEye || [0.6, 0.3], k = p.kind === 'plane' ? 1.5 : 1, cs = Math.cos(a), sn = Math.sin(a);
-        camera.position.set(p.x + cs * e[0] * k, by + e[1] * k, p.z - sn * e[0] * k);
+        // (the eye is fixed in the creature's or the machine's own frame, so it stays put on the nose when that pitches up or banks)
+        const a = ease('ca', p.hd, 7, dt, true), e = p.fpEye || [0.6, 0.3];
+        p.m.updateMatrixWorld(); v.set(e[0], e[1], 0); p.m.localToWorld(v); camera.position.copy(v);
         camera.rotation.set(R.tilt + (p.nose || 0) * 0.8 * Math.cos(R.look) - 0.04, a - Math.PI / 2 - R.look, -(p.roll || 0) * 0.85 * Math.cos(R.look), 'YXZ'); camera.updateMatrixWorld();
       }
       if (p.ctl) $('hmWheel').style.transform = `rotate(${(p.ctl.turn * 60).toFixed(1)}deg)`;

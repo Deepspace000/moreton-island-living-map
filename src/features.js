@@ -532,7 +532,7 @@ function buildTrees(F, scene) {
         // one layer of leaves: a leaf in each cell of a grid, each hanging at its own angle, slim and a little sickle-curved.
         // returns x: how much of the pixel a leaf covers, y: a number that differs from leaf to leaf, z: where across the leaf (the midrib is at 0)
         vec3 leafLayer(vec2 p, float seed, vec2 slim, float dens){
-          vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7), a = (h - 0.5) * 1.7;
+          vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7), a = (h - 0.5) * 3.6;      // leaves hang every way, not all on one slant
           f += (vec2(h2, fract(h * 31.1)) - 0.5) * 0.34;
           vec2 q = vec2(f.x * cos(a) - f.y * sin(a), f.x * sin(a) + f.y * cos(a));
           q.x += q.y * q.y * (h2 - 0.5) * 2.2;

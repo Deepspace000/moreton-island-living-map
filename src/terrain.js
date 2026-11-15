@@ -301,7 +301,7 @@ export function buildTerrain(scene) {
         sd *= 0.66;
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         { // the grass belt between beach and bush, seen from a distance: a strip of green and straw where the sand value is mid-way
-          float belt = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.8, 0.93, mk.g)) * step(0.9, h) * step(0.92, mk.r);
+          float belt = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.8, 0.93, mk.g)) * smoothstep(1.4, 2.2, h) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0));      // only behind a beach, above the reach of the sea
           col = mix(col, mix(vec3(0.19, 0.25, 0.10), vec3(0.36, 0.33, 0.20), nC.g) * (0.8 + 0.4 * nD.r), belt * 0.62 * smoothstep(0.25, 0.55, nC.b * 0.6 + nD.g * 0.5 + (0.75 - mk.g) * 0.8) * (0.4 + 0.6 * smoothstep(14.0, 60.0, dist)));     // thicker toward the scrub; close to, the old thatch between the clumps keeps the sand from showing through
         }
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
@@ -317,7 +317,7 @@ export function buildTerrain(scene) {
           col *= 1.0 - 0.05 * sand * (1.0 - smoothstep(6.0, 38.0, dist)) * (sin(dot(vW.xz, vec2(5.2, 2.2)) + 2.2 * sin(dot(vW.xz, vec2(-0.5, 0.9))) + 1.4 * sin(dot(vW.xz, vec2(0.21, 0.13)) + nE.r * 2.0)) * 0.5 + 0.5);      // wind ripples in the sand, wandering and forking
           N = normalize(N + vec3(nE.b - 0.5 + (nG.r - 0.5) * 0.6, 0.0, nF.r - 0.5 + (nG.g - 0.5) * 0.6) * 0.5 * close);
           // The floor of the bush is not lawn: fallen leaves, shed bark and twigs lie over pale sand, with green only in patches.
-          col = mix(col, vec3(0.10, 0.19, 0.055) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long green grass
+          col = mix(col, mix(vec3(0.085, 0.13, 0.05), vec3(0.19, 0.17, 0.09), smoothstep(0.35, 0.75, nF.b)) * (0.6 + 0.9 * nE.g) * (0.8 + 0.5 * nF.g), headland * close * (1.0 - sand) * 0.6);      // the cape is long grass: dull green going to straw, never lawn
           if(wetK > 0.0){                                                                                                          // ferns: fresh green, patches of dead brown fronds
             vec3 fern = mix(vec3(0.03, 0.055, 0.02), vec3(0.08, 0.115, 0.04), nE.g) * (0.7 + 0.6 * nF.g);          // bracken is olive, not lawn green
             fern = mix(fern, vec3(0.15, 0.10, 0.05), smoothstep(0.72, 0.88, nF.b) * 0.5);
@@ -335,13 +335,19 @@ export function buildTerrain(scene) {
             float speck = smoothstep(0.5, 0.62, w1.r * 0.6 + w2.g * 0.5);                       // broken cover: single leaves round the edges of the drifts
             vec3 lf = mix(sd, det, clamp(drift * (0.5 + 0.5 * speck) + (1.0 - drift) * speck * 0.22, 0.0, 1.0));
             float fine = 1.0 - smoothstep(8.0, 50.0, dist);
-            float s1 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.8, 0.6)) / 1.3, dot(vW.xz, vec2(-0.6, 0.8)) / 0.07)).r;         // sticks and strips of bark, lying every way
-            float s2 = texture2D(uNoise, vec2(dot(vW.xz, vec2(-0.5, 0.87)) / 1.1, dot(vW.xz, vec2(0.87, 0.5)) / 0.06) + 0.31).g;
-            float s3 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.17, 0.98)) / 0.5, dot(vW.xz, vec2(-0.98, 0.17)) / 0.035) + 0.63).b;
-            lf = mix(lf, vec3(0.15, 0.105, 0.07), smoothstep(0.73, 0.79, s1) * fine * 0.9);
-            lf = mix(lf, vec3(0.07, 0.055, 0.045), smoothstep(0.75, 0.81, s2) * fine * 0.9);
-            lf = mix(lf, vec3(0.24, 0.16, 0.09), smoothstep(0.7, 0.76, s3) * fine * 0.85);
+            // sticks and strips of bark, lying every way. (Each is a stretched sample of the noise; the stretch is kept wide and the rows are bent by a second
+            // noise, or the texture's own repeat shows through as a regular hatching, which is what a critic saw here before.)
+            float s1 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.8, 0.6)) / 7.0, dot(vW.xz, vec2(-0.6, 0.8)) / 0.62 + w1.g * 2.3)).r;
+            float s2 = texture2D(uNoise, vec2(dot(vW.xz, vec2(-0.5, 0.87)) / 5.5, dot(vW.xz, vec2(0.87, 0.5)) / 0.5 + w2.g * 2.9) + 0.31).g;
+            float s3 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.17, 0.98)) / 3.4, dot(vW.xz, vec2(-0.98, 0.17)) / 0.33 + w1.r * 3.4) + 0.63).b;
+            lf = mix(lf, vec3(0.15, 0.105, 0.07), smoothstep(0.76, 0.8, s1) * fine * 0.8);
+            lf = mix(lf, vec3(0.07, 0.055, 0.045), smoothstep(0.78, 0.82, s2) * fine * 0.8);
+            lf = mix(lf, vec3(0.24, 0.16, 0.09), smoothstep(0.76, 0.8, s3) * fine * 0.75);
             col = mix(col, lf, floorK * close * 0.97);
+          }
+          { // Whatever is still lawn-green close to the eye is really rough ground cover (sedge, low heath, dead fern): dull it toward straw and litter.
+            float lawn = smoothstep(0.015, 0.08, col.g - max(col.r, col.b)) * close * (1.0 - sand), gl = dot(col, vec3(0.3, 0.55, 0.15));
+            col = mix(col, mix(vec3(gl) * vec3(1.2, 1.02, 0.66), vec3(0.19, 0.15, 0.09), 0.3 + 0.3 * nF.b), lawn * 0.75);
           }
         }
         col = mix(col, vec3(0.05, 0.085, 0.03) * (0.75 + 0.5 * nC.g), wetK * (1.0 - close) * (1.0 - smoothstep(600.0, 3500.0, dist)) * 0.7);

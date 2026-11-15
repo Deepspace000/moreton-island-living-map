@@ -151,6 +151,10 @@ function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm
   house(g, 0.2, 1.5, 0, 7.6, 1.5, 3.7, WHITE, 0.6, 0.34, 0.78);                                            // saloon and its windows
   house(g, 4.0, 1.5, 0, 3.0, 0.8, 3.0, WHITE, 1.3);                                                                // foredeck cabin
   g.box(-0.6, 3.0, 0, 4.6, 0.25, 3.5, WHITE); g.box(0.9, 3.25, 0, 1.2, 0.75, 2.6, WHITE); g.box(1.5, 3.5, 0, 0.1, 0.6, 2.4, GLASS);       // flybridge deck, helm, screen
+  g.box(0.75, 4.0, 0, 0.8, 0.04, 2.3, [.1, .11, .13]); g.box(0.95, 4.02, -0.55, 0.3, 0.03, 0.42, [.05, .12, .16]); g.box(0.95, 4.02, 0.2, 0.3, 0.03, 0.3, [.05, .12, .16]);      // a dark instrument panel with two screens
+  for (let i = 0; i < 12; i++) { const a0 = i / 12 * 6.2832, a1 = (i + 1) / 12 * 6.2832, P = (a) => [0.28, 4.05 + Math.sin(a) * 0.26, -0.55 + Math.cos(a) * 0.26]; rod(g, P(a0), P(a1), 0.016, METAL); if (i % 4 === 0) rod(g, [0.28, 4.05, -0.55], P(a0), 0.01, METAL); }       // the wheel
+  for (const z of [-0.55, 0.55]) { g.box(-0.5, 3.25, z, 0.55, 0.5, 0.55, [.86, .84, .78]); g.box(-0.76, 3.75, z, 0.1, 0.6, 0.55, [.86, .84, .78]); }                                    // two helm seats
+  for (const z of [-1.7, 1.7]) for (const x of [-2.8, -0.7, 1.4]) rod(g, [x, 3.25, z], [x, 4.05, z], 0.02, METAL);                                                                    // rail stanchions
   for (const [x, z] of [[1.2, 1.5], [1.2, -1.5], [-2.4, 1.5], [-2.4, -1.5]]) g.box(x, 3.25, z, 0.07, 2.25, 0.07, [.82, .82, .84]);
   g.box(-0.6, 5.5, 0, 4.2, 0.1, 3.4, WHITE);                                                               // hardtop, high enough to stand under and see out all round
   g.box(-5.2, 1.5, 0, 3.2, 0.12, 3.9, [.6, .5, .4]); g.cyl(-0.6, 5.6, 0, 0.05, 0.03, 1.7, 4, [.8, .8, .8]);  // cockpit sole, aerial
@@ -445,7 +449,7 @@ export function buildBoats(scene, F) {
           const w0 = b.big ? 6 : b.jet ? 0.75 : b.small ? 1.2 : b.len * 0.15, life = b.big ? 26 : 11, spread = b.jet || b.small ? 0.2 : 0.3;
           for (let j = 0; j < NW; j++) {
             const h = b.hist[Math.min(j, b.hist.length - 1)] || { x: b.x, z: b.z, nx: sn, nz: cs, t, sp: 0 };
-            const age = t - h.t, w = w0 + age * clamp(h.sp * spread, 0.5, 4.5), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp(h.sp / 4, 0, 1);
+            const age = t - h.t, w = w0 + age * clamp(h.sp * spread, 0.5, 4.5), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp((h.sp / (b.jet ? 9 : 7)) ** 2, 0, 1);      // whiteness goes with the square of the speed: a yacht ghosting along leaves almost nothing
             const y = sea + 0.45 + (j < 3 ? wy : 0);
             wp[o * 3] = h.x - h.nx * w; wp[o * 3 + 1] = y; wp[o * 3 + 2] = h.z - h.nz * w;
             wp[o * 3 + 3] = h.x + h.nx * w; wp[o * 3 + 4] = y; wp[o * 3 + 5] = h.z + h.nz * w;

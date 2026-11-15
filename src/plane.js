@@ -21,7 +21,7 @@ function airframe() {
   g.quad([1.62, 1.5, -0.5], [1.62, 1.5, 0.5], [1.2, 1.92, 0.44], [1.2, 1.92, -0.44], DARK);
   // the wing on top: a plank with a little dihedral, rounded at the tips, with a strut down to the fuselage each side
   for (const sd of [-1, 1]) {
-    const P = (x, y, z) => [x, 1.95 + y + Math.abs(z) * 0.035, z * sd], zt = 5.5, c0 = 1.62, c1 = 1.1;
+    const P = (x, y, z) => [x, 1.95 + y + Math.abs(z) * 0.06, z * sd], zt = 5.5, c0 = 1.62, c1 = 1.1;
     const le = (z) => 1.25 - 0.05 * z, te = (z) => le(z) - (c0 + (c1 - c0) * z / zt);
     for (const [z0, z1] of [[0, 2.7], [2.7, 5.1], [5.1, zt]]) {
       const e = z1 === zt ? 0.28 : 0;
@@ -81,8 +81,8 @@ export function buildPlanes(scene, F) {
     fs: /* glsl */`uniform float uSpin; varying vec2 vP; varying vec3 vW; void main(){ ${LOGF} float r = length(vP), a = atan(vP.y, vP.x) + uTime * 2.0;
       float still = smoothstep(0.09, 0.05, abs(sin(a - uTime * 2.0)) * r) * step(r, 0.98);                 // two blades at rest
       float blur = (0.16 + 0.08 * sin(a * 2.0)) * smoothstep(1.0, 0.9, r) * smoothstep(0.1, 0.2, r);       // a grey haze in flight
-      float al = mix(still * 0.95, blur * 0.6, uSpin) + step(0.93, r) * step(r, 0.99) * 0.07 * uSpin;             // and the yellow of the tips drawn into a ring
-      vec3 c = mix(vec3(0.07), vec3(0.75, 0.6, 0.1), step(0.9, r) * uSpin) * (uLightCol * 0.5 + uAmbSky); gl_FragColor = vec4(applyFog(c, vW), al); }` }));
+      float al = mix(still * 0.95, blur * 0.45, uSpin);             // and the yellow of the tips drawn into a ring
+      vec3 c = vec3(0.09) * (uLightCol * 0.5 + uAmbSky); gl_FragColor = vec4(applyFog(c, vW), al); }` }));
   prop.rotation.y = Math.PI / 2; prop.position.set(3.6, 1.02, 0); prop.frustumCulled = false; prop.renderOrder = 14; g.add(prop);
   g.scale.setScalar(S); g.rotation.order = 'YZX'; scene.add(g);
   const p = { kind: 'plane', m: g, x: 0, y: 0, z: 0, hd: 0, v: 0, roll: 0, nose: 0, ctl: null, afloat: false, state: 'park', wait: 12, strip: 0, dir: 1, sp: 52, fpEye: [2.0, 2.05], zoom0: 24, hideInFP: false, next: '' };

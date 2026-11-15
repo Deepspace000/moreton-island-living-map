@@ -40,7 +40,7 @@ export function buildTraveller(scene, F) {
         lp.x += sit * 0.22 * (1.0 - smoothstep(0.3, 0.95, position.y)) * step(part, 1.5) * step(0.5, part);
         if(part > 4.5 && part < 5.5 || part > 6.5) lp = mix(lp, vec3(-0.75, 0.2 + (position.y - 0.9) * 0.25, position.z + 0.5), sit);      // pack off and set down beside
         vec2 d = vec2(cos(uAt.w), -sin(uAt.w)), sd = vec2(-d.y, d.x);
-        lp *= 1.12;
+        lp *= 0.97;
         vec3 wp = vec3(uAt.x + d.x * lp.x + sd.x * lp.z, uAt.y + lp.y, uAt.z + d.y * lp.x + sd.y * lp.z);
         vec3 n = normalize(vec3(d.x * normal.x + sd.x * normal.z, normal.y, d.y * normal.x + sd.y * normal.z));
         vec3 col = part < 0.5 ? vec3(0.62, 0.22, 0.12) : part < 1.5 ? vec3(0.35, 0.33, 0.26) : part < 2.5 ? vec3(0.55, 0.38, 0.28) : part < 3.5 ? vec3(0.6, 0.55, 0.4)
@@ -52,7 +52,7 @@ export function buildTraveller(scene, F) {
     fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }` }));
   mesh.frustumCulled = false; mesh.name = 'traveller'; scene.add(mesh);
   // the tent: a low dome on two crossed poles, with a porch and a door flap; it stands only while they are camped
-  const tp = [], tn = [], tc = [], ti = [], NA = 14, NB = 7, R0 = 1.25, HT = 1.15, COL = [0.85, 0.5, 0.12], FLY = [0.25, 0.32, 0.2];
+  const tp = [], tn = [], tc = [], ti = [], NA = 14, NB = 7, R0 = 0.8, HT = 1.05, COL = [0.85, 0.5, 0.12], FLY = [0.25, 0.32, 0.2];
   for (let j = 0; j <= NB; j++) for (let i = 0; i <= NA; i++) {
     const a = i / NA * Math.PI * 2, e = j / NB * Math.PI / 2, r = R0 * Math.cos(e) * (1 + 0.1 * Math.cos(a * 2)) * (1 + 0.25 * Math.max(0, Math.cos(a)) * (1 - j / NB)), y = HT * Math.sin(e);
     tp.push(Math.cos(a) * r * 1.2, y, Math.sin(a) * r); tn.push(Math.cos(a) * Math.cos(e), Math.sin(e) + 0.2, Math.sin(a) * Math.cos(e));
@@ -79,7 +79,7 @@ export function buildTraveller(scene, F) {
   for (const q of F.misc || []) addPoi(q.n, q.p);
   for (const q of F.lakes || []) if (q.n) addPoi(q.n, q.c || (Array.isArray(q.p[0]) ? q.p[0] : q.p));
   const start = pois.find(q => /Tangalooma$/.test(q.name)) || pois[0];
-  const w = { kind: 'walker', m: new THREE.Object3D(), x: 0, y: 0, z: 0, hd: 0, v: 0, ctl: null, afloat: false, camped: false, askCamp: null, sp: 1.8, fpEye: [0.15, 1.78], zoom0: 6.5, next: '', visited: 0, total: pois.length, pois };
+  const w = { kind: 'walker', m: new THREE.Object3D(), x: 0, y: 0, z: 0, hd: 0, v: 0, ctl: null, afloat: false, camped: false, askCamp: null, sp: 1.8, fpEye: [0.15, 1.62], zoom0: 6.5, next: '', visited: 0, total: pois.length, pois };
   let at = start ? start.node : net[0], to = null, goal = null, route = null, phase = 0, sit = 0, walk = 0, rest = 0;
   if (at) { w.x = at.p[0]; w.z = at.p[1]; }
   const pickGoal = () => {             // the nearest place not yet visited, by the tracks; when all are done, start the round again
@@ -125,7 +125,7 @@ export function buildTraveller(scene, F) {
     w.m.position.set(w.x, w.y, w.z); w.m.rotation.y = w.hd;
     uni.uAt.value.set(w.x, w.y, w.z, w.hd); uni.uGait.value.set(phase, walk, sit);
   };
-  const pitch = () => { const a = w.hd + 1.9, tx = w.x + Math.cos(a) * 2.6, tz = w.z - Math.sin(a) * 2.6; tent.position.set(tx, meshY(tx, tz) - 0.03, tz); tent.rotation.y = w.hd + 1.2; tent.visible = true; };
+  const pitch = () => { const a = w.hd + 1.9, tx = w.x + Math.cos(a) * 2.1, tz = w.z - Math.sin(a) * 2.1; tent.position.set(tx, meshY(tx, tz) - 0.03, tz); tent.rotation.y = w.hd + 1.2; tent.visible = true; };
   update(0, 0);
   return { walkers: at ? [w] : [], update, tent, show: (v) => { mesh.visible = v; } };
 }
