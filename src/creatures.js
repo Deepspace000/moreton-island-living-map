@@ -183,7 +183,7 @@ export const PELICAN_FLY = () => bird((m) => {
   m.tube((t) => [0.44 + 0.2 * t, 0.12 + 0.01 * Math.sin(t * PI), 0, 0.012 + 0.06 * Math.pow(Math.sin(PI * (0.12 + 0.86 * t)), 0.6)], 8, 8, 0);     // head
   m.tube((t) => [0.6 + 0.5 * t, 0.115 - 0.07 * t, 0, 0.028 - 0.019 * t], 8, 6, 2);                                                                 // bill
   m.tube((t) => [0.6 + 0.44 * t, 0.075 - 0.06 * t, 0, 0.008 + 0.036 * Math.pow(Math.sin(PI * (0.08 + 0.9 * t)), 0.7)], 8, 6, 3);                   // pouch
-  for (const sd of [-1, 1]) m.tube((t) => [-0.5 - 0.3 * t, -0.03 - 0.02 * t, sd * 0.05, 0.022 - 0.008 * t], 4, 5, 4);                               // legs trailing
+  for (const sd of [-1, 1]) m.tube((t) => [-0.46 - 0.2 * t, 0.0 + 0.01 * t, sd * 0.045, 0.02 - 0.008 * t], 4, 5, 4);                                 // feet tucked up under the tail
   m.leaf([-0.52, 0.03, 0], [-1, 0.02, 0], [0, 0, 1], 0.22, 0.12, { part: 1, flex: () => 0 });                                                      // tail
 }, [[.93, .93, .9], [.04, .04, .045], [.92, .62, .56], [.95, .8, .62], [.45, .5, .55]]);
 // one wing, hinged at the shoulder (the origin) and reaching out along +z: white coverts in front, black flight feathers behind and at the tip
@@ -191,19 +191,24 @@ export const PELICAN_WING = () => bird((m) => {
   m.leaf([0.1, 0, 0.02], [-0.08, 0.02, 1], [1, 0, 0.04], 1.28, 0.17, { part: 0, flex: () => 0, curl: [-0.28, -0.1, 0], ns: 12, tip: 0.6 });
   m.leaf([-0.12, -0.005, 0.02], [-0.1, 0.02, 1], [1, 0, 0.0], 1.36, 0.2, { part: 1, flex: () => 0, curl: [-0.34, -0.1, 0], ns: 12, tip: 0.55 });
 }, [[.93, .93, .9], [.04, .04, .045]]);
-// white-bellied sea eagle on the wing: white head, breast and wedge of tail, slate-grey back and broad wings held in a shallow V
+// White-bellied sea eagle on the wing. Nothing like a pelican: a heavy grey bird with a white head, breast and short wedge of a tail, a hooked
+// bill, and broad plank-like wings held up in a shallow V, their tips spread into separate fingers.
 export const EAGLE_FLY = () => bird((m) => {
-  m.body([[0.3, 0.008, 0.012, 0.0], [0.24, 0.05, 0.055, 0.004], [0.1, 0.085, 0.095, 0.0], [-0.1, 0.09, 0.1, 0.0], [-0.3, 0.06, 0.07, 0.005], [-0.44, 0.012, 0.03, 0.01]], { NR: 12, NS: 10 });
-  m.tube((t) => [0.2 + 0.16 * t, 0.03 + 0.02 * Math.sin(t * PI), 0, 0.01 + 0.052 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);       // head
-  m.tube((t) => [0.345 + 0.075 * t, 0.03 - 0.045 * t * t, 0, 0.02 - 0.016 * t], 5, 5, 2);                                                         // hooked bill
-  m.leaf([0.12, 0.085, 0], [-1, 0.0, 0], [0, 0, 1], 0.5, 0.1, { part: 1, flex: () => 0, curl: [0, -0.05, 0] });                                   // the grey mantle along the back
-  m.leaf([-0.4, 0.012, 0], [-1, 0.02, 0], [0, 0, 1], 0.24, 0.13, { part: 0, flex: () => 0, tip: 1.3 });                                           // short white wedge of a tail
-  for (const sd of [-1, 1]) m.tube((t) => [-0.12 - 0.2 * t, -0.07 - 0.02 * t, sd * 0.045, 0.02 - 0.006 * t], 3, 5, 3);                              // feet tucked back
-}, [[.93, .93, .9], [.15, .16, .18], [.5, .52, .55], [.8, .75, .4]]);
+  m.body([[0.34, 0.01, 0.015, 0.0], [0.27, 0.065, 0.07, 0.004], [0.1, 0.11, 0.125, 0.0], [-0.12, 0.115, 0.13, 0.0], [-0.34, 0.075, 0.09, 0.005], [-0.5, 0.015, 0.04, 0.01]], { NR: 12, NS: 10 });
+  m.tube((t) => [0.24 + 0.19 * t, 0.04 + 0.025 * Math.sin(t * PI), 0, 0.012 + 0.068 * Math.pow(Math.sin(PI * (0.14 + 0.84 * t)), 0.6)], 7, 8, 0);     // the white head
+  m.tube((t) => [0.41 + 0.1 * t, 0.045 - 0.07 * t * t, 0, 0.027 - 0.022 * t], 5, 5, 2);                                                           // heavy hooked bill
+  m.leaf([0.16, 0.112, 0], [-1, 0.0, 0], [0, 0, 1], 0.6, 0.15, { part: 1, flex: () => 0, curl: [0, -0.05, 0] });                                  // the grey mantle along the back
+  m.leaf([-0.42, 0.02, 0], [-1, 0.02, 0], [0, 0, 1], 0.36, 0.2, { part: 0, flex: () => 0, tip: 1.6 });                                            // short, broad white wedge of a tail
+  for (const sd of [-1, 1]) m.tube((t) => [-0.14 - 0.2 * t, -0.085 - 0.02 * t, sd * 0.05, 0.024 - 0.008 * t], 3, 5, 3);                             // yellow feet tucked back
+}, [[.94, .94, .92], [.33, .35, .39], [.42, .44, .46], [.8, .72, .3]]);
 export const EAGLE_WING = () => bird((m) => {
-  m.leaf([0.08, 0, 0.02], [-0.04, 0.03, 1], [1, 0, 0.03], 1.08, 0.15, { part: 0, flex: () => 0, curl: [-0.16, -0.04, 0], ns: 12, tip: 0.5 });
-  m.leaf([-0.1, -0.004, 0.02], [-0.05, 0.03, 1], [1, 0, 0.0], 1.16, 0.19, { part: 1, flex: () => 0, curl: [-0.2, -0.04, 0], ns: 12, tip: 0.42 });
-}, [[.2, .21, .23], [.05, .05, .055]]);
+  m.leaf([0.07, 0, 0.02], [-0.02, 0.03, 1], [1, 0, 0.02], 0.98, 0.27, { part: 0, flex: () => 0, curl: [-0.08, -0.03, 0], ns: 12, tip: 0.42 });      // grey coverts: a broad arm
+  m.leaf([-0.16, -0.004, 0.02], [-0.04, 0.03, 1], [1, 0, 0.0], 1.02, 0.3, { part: 1, flex: () => 0, curl: [-0.1, -0.03, 0], ns: 12, tip: 0.38 });   // dark flight feathers behind
+  for (let i = 0; i < 5; i++) {                                                                                                                    // five fingers at the tip, spread like a hand
+    const dx = 0.3 - 0.17 * i, l = Math.hypot(dx, 0.07, 1), a = [dx / l, (0.05 + 0.015 * i) / l, 1 / l];
+    m.leaf([0.15 - 0.1 * i, 0.0, 0.86], a, [a[2], 0, -a[0]], 0.5 - 0.035 * Math.abs(i - 1.5), 0.045, { part: 1, flex: () => 0, ns: 6, tip: 0.8 });
+  }
+}, [[.36, .38, .42], [.09, .09, .11]]);
 // pied cormorant swimming: the back all but awash, the snaky neck stretched forward at an angle, the thin hooked bill tilted up
 export const CORMORANT = () => bird((m) => {
   m.body([[0.3, 0.01, 0.015, 0.05], [0.24, 0.045, 0.07, 0.045], [0.1, 0.07, 0.1, 0.03], [-0.08, 0.07, 0.1, 0.03], [-0.26, 0.045, 0.06, 0.035], [-0.48, 0.008, 0.03, 0.03]], { NR: 12, NS: 10, belly: 0.8 });

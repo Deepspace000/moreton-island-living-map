@@ -67,7 +67,7 @@ const rideWhere = (x, z) => {
   let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
   return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
 };
-const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, sea: () => U.uSeaM.value * VEX, where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
+const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);

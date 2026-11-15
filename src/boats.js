@@ -135,7 +135,10 @@ function tinny() {
   hull(g, 4.8, 1.9, 0.22, 0.55, AL, [.5, .53, .54], 0, [.45, .47, .48], { style: 5 });
   g.box(-2.5, 0.25, 0, 0.45, 0.9, 0.4, [.12, .12, .13]);
   g.box(-0.9, 0.5, 0, 0.35, 0.12, 1.6, AL); g.box(0.7, 0.5, 0, 0.35, 0.12, 1.5, AL);
-  g.box(-1.4, 0.62, 0.2, 0.4, 0.75, 0.45, [.75, .2, .15]); g.box(-1.4, 1.37, 0.2, 0.3, 0.3, 0.3, [.85, .68, .55]);
+  { const SH = [.72, .2, .15], SK = [.82, .64, .52], HAT = [.78, .72, .5];            // whoever is at the tiller: a rounded body, a head and a wide straw hat, one arm back to the outboard
+    g.cyl(-1.4, 0.62, 0.2, 0.25, 0.2, 0.72, 10, SH, SH); g.cyl(-1.4, 1.34, 0.2, 0.08, 0.08, 0.08, 8, SK); g.cyl(-1.4, 1.41, 0.2, 0.14, 0.125, 0.25, 10, SK, SK);
+    g.cyl(-1.4, 1.62, 0.2, 0.3, 0.29, 0.025, 12, HAT, HAT); g.cyl(-1.4, 1.645, 0.2, 0.15, 0.13, 0.1, 10, HAT, HAT);
+    rod(g, [-1.42, 1.22, 0.42], [-2.25, 0.95, 0.1], 0.055, SK); rod(g, [-1.4, 1.22, -0.02], [-1.15, 0.8, -0.1], 0.055, SK); }
   return finish(g);
 }
 function flybridge(hc) {     // a flybridge cruiser: saloon below, a second helm up top under a hardtop
@@ -158,8 +161,9 @@ function jetski(col) {       // a jet ski and its rider
   hull(g, 3.2, 1.15, 0.18, 0.42, col, col, 0, [.15, .15, .16]);
   g.box(0.5, 0.42, 0, 1.3, 0.3, 0.8, WHITE); g.box(-0.5, 0.42, 0, 1.3, 0.34, 0.5, [.1, .1, .11]);          // cowl and seat
   g.box(0.55, 0.72, 0, 0.12, 0.35, 0.7, [.1, .1, .11]);                                                     // handlebar
-  g.box(-0.35, 0.76, 0, 0.36, 0.62, 0.42, [.95, .5, .1]); g.box(-0.2, 1.38, 0, 0.24, 0.26, 0.24, SKIN);     // rider in a life jacket
-  g.box(0.1, 1.05, 0.24, 0.55, 0.1, 0.1, SKIN); g.box(0.1, 1.05, -0.24, 0.55, 0.1, 0.1, SKIN); g.box(-0.3, 0.42, 0.3, 0.6, 0.36, 0.16, [.1, .2, .5]); g.box(-0.3, 0.42, -0.3, 0.6, 0.36, 0.16, [.1, .2, .5]);
+  g.cyl(-0.35, 0.76, 0, 0.23, 0.2, 0.6, 10, [.95, .5, .1], [.95, .5, .1]); g.cyl(-0.3, 1.36, 0, 0.075, 0.075, 0.07, 8, SKIN); g.cyl(-0.28, 1.42, 0, 0.13, 0.12, 0.24, 10, SKIN, [.16, .12, .1]);     // rider in a life jacket: rounded body, neck, head
+  for (const z of [-1, 1]) rod(g, [-0.3, 1.26, 0.22 * z], [0.52, 1.02, 0.3 * z], 0.05, SKIN);                                                                                          // arms out to the handlebar
+  if (0) g.box(0, 0, 0, 0, 0, 0, SKIN); g.box(-0.3, 0.42, 0.3, 0.6, 0.36, 0.16, [.1, .2, .5]); g.box(-0.3, 0.42, -0.3, 0.6, 0.36, 0.16, [.1, .2, .5]);
   return finish(g);
 }
 function flyer() {            // fast passenger catamaran
@@ -197,7 +201,10 @@ export function buildBoats(scene, F) {
   const pick = (a) => a[(R() * a.length) | 0];
   // where you stand when you go aboard each kind of boat (metres forward of midships, and above the keel line)
   const EYES = new Map(); const eyes = (list, e) => [].concat(list).forEach(g => EYES.set(g, e));
-  eyes(geo.sail, [-4.5, 3.3]); eyes(geo.moor, [-4.5, 3.3]); eyes(geo.cru, [-3.9, 3.1]); eyes(geo.fly, [0.2, 4.55]); eyes(geo.tin, [-1.9, 1.65]); eyes(geo.jet, [0.3, 1.72]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
+  // where you stand aboard each kind. Yacht: at the rail, clear of the sail. Cruiser: on the coachroof ahead of the wheelhouse. Flybridge: at the upper helm.
+  // Small craft: just behind and above whoever is driving, so you can see the boat you are on. Ferries: on the bridge.
+  eyes(geo.sail, [-4.6, 3.6, -1.6]); eyes(geo.moor, [-4.6, 3.6, -1.6]); eyes(geo.cru, [1.5, 3.85]); eyes(geo.fly, [0.2, 4.55]);
+  eyes(geo.tin, [-2.5, 2.1]); eyes(geo.jet, [-2.4, 2.45]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
   const boats = [], lights = makeLights(260);
   const mk = (g, x, z, o = {}) => {
     const m = new THREE.Mesh(g, mat); m.rotation.order = 'YZX'; m.scale.setScalar(S * (o.scale || 1)); m.frustumCulled = false; scene.add(m);

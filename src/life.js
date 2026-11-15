@@ -318,7 +318,10 @@ function buildCars(scene, F, lights) {
         hd -= dr.turn * 0.75 * dt * clamp(Math.abs(dr.v) / 4, 0, 1) * (dr.v < 0 ? -1 : 1);
         tx = Math.cos(hd); tz = -Math.sin(hd); x = c.m.position.x; z = c.m.position.z;
         const nx = x + tx * dr.v * dt, nz = z + tz * dr.v * dt;
-        if (groundH(nx + tx * 2, nz + tz * 2) > U.uSeaM.value - 0.45 && Math.abs(nx) < T.sx / 2 - 200 && Math.abs(nz) < T.sz / 2 - 200) { x = nx; z = nz; } else dr.v *= 0.6;
+        // it will not climb a dune face head on, and off the sand, in the bush, it can only crawl
+        const way = dr.v < 0 ? -1 : 1, rise = (groundH(nx + tx * 3 * way, nz + tz * 3 * way) - groundH(x, z)) / 3;
+        if (maskAt(x, z).sand < 0.3) dr.v = clamp(dr.v, -3, 5.5);
+        if (rise < 0.42 && groundH(nx + tx * 2, nz + tz * 2) > U.uSeaM.value - 0.45 && Math.abs(nx) < T.sx / 2 - 200 && Math.abs(nz) < T.sz / 2 - 200) { x = nx; z = nz; } else dr.v *= 0.6;
         c.sp = Math.abs(dr.v); c.m.rotation.y = hd;
       } else {
         c.sp = c.sp0 || (c.sp0 = c.sp);
@@ -867,12 +870,19 @@ function buildPelicans(scene, F) {
   const roosts = [cape, ...F.places.filter(p => /hamlet|village/.test(p.k)).map(p => [p.p[0] + 500, p.p[1] - 300]), ...peaks].filter(Boolean);
   for (let i = 0; i < (MOBILE ? 5 : 8) && roosts.length; i++) {
     const h = roosts[i % roosts.length];
-    make(eb, ew, 1.55, [0.04, 0.06, 0.08], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
+    make(eb, ew, 1.9, [0.05, 0.085, 0.1], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
   }
+  // How high a bird must be to clear what stands on the ground below it: nothing over the water, a little over open sand, and the height of
+  // the forest (with room to spare) over the bush. Birds fly over the trees, never through them.
+  const clearY = (x, z, sea) => { const h = heightAt(x, z); if (h < 0.5) return sea; const mk = maskAt(x, z); return Math.max(sea, meshY(x, z)) + (mk.sand > 0.8 ? 3 : 38); };
   return (dt, t) => {
     const sea = U.uSeaM.value * VEX;
     for (const p of flyers) {
       let bank = 0, flap;
+      // the ground it must clear, here and a few seconds ahead along its course, so it starts to rise before the hill or the tree line arrives
+      const cs0 = Math.cos(p.hd), sn0 = Math.sin(p.hd), sp0 = p.v ?? p.sp, flNow = clearY(p.x, p.z, sea);
+      const flT = Math.max(flNow, clearY(p.x + cs0 * sp0 * 2.5, p.z - sn0 * sp0 * 2.5, sea), clearY(p.x + cs0 * sp0 * 6, p.z - sn0 * sp0 * 6, sea));
+      p.fl = p.fl === undefined ? flT : p.fl + (flT - p.fl) * (1 - Math.exp(-dt * (flT > p.fl ? 2.2 : 0.7)));
       if (p.ctl) {                      // flown by hand: turn, climb and sink; down on the water it folds its wings and paddles
         const c = p.ctl; p.hd -= c.turn * 0.85 * dt; bank = c.turn * 0.5;
         const eagle = p.kind === 'eagle';
@@ -881,7 +891,7 @@ function buildPelicans(scene, F) {
         else if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
         p.y = Math.min(p.y, sea + (eagle ? 1000 : 300)); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
         const nx = p.x + Math.cos(p.hd) * p.v * dt, nz = p.z - Math.sin(p.hd) * p.v * dt; if (Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { p.x = nx; p.z = nz; }
-        p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : eagle ? 0.9 : 1.2));
+        p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : eagle ? 0.9 : 1.2), p.afloat ? -1e9 : p.fl - (p.fl > sea + 10 ? 5 : 0));       // over the bush it is held above the treetops
         flap = c.climb > 0.1 || p.y < sea + 3;
       } else {                          // on its own: a wide circle off the shore, in line astern, rising and falling a little
         p.afloat = false; p.v = (p.v ?? p.sp) + (p.sp - (p.v ?? p.sp)) * (1 - Math.exp(-dt * 1.2)); p.ang += p.way * p.v / p.rad * dt;       // left to itself on the water, it gathers way and lifts off; it does not leap to full speed
@@ -889,8 +899,11 @@ function buildPelicans(scene, F) {
         let d = want - p.hd; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2)); const turn = clamp(d, -dt * 0.9, dt * 0.9); p.hd += turn; bank = -turn / Math.max(dt, 1e-3) * 0.5;
         p.x += Math.cos(p.hd) * p.v * dt; p.z -= Math.sin(p.hd) * p.v * dt;
         // a pelican keeps its height; a sea eagle rides the rising air up in its circles until it is a speck, then slides all the way down again to treetop height
-        const swing = 0.5 - 0.5 * Math.cos(t * 0.045 + p.ph), goalAlt = p.kind === 'eagle' ? 14 + (p.alt * 3.2 - 14) * swing * swing : p.alt + Math.sin(t * 0.13 + p.ph) * 2.5;
-        const goal = Math.max(sea + goalAlt, meshY(p.x, p.z) + 6); p.vy = (p.vy ?? 0) + (clamp((goal - p.y) * 0.25, -6, 6) - (p.vy ?? 0)) * (1 - Math.exp(-dt * 0.8)); p.y += p.vy * dt;
+        // (heights are above whatever is below: the sea, the sand, or the treetops). Pelicans mostly skim the water but go up every so often too.
+        const swing = 0.5 - 0.5 * Math.cos(t * 0.045 + p.ph), up = Math.max(0, Math.sin(t * 0.027 + p.ph * 2));
+        const goalAlt = p.kind === 'eagle' ? 18 + p.alt * 3.2 * swing * swing : p.alt + Math.sin(t * 0.13 + p.ph) * 2.5 + 55 * up * up * up;
+        const goal = p.fl + goalAlt; p.vy = (p.vy ?? 0) + (clamp((goal - p.y) * 0.3, -6, 14) - (p.vy ?? 0)) * (1 - Math.exp(-dt * 1.0)); p.y += p.vy * dt;
+        p.y = Math.max(p.y, flNow - 5);
         flap = Math.sin(t * 0.21 + p.ph * 3) > p.beats;     // beats in bursts, glides between (an eagle hardly beats at all)
       }
       p.beat = (p.beat ?? 0) + ((flap ? 1 : 0) - (p.beat ?? 0)) * Math.min(1, dt * 2.5);

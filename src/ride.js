@@ -120,6 +120,7 @@ const CABIN = /* html */`
   <div class="rear l"></div><div class="rear r"></div>
 </div>
 <button id="rideExit" class="pill">Leave the car</button>
+<div class="zoom"><button id="rideOut" class="pill" title="Watch from further away (scroll, pinch, or the - key)">&minus; Further</button><button id="rideIn" class="pill" title="Closer, and back aboard (scroll, pinch, or the + key)">+ Closer</button></div>
 <div class="tip" id="rideTip">Drag to look around</div>
 <div class="helm">
   <div class="gauges"><span><b id="hmSpeed">0.0</b> <i id="hmUnit">kn</i></span><span><b id="hmHead">N</b></span><span>wind <b id="hmWind">-</b></span><span><i id="hmDepthL">depth</i> <b id="hmDepth">-</b></span><span class="where" id="hmNear"></span></div>
@@ -139,7 +140,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   for (const r of el.querySelectorAll('.rear')) r.appendChild(el.querySelector('#rdRearT').content.cloneNode(true));
   const rears = [...el.querySelectorAll('.rear')]; let rearW = 0;
   const cab = el.querySelector('.cab'), helmEl = el.querySelector('.helm'), wheelEl = el.querySelector('.wheel'), $ = (id) => el.querySelector('#' + id), v = new THREE.Vector3(), d = new THREE.Vector3(), q = new THREE.Vector3();
-  const R = { active: false, kind: '', car: null, boat: null, bird: null, pos: new THREE.Vector3(), look: 0, tilt: 0, helm: false, onExit: null }, S = 1.45, COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const R = { active: false, kind: '', car: null, boat: null, bird: null, pos: new THREE.Vector3(), look: 0, tilt: 0, zoom: 0, helm: false, onExit: null }, S = 1.45, COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   let fov0 = 38, near0 = 3, uiT = 0, shake = 0, drag = null, steer = 0, gas = 0, sm = {};
   // Smooth following. A value eases toward its target at a rate that does not depend on the frame time, so nothing the eye rides on
   // (height, pitch, roll, heading) can jump from one frame to the next; angles go the short way round.
@@ -160,7 +161,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     return best;
   };
   R.enter = (hit) => {
-    R.active = true; R.kind = hit.kind; R.car = hit.kind === 'car' ? hit.obj : null; R.boat = hit.kind === 'boat' ? hit.obj : null; R.bird = hit.kind === 'bird' ? hit.obj : null; R.look = 0; R.tilt = 0; R.helm = false; steer = 0; gas = 0; R.yaw0 = undefined; R.wheel = 0; sm = {};
+    R.active = true; R.kind = hit.kind; R.car = hit.kind === 'car' ? hit.obj : null; R.boat = hit.kind === 'boat' ? hit.obj : null; R.bird = hit.kind === 'bird' ? hit.obj : null; R.look = 0; R.tilt = 0; R.helm = false; steer = 0; gas = 0; R.yaw0 = undefined; R.wheel = 0; sm = {}; R.zoom = 0;
     fov0 = camera.fov; near0 = camera.near; camera.near = 0.2;
     if (R.car) { R.car.m.visible = false; camera.fov = innerWidth < innerHeight ? 82 : 66; }
     else camera.fov = innerWidth < innerHeight ? 84 : 70;
@@ -169,8 +170,8 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? (R.boat.jet ? 'Leave the jet ski' : R.boat.sail ? 'Leave the yacht' : 'Leave the boat') : 'Leave the ' + (R.bird.kind || 'bird');
     $('hmUnit').textContent = R.boat ? 'kn' : 'km/h'; $('hmDepthL').textContent = R.boat ? 'depth' : 'height';
     const b = R.boat, can = canSteer(); $('hmTake').style.display = can ? '' : 'none';
-    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor';
-    sync(); if (hit.control === true || (b && b.jet && hit.control !== false)) take(true);       // a jet ski is yours to ride as soon as you are on it (unless you asked only to watch)
+    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor'; $('rideTip').textContent += ' · scroll or pinch to watch from outside';
+    sync(); syncZoom(); if (hit.control === true || (b && b.jet && hit.control !== false)) take(true);       // a jet ski is yours to ride as soon as you are on it (unless you asked only to watch)
     el.style.display = 'block'; uiT = 0; R.update(0, 0);
   };
   const canSteer = () => !!(R.car || R.bird || (R.boat && R.boat.move && !R.boat.ferry));
@@ -184,6 +185,17 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   R.exit = () => {
     if (!R.active) return; if (R.helm) take(false); R.active = false; if (R.car) R.car.m.visible = true; if (R.boat) R.boat.helm = null; if (R.bird) R.bird.ctl = null; R.helm = false;
     el.style.display = 'none'; camera.near = near0; camera.fov = fov0; camera.up.set(0, 1, 0); camera.updateProjectionMatrix(); drag = null;
+  };
+  // Watching from outside. Zoom out (wheel, pinch, the Further button or the - key) and the eye leaves the seat and follows from behind and above,
+  // as far back as you like; drag to swing round it. Zoom all the way in and you are back aboard.
+  const minD = () => (R.car ? 9 : R.boat ? Math.max(9, (R.boat.len || 12) * 1.1) : 5);
+  const syncZoom = () => { $('rideIn').style.opacity = R.zoom > 0 ? 1 : 0.45; el.classList.toggle('outside', R.zoom > 0); };
+  R.zoomBy = (f) => { if (!R.active) return; const lo = minD(); let z = R.zoom < lo ? (f > 1 ? lo : 0) : R.zoom * f; if (z < lo * 0.93) z = 0; R.zoom = Math.min(z, 700); syncZoom(); };
+  const chase = (a, tx, ty, tz, dist, dt, sea) => {
+    const ca = ease('ca', a, 4, dt, true), elv = clamp(0.3 - R.tilt * 1.7, 0.04, 1.35), ang = ca - R.look, ce = Math.cos(elv);
+    const cx = tx - Math.cos(ang) * ce * dist, cz = tz + Math.sin(ang) * ce * dist;
+    camera.position.set(cx, Math.max(ty + Math.sin(elv) * dist, sea + 0.6, env.ground ? env.ground(cx, cz) + 1.5 : -1e9), cz);
+    camera.up.set(0, 1, 0); v.set(tx, ty, tz); camera.lookAt(v); camera.updateMatrixWorld();
   };
   // the hands on the wheel: applied before the vehicles move this frame
   R.control = (dt) => {
@@ -199,9 +211,14 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
       // eyes in the middle of the back seat; the car rides the bumps of the sand, but the springs take the sharpness out of them
       shake += dt * c.sp; const bump = Math.sin(shake * 1.9) * 0.008 + Math.sin(shake * 0.53 + 1.0) * 0.016;
       const cy = ease('cy', m.position.y, 7, dt), pitch = ease('cp', m.rotation.z, 4, dt), cyaw = ease('cyaw', yaw, 9, dt, true);
+      const zm = ease('zm', R.zoom, 5, dt), outside = zm > 1;
+      if (m.visible !== outside) { m.visible = outside; cab.style.display = outside ? 'none' : 'block'; }
+      if (outside) chase(yaw, m.position.x, cy + 1.2 * S, m.position.z, zm, dt, env.sea ? env.sea() : -1e9);
+      else {
       camera.position.set(m.position.x - fx * 0.95 * S, cy + 1.44 * S + bump, m.position.z - fz * 0.95 * S);
       camera.rotation.set(R.tilt + pitch * 0.7 * Math.cos(R.look) - 0.03, cyaw - Math.PI / 2 - R.look, -pitch * 0.7 * Math.sin(R.look) + Math.sin(shake * 0.8) * 0.003, 'YXZ');      // looking out of the side, the car's nose-up shows as a tilt of the horizon, not a nod
       camera.updateMatrixWorld();
+      }
       // the wheel in the driver's hands: turned as far as the car is turning, never quite still on the sand, and spinning back as the car straightens
       if (dt > 0) {
         let dy = yaw - (R.yaw0 ?? yaw); dy = ((dy + Math.PI * 3) % (Math.PI * 2)) - Math.PI; R.yaw0 = yaw;
@@ -225,7 +242,9 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
       let by = ease('by', p.y, 3.2, dt); by = sm.by = clamp(by, p.y - 1.5, p.y + 1.5);        // it may lag the bird a little, never lose it
       const yawB = ease('byaw', Math.atan2(-Math.cos(p.hd), Math.sin(p.hd)), 3.5, dt, true);
       const yawC = yawB - R.look, fx = -Math.sin(yawC), fz = -Math.cos(yawC), back = ease('bk', p.afloat ? 5 : p.kind === 'eagle' ? 6 : 7.5, 2, dt);
-      camera.position.set(p.x - fx * back, Math.max(by + 2.3 - R.tilt * 7, sea + 0.4), p.z - fz * back); v.set(p.x + fx * 4, by + 0.7, p.z + fz * 4); camera.up.set(0, 1, 0); camera.lookAt(v); camera.updateMatrixWorld();
+      const cx = p.x - fx * back, cz = p.z - fz * back, zm = ease('zm', R.zoom, 5, dt);
+      if (zm > 1) chase(p.hd, p.x, by + 0.5, p.z, back + zm, dt, sea);
+      else { camera.position.set(cx, Math.max(by + 2.3 - R.tilt * 7, sea + 0.4, env.ground ? env.ground(cx, cz) + 1.2 : -1e9), cz); v.set(p.x + fx * 4, by + 0.7, p.z + fz * 4); camera.up.set(0, 1, 0); camera.lookAt(v); camera.updateMatrixWorld(); }
       if (p.ctl) $('hmWheel').style.transform = `rotate(${(p.ctl.turn * 60).toFixed(1)}deg)`;
       uiT -= dt; if (uiT <= 0) {
         uiT = 0.3; $('hmSpeed').textContent = Math.round((p.v ?? p.sp) * 3.6); $('hmHead').textContent = point(Math.atan2(Math.cos(p.hd), Math.sin(p.hd)));
@@ -236,11 +255,14 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     // aboard a boat: eyes at the helm, moving with the hull as it pitches, rolls and heels; the head steadies itself a little against the motion
     const b = R.boat, m = b.m, eye = b.eye || [-3, 3];
     m.updateMatrixWorld(); R.pos.copy(m.position);
-    v.set(eye[0], eye[1], 0); m.localToWorld(v); q.set(eye[0] + 20, eye[1] - 0.8, 0); m.localToWorld(q); q.sub(v).normalize();
+    v.set(eye[0], eye[1], eye[2] || 0); m.localToWorld(v); q.set(eye[0] + 20, eye[1] - 0.8, eye[2] || 0); m.localToWorld(q); q.sub(v).normalize();
+    const pit = ease('bp', Math.asin(clamp(q.y, -1, 1)), 5, dt), rol = ease('br', m.rotation.x, 5, dt), zmB = ease('zm', R.zoom, 5, dt);
+    if (zmB > 1) chase(b.hd, m.position.x, m.position.y + eye[1] * 0.6 * 1.6, m.position.z, zmB, dt, env.sea ? env.sea() : -1e9);
+    else {
     camera.position.copy(v);
-    const pit = ease('bp', Math.asin(clamp(q.y, -1, 1)), 5, dt), rol = ease('br', m.rotation.x, 5, dt);
     camera.rotation.set((pit * Math.cos(R.look) - rol * Math.sin(R.look)) * 0.6 + R.tilt, Math.atan2(-q.x, -q.z) - R.look, -(rol * Math.cos(R.look) + pit * Math.sin(R.look)) * 0.6, 'YXZ');       // looking abeam, her pitching tilts the horizon and her rolling lifts and drops it
     camera.updateMatrixWorld();
+    }
     if (b.helm) $('hmWheel').style.transform = `rotate(${(b.helm.turn * 110).toFixed(1)}deg)`;
     uiT -= dt; if (uiT <= 0) {
       uiT = 0.3; $('hmSpeed').textContent = (b.sp / 1.6 * 1.944).toFixed(1); $('hmHead').textContent = point(Math.atan2(Math.cos(b.hd), Math.sin(b.hd)));
@@ -248,21 +270,30 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     }
   };
   // dragging turns the head (a car steers itself; a boat does too unless you have taken the helm)
-  canvas.addEventListener('pointerdown', (e) => { if (R.active) drag = { x: e.clientX, y: e.clientY }; });
+  const pts = new Map(); let pinch = 0, pinchAcc = 1;
+  canvas.addEventListener('pointerdown', (e) => { if (!R.active) return; pts.set(e.pointerId, [e.clientX, e.clientY]); if (pts.size === 1) drag = { x: e.clientX, y: e.clientY }; else { drag = null; pinch = 0; pinchAcc = 1; } });
+  canvas.addEventListener('wheel', (e) => { if (!R.active) return; e.preventDefault(); R.zoomBy(Math.exp(clamp(e.deltaY, -240, 240) * 0.0016)); }, { passive: false });
   addEventListener('pointermove', (e) => {
+    if (R.active && pts.has(e.pointerId)) pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (R.active && pts.size === 2) {             // two fingers: pinch them together to draw back, spread them to come closer
+      const [a, bq] = [...pts.values()], dd = Math.hypot(a[0] - bq[0], a[1] - bq[1]);
+      if (pinch > 0 && dd > 0) { const f = pinch / dd; if (R.zoom >= minD()) R.zoomBy(f); else { pinchAcc *= f; if (pinchAcc > 1.12) { R.zoomBy(1.1); pinchAcc = 1; } } }
+      pinch = dd; return;
+    }
     if (!R.active || !drag) return;
     // all the way round, in a car as on a boat
     R.look += (e.clientX - drag.x) * 0.0035; R.look -= Math.PI * 2 * Math.round(R.look / (Math.PI * 2));
-    R.tilt = clamp(R.tilt - (e.clientY - drag.y) * 0.0025, R.car ? -0.2 : -0.6, R.car ? 0.16 : 0.5); drag.x = e.clientX; drag.y = e.clientY;
+    { const tight = R.car && R.zoom < 1; R.tilt = clamp(R.tilt - (e.clientY - drag.y) * 0.0025, tight ? -0.2 : -0.6, tight ? 0.16 : 0.5); } drag.x = e.clientX; drag.y = e.clientY;
   });
-  addEventListener('pointerup', () => { drag = null; }); addEventListener('pointercancel', () => { drag = null; });
+  for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, (e) => { pts.delete(e.pointerId); drag = null; pinch = 0; });
   // the helm: buttons you hold, or the keys
   const hold = (id, on, off) => { const b = $(id); b.addEventListener('pointerdown', (e) => { e.preventDefault(); on(); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, off); };
   hold('hmLeft', () => { steer = -1; }, () => { steer = 0; }); hold('hmRight', () => { steer = 1; }, () => { steer = 0; });
   hold('hmSlow', () => { gas = -1; }, () => { gas = 0; }); hold('hmFast', () => { gas = 1; }, () => { gas = 0; });
   $('hmTake').onclick = () => take(!R.helm);
+  $('rideOut').onclick = () => R.zoomBy(1.6); $('rideIn').onclick = () => R.zoomBy(1 / 1.6);
   const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1] };
-  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'KeyH') return take(!R.helm); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
+  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
   addEventListener('keyup', (e) => { const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
   $('rideExit').onclick = () => R.onExit && R.onExit();
   R.take = take; R.canSteer = canSteer;

@@ -161,6 +161,8 @@ body.ui-off #walkHint, body.ui-off #dot, body.ui-off #stick { display: none !imp
 #ride .seat i { position: absolute; inset: 1.6vmin 2vmin 0; border-radius: 7vmin 7vmin 0 0; border: 1px dashed rgba(201,138,42,.55); border-bottom: 0; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.05) 0 0.5px, transparent 1px) 0 0 / 1.1vmin 1.1vmin; }
 #ride .seat.l { left: calc(50% - 54vmin); } #ride .seat.r { left: calc(50% + 22vmin); }
 #rideExit { position: absolute; left: 12px; top: 12px; pointer-events: auto; background: rgba(8, 28, 40, .7); color: #fff; }
+#ride .zoom { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; pointer-events: auto; }
+#ride .zoom .pill { background: rgba(8, 28, 40, .7); color: #fff; touch-action: manipulation; }
 #ride .tip { position: absolute; left: 0; right: 0; top: 14px; text-align: center; color: rgba(255,255,255,.75); font-size: 12px; text-shadow: 0 1px 3px #000; }
 body.riding #title, body.riding #places, body.riding #hint, body.riding #labels { display: none !important; }
 

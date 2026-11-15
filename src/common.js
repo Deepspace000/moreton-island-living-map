@@ -383,7 +383,7 @@ export function objectMat(opts = {}) {
               float seamS = smoothstep(0.035, 0.012, abs(fract((L.y + L.x * 0.12) / 0.95) - 0.5) * 0.95);
               alb *= 1.0 - 0.3 * seamS; alb *= 0.93 + 0.1 * step(0.5, fract((L.y + L.x * 0.12) / 1.9));          // stitched seams between the panels, alternate panels a shade apart
               alb *= 0.9 + 0.14 * bn;
-              alb *= 1.0 - 0.05 * step(0.88, max(fract(L.x * 9.0), fract(L.y * 9.0))) * (1.0 - smoothstep(0.2, 0.8, fwidth(L.x * 9.0)));     // the ripstop grid of the cloth
+              alb *= 1.0 - 0.02 * step(0.88, max(fract(L.x * 9.0), fract(L.y * 9.0))) * (1.0 - smoothstep(0.2, 0.8, fwidth(L.x * 9.0)));     // the ripstop grid of the cloth
               float jib = step(1.43, L.x), leech = -3.8 + 0.404 * (L.y - 2.45);                  // where the after edge of the mainsail runs at this height
               // mainsail: four stiff battens in from the leech, a tape down the luff, a class badge high up; jib: a strip of blue sun-cover down its after edge
               float bat = (1.0 - jib) * (1.0 - smoothstep(0.02, 0.05, abs(fract((L.y - 3.2) / 2.6) - 0.5) * 2.6)) * step(leech, L.x + 0.3) * step(L.x, leech + 1.7) * step(3.5, L.y) * step(L.y, 13.5);
