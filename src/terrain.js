@@ -302,7 +302,7 @@ export function buildTerrain(scene) {
         vec3 col = mix(mix(veg, gr, open), sd, sand) * (1.0 - 0.5 * uNight * max(sand, open));
         { // the grass belt between beach and bush, seen from a distance: a strip of green and straw where the sand value is mid-way
           float belt = smoothstep(0.4, 0.55, mk.g) * (1.0 - smoothstep(0.72, 0.9, mk.g)) * step(0.9, h) * step(0.92, mk.r);
-          col = mix(col, mix(vec3(0.19, 0.25, 0.10), vec3(0.36, 0.33, 0.20), nC.g) * (0.8 + 0.4 * nD.r), belt * 0.5 * smoothstep(0.3, 0.6, nC.b * 0.6 + nD.g * 0.5) * smoothstep(25.0, 110.0, dist));
+          col = mix(col, mix(vec3(0.19, 0.25, 0.10), vec3(0.36, 0.33, 0.20), nC.g) * (0.8 + 0.4 * nD.r), belt * 0.62 * smoothstep(0.25, 0.55, nC.b * 0.6 + nD.g * 0.5 + (0.75 - mk.g) * 0.8) * smoothstep(14.0, 60.0, dist));     // thicker toward the scrub
         }
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(vW.xz - uCape.xy));

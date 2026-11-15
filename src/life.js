@@ -142,30 +142,50 @@ function buildBeachLife(scene) {
         c = mix(vec3(0.22, 0.27, 0.12), vec3(0.50, 0.48, 0.28), step(0.4, h2)) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4);`, 200);
   // The grass belt: between the open beach and the first trees there is nearly always a strip of dune grass (the owner's photo): green tussocks,
   // and among them older ones gone to straw, grey-brown and lying over; thick by the scrub, thinning out onto the sand.
-  const belt = scatter(scene, LOW ? 64 : 110, 0.8, tuftGeo, /* glsl */`
+  const fineGeo = (g) => {              // dune grass: many thin blades, each a gentle curve that tips over at the end
+    const pos = [], k = [], idx = [];
+    for (let b = 0; b < 12; b++) {
+      const a = b * 2.4 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.12 + 0.5 * ((b * 37) % 10) / 10, tall = 0.6 + 0.4 * ((b * 13) % 7) / 6, r0 = 0.02 + 0.05 * ((b * 7) % 5) / 4, q = pos.length / 3, N = 4;
+      for (let i = 0; i <= N; i++) { const t = i / N, out = r0 + lean * t * t * 0.9, up = tall * (t - 0.28 * t * t * t), w = 0.006 * (1 - 0.8 * t); pos.push(ca * out - sa * w, up, sa * out + ca * w, ca * out + sa * w, up, sa * out - ca * w); k.push(t, t); }
+      for (let i = 0; i < N; i++) { const o = q + i * 2; idx.push(o, o + 1, o + 2, o + 2, o + 1, o + 3); }
+    }
+    attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
+  };
+  const belt = scatter(scene, LOW ? 72 : 120, 0.6, fineGeo, /* glsl */`
         float band = smoothstep(0.4, 0.55, mk.g) * (1.0 - smoothstep(0.72, 0.9, mk.g));                 // the map's sand value is mid-way here: neither bush nor bare beach
-        float dry = step(0.62, h2), thick = mix(0.75, 0.2, smoothstep(0.55, 0.85, mk.g));
-        s = (0.5 + 0.55 * h1) * step(h3, thick * band) * step(0.92, mk.r) * step(0.9, hgt) * (1.0 - smoothstep(0.02, 0.1, ov.r));
-        lp = position * mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.45 + 0.2 * h4, 1.5), dry) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry);
+        float dry = step(0.7, h2), thick = mix(0.95, 0.1, smoothstep(0.5, 0.86, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
+        s = (0.55 + 0.5 * h1) * step(h3, thick * band) * step(0.92, mk.r) * step(0.9, hgt) * (1.0 - smoothstep(0.02, 0.1, ov.r));
+        lp = position * mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.5 + 0.2 * h4, 1.5), dry) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry);
         nrm = vec3(0.0, 1.0, 0.0);
         vec3 green = mix(vec3(0.13, 0.25, 0.08), vec3(0.20, 0.30, 0.17), step(0.5, h4)), straw = mix(vec3(0.50, 0.46, 0.33), vec3(0.36, 0.33, 0.27), h1);
         c = mix(green, straw, dry) * (0.45 + 0.7 * aK);
         c = mix(c, straw, (1.0 - dry) * smoothstep(0.75, 1.0, aK) * 0.5);                               // green blades dry off toward their tips`, 130);
   // ferns: on the low wet flats they cover the ground knee to waist high, each a ring of arching fronds
-  const ferns = scatter(scene, LOW ? 70 : 104, 1.0, (g) => {
+  const ferns = scatter(scene, LOW ? 60 : 88, 1.0, (g) => {
     const pos = [], k = [], idx = [];
-    for (let f = 0; f < 10; f++) {
-      const a = f * 0.628 + (f % 2) * 0.25, ca = Math.cos(a), sa = Math.sin(a), q = pos.length / 3, len = 0.8 + 0.3 * ((f * 5) % 4) / 3;
-      for (const [out, up, w, u] of [[0.03, 0.03, 0.02, 0], [0.5, 0.56, 0.085, 0.55], [1.0, 0.3, 0.012, 1]]) for (const sd of [-1, 1]) { pos.push(ca * out * len - sa * w * sd, up * len, sa * out * len + ca * w * sd); k.push(u); }
-      idx.push(q, q + 1, q + 2, q + 2, q + 1, q + 3, q + 2, q + 3, q + 4, q + 4, q + 3, q + 5);
+    for (let f = 0; f < 5; f++) {          // bracken: each frond a thin arching stem with pairs of leaflets down its length, long near the base and short at the drooping tip
+      const a = f * 1.26 + (f % 2) * 0.35, ca = Math.cos(a), sa = Math.sin(a), len = 0.8 + 0.3 * ((f * 5) % 4) / 3, bend = ((f * 3) % 5 - 2) * 0.07;
+      const P = (t) => { const out = (0.03 + t) * len, sw = bend * t * t * len; return [ca * out - sa * sw, (0.03 + 0.62 * Math.sin(t * 2.25)) * len, sa * out + ca * sw]; };
+      const q = pos.length / 3, N = 3;
+      for (let i = 0; i <= N; i++) { const t = i / N, c = P(t), w = 0.008 * len * (1 - 0.6 * t); pos.push(c[0] - sa * w, c[1], c[2] + ca * w, c[0] + sa * w, c[1], c[2] - ca * w); k.push(t * 0.5, t * 0.5); }
+      for (let i = 0; i < N; i++) { const o = q + i * 2; idx.push(o, o + 1, o + 2, o + 2, o + 1, o + 3); }
+      for (let i = 0; i < 6; i++) {
+        const t = 0.2 + i * 0.145, c0 = P(t - 0.05), c1 = P(t + 0.05), L = (0.05 + 0.36 * Math.pow(1 - t, 0.8)) * len;
+        for (const sd of [-1, 1]) { const b = pos.length / 3; pos.push(c0[0], c0[1], c0[2], c1[0], c1[1], c1[2], (c0[0] + c1[0]) / 2 - sa * L * sd + ca * L * 0.3, c0[1] - L * 0.22, (c0[2] + c1[2]) / 2 + ca * L * sd + sa * L * 0.3); k.push(t, t, 1); idx.push(b, b + 1, b + 2); }
+      }
     }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   }, /* glsl */`
         float wet = (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0) * step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * (1.0 - smoothstep(0.05, 0.13, max(ov.r, max(ov.g, ov.b))));
-        s = (0.5 + 0.55 * h1) * step(h3, 0.9) * wet;
-        lp = position * vec3(0.85 + 0.3 * h4, 0.7 + 0.6 * fract(h2 * 9.0), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same
+        // ...and bracken stands in patches along the back of the beaches too, just where the grass gives way to the scrub: fresh green fronds, and whole
+        // patches of brown ones where a fire has been through or the old fronds have died off (as the owner describes)
+        float edge = smoothstep(0.2, 0.33, mk.g) * (1.0 - smoothstep(0.5, 0.66, mk.g)) * step(1.0, hgt) * step(0.92, mk.r) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * smoothstep(0.38, 0.55, texture2D(uNoise, xz / 23.0).b);
+        float atEdge = step(wet, 0.5) * step(0.01, edge), burntPatch = step(0.52, texture2D(uNoise, xz / 70.0 + 0.3).g), brown = atEdge * step(mix(0.8, 0.25, burntPatch), fract(h1 * 7.0));
+        s = (0.5 + 0.55 * h1) * max(step(h3, 0.9) * wet, step(h3, 0.62 * edge));
+        lp = position * vec3(0.85 + 0.3 * h4, (0.7 + 0.6 * fract(h2 * 9.0)) * (1.0 - 0.35 * brown), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same; the dead ones sag
         nrm = vec3(0.0, 1.0, 0.0);
-        c = mix(mix(vec3(0.05, 0.095, 0.03), vec3(0.105, 0.15, 0.05), h2), vec3(0.15, 0.12, 0.065), step(0.8, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);`, 260);        // bracken: olive, a quarter of the fronds dead and brown, dark at the base
+        c = mix(mix(vec3(0.05, 0.095, 0.03), vec3(0.105, 0.15, 0.05), h2), vec3(0.15, 0.12, 0.065), step(0.8, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);
+        if(atEdge > 0.5) c = mix(mix(vec3(0.06, 0.15, 0.03), vec3(0.12, 0.23, 0.055), h2), mix(vec3(0.30, 0.17, 0.07), vec3(0.19, 0.11, 0.055), h4), brown) * (0.4 + 0.75 * aK);`, 260);        // bracken: olive, a quarter of the fronds dead and brown, dark at the base
   // soldier crabs: when the tide is well out they come up on the bared flats in armies, small round sky-blue crabs that
   // walk a little way together and then screw themselves back down into the wet sand
   const crabs = scatter(scene, LOW ? 100 : 140, 0.24, (g) => {
@@ -723,17 +743,18 @@ function buildCreeper(scene) {
       const a = a0 + bend * j / 5, nx = px + Math.cos(a) * len / 5, nz = pz + Math.sin(a) * len / 5, sx = -Math.sin(a) * 0.006, sz = Math.cos(a) * 0.006, b = pos.length / 3;
       pos.push(px - sx, 0.006, pz - sz, px + sx, 0.006, pz + sz, nx + sx, 0.006, nz + sz, nx - sx, 0.006, nz - sz); k.push(1, 1, 1, 1); idx.push(b, b + 1, b + 2, b, b + 2, b + 3);       // the runner
       const side = j % 2 ? 1 : -1, lx = nx - Math.sin(a) * 0.045 * side, lz = nz + Math.cos(a) * 0.045 * side;
-      fan(lx, 0.02 + R() * 0.02, lz, 0.036 + R() * 0.014, 0, a + side * 1.3, 0.3, 1);
+      fan(lx, 0.03 + R() * 0.06, lz, 0.045 + R() * 0.02, 0, a + side * 1.3, 0.45, 1);       // the leaves stand up off the sand on short stalks
       px = nx; pz = nz;
     }
-    if (arm < 2) fan(px * 0.6 + 0.02, 0.05, pz * 0.6, 0.026, 2, 0, 0.55, 0);
+    if (arm < 2) fan(px * 0.6 + 0.02, 0.1, pz * 0.6, 0.028, 2, 0, 0.55, 0);
+    for (let e = 0; e < 2; e++) fan((R() - 0.5) * 0.16, 0.06 + R() * 0.06, (R() - 0.5) * 0.16, 0.05 + R() * 0.02, 0, R() * 6.28, 0.5, 1);      // a knot of leaves where the runners start
   }
   return scatter(scene, LOW ? 44 : 64, 1.5, (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); }, /* glsl */`
         float edge = smoothstep(0.5, 0.6, mk.g) * (1.0 - smoothstep(0.74, 0.86, mk.g));                              // it creeps out from the foot of the scrub onto the edge of the open sand
-        float here = step(0.9, mk.r) * smoothstep(0.9, 1.4, hgt) * (1.0 - smoothstep(5.0, 8.0, hgt)) * edge * step(h3, 0.34) * (1.0 - smoothstep(0.02, 0.1, ov.r));
+        float here = step(0.9, mk.r) * smoothstep(0.9, 1.4, hgt) * (1.0 - smoothstep(5.0, 8.0, hgt)) * edge * step(h3, mix(0.6, 0.2, smoothstep(0.55, 0.8, mk.g))) * smoothstep(0.3, 0.5, texture2D(uNoise, xz / 19.0).g) * (1.0 - smoothstep(0.02, 0.1, ov.r));      // thick mats in places near the scrub, thinner further out
         s = (1.7 + 1.8 * h2) * here;
         lp = position; nrm = normalize(vec3(position.x * 0.6, 1.0, position.z * 0.6));
-        c = aK < 0.5 ? mix(vec3(0.07, 0.17, 0.045), vec3(0.14, 0.25, 0.06), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
+        c = aK < 0.5 ? mix(vec3(0.11, 0.25, 0.055), vec3(0.21, 0.37, 0.09), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
           : aK < 1.5 ? vec3(0.22, 0.13, 0.09)
           : (h4 > 0.45 ? vec3(0.60, 0.24, 0.52) : vec3(0.86, 0.72, 0.10));
         if(aK > 1.5 && fract(h1 * 9.0) > 0.45) s = 0.0;                    // not every runner is in flower`, 110);
