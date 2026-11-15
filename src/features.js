@@ -131,6 +131,10 @@ function buildHouse(g, pts, base, hi, st, R, free = () => true, street = null) {
       g.tank(q[0], yG - 0.4, q[2], r, (1.75 + R() * 0.45) * K + (hi - base) + 0.4, 24, c, K);
     }
   }
+  if (st.tank && st.clad < 4.5 && R() < 0.7) {      // gas bottles against the back wall: the stove and the fridge run on gas out here
+    const bk = [-w[0], -w[1]], s0 = 0.12 + 0.7 * R();
+    for (const ds of [0, 0.42 / L]) { const q = P(s0 + ds, 1 - tv, 0, 0.24, bk); g.cyl(q[0], yG - 0.3, q[2], 0.17, 0.17, 1.2 * K + 0.3 + (hi - base), 10, [.74, .76, .74], [.62, .63, .62]); g.cyl(q[0], yG + 1.2 * K + (hi - base), q[2], 0.07, 0.07, 0.14 * K, 6, [.35, .36, .36], [.3, .3, .3]); }
+  }
   return top;
 }
 // A rotary clothes hoist: a steel pole, four arms, lines strung round them, and some of the washing out to dry.
@@ -142,7 +146,7 @@ function clothesHoist(g, x, y, z, R) {
   for (const f of [0.45, 0.72, 1.0]) for (let i = 0; i < 4; i++) {
     const p0 = arm[i](f), p1 = arm[(i + 1) % 4](f); g.quad(p0, p1, [p1[0], p1[1] + 0.03, p1[2]], [p0[0], p0[1] + 0.03, p0[2]], [.80, .80, .78]);
     if (f > 0.5 && R() < 0.6) {            // a towel, a shirt, a sheet
-      const u0 = 0.1 + R() * 0.3, u1 = u0 + 0.25 + R() * 0.3, drop = (0.45 + R() * 0.45) * K, c = [[.86, .86, .84], [.25, .45, .70], [.80, .30, .25], [.92, .80, .35], [.30, .58, .50], [.90, .62, .70]][(R() * 6) | 0];
+      const u0 = 0.08 + R() * 0.45, u1 = u0 + 0.18 + R() * 0.2, drop = (0.45 + R() * 0.45) * K, c = [[.86, .86, .84], [.25, .45, .70], [.80, .30, .25], [.92, .80, .35], [.30, .58, .50], [.90, .62, .70]][(R() * 6) | 0];
       const A = p0.map((v, k) => v + (p1[k] - v) * u0), B = p0.map((v, k) => v + (p1[k] - v) * u1); g.quad([A[0], A[1] - drop, A[2]], [B[0], B[1] - drop, B[2]], B, A, c);
     }
   }
@@ -191,7 +195,7 @@ function buildBuildings(F, g, occ, casters, lights) {
   const freeOf = (self) => (x, z, r) => plans.every(q => q.b === self || Math.hypot(x - q.x, z - q.z) > q.r + r || (!within(x, z, q.p) && reach(x, z, q.p) > r));
   const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
   // which way the street lies from a house: the nearest point of any street or track within 70 m
-  const toStreet = (x, z) => { let bd = 70 * 70, bx = 0, bz = 0; for (let i = 0; i < streetPts.length; i += 2) { const dx = streetPts[i] - x, dz = streetPts[i + 1] - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bx = dx; bz = dz; } } const l = Math.hypot(bx, bz); return l > 0.5 ? [bx / l, bz / l] : null; };
+  const toStreet = (x, z) => { let bd = 70 * 70, bx = 0, bz = 0; for (let i = 0; i < streetPts.length; i += 2) { const dx = streetPts[i] - x, dz = streetPts[i + 1] - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bx = dx; bz = dz; } } const l = Math.hypot(bx, bz); return l > 0.5 ? [bx / l, bz / l, l] : null; };
   const onStreet = (x, z) => { for (let dx = -4; dx <= 4; dx += 4) for (let dz = -4; dz <= 4; dz += 4) if (streets.has(cellKey(x + dx, z + dz, 4))) return true; return false; };
   const anyFree = freeOf(null);
   { // Garden trees. The forest's trees stand one to a cell of an 11 m grid (see buildTrees). In the townships a cell beside a house gets a tree too,
@@ -216,7 +220,7 @@ function buildBuildings(F, g, occ, casters, lights) {
     }
   }
   const swallowed = new Set(plans.filter(s => plans.some(q => q !== s && q.a > s.a && Math.hypot(s.x - q.x, s.z - q.z) < q.r && within(s.x, s.z, q.p))).map(s => s.b));
-  const Y = rng(77), things = [], parked = F.parked = [];
+  const Y = rng(77), things = [], parked = F.parked = [], drives = F.drives = [];
   for (const b of F.buildings) {
     let pts = b.p; const n = pts.length; if (n < 3 || b.lh || b.k === 'ship' || swallowed.has(b)) continue;      // outlines of wrecked ships are not houses: see the Bulwer wrecks; nor is a shed drawn inside a bigger building
     let A2 = 0, cx = 0, cz = 0;
@@ -231,7 +235,7 @@ function buildBuildings(F, g, occ, casters, lights) {
       occ.add(cellKey(p[0], p[1], 6));
     }
     occ.add(cellKey(cx, cz, 6));
-    let h = b.ht > 0 ? b.ht : b.lv > 0 ? b.lv * 3.1 : area < 45 ? 2.5 : area < 300 ? (R() < 0.12 ? 5.4 : 2.7) : area < 900 ? (R() < 0.5 ? 6.2 : 3.6) : 7.6;
+    let h = b.ht > 0 ? b.ht : b.lv > 0 ? b.lv * 3.1 : area < 45 ? 2.5 : area < 300 ? (R() < 0.12 ? 5.4 : 2.7) : area < 900 ? (R() < 0.22 ? 5.6 : 3.0) : 7.6;
     h *= HK;
     let wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
     if (cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350) { wall = [.94, .93, .89]; roof = [.50, .52, .54]; }       // the lighthouse keepers' cottages and sheds: white walls, grey roofs
@@ -252,7 +256,11 @@ function buildBuildings(F, g, occ, casters, lights) {
           if (c && Math.hypot(x - (c[0] + 0.5) * CS, z - (c[1] + 0.5) * CS) < rad + 2.4) continue;
           if (things.some(q => Math.hypot(x - q[0], z - q[1]) < rad + q[2] + 0.6)) continue;
           things.push([x, z, rad]); return [x, z]; } return null; };
-        if (Y() < 0.5) { const q = spot(3.3); if (q) parked.push([q[0], q[1], ang + (Y() < 0.5 ? Math.PI : 0) + (Y() - 0.5) * 0.3]); }
+        if (Y() < 0.5) { const q = spot(3.3); if (q) { parked.push([q[0], q[1], ang + (Y() < 0.5 ? Math.PI : 0) + (Y() - 0.5) * 0.3]);
+          // and the wheel tracks it has worn from the street to where it stands, if the way is clear of the neighbours
+          const ts = toStreet(q[0], q[1]); if (ts && ts[2] > 6 && ts[2] < 60) { const n = Math.ceil(ts[2] / 3), pts = []; let clear = true;
+            for (let k = 0; k <= n && clear; k++) { const x = q[0] + ts[0] * ts[2] * k / n, z = q[1] + ts[1] * ts[2] * k / n; clear = anyFree(x, z, 1.6); pts.push([x + Math.sin(k * 1.3) * 0.5, z + Math.cos(k * 1.7) * 0.5]); }
+            if (clear) drives.push({ p: pts, c: 4 }); } } }
         if (Y() < 0.4) { const q = spot(1.9); if (q) { clothesHoist(g, q[0], meshY(q[0], q[1]), q[1], Y); (F.hoists ||= []).push(q); } }
         if (Y() < 0.22) { const q = spot(2.9); if (q) { tinnyOnTrailer(g, q[0], meshY(q[0], q[1]), q[1], ang + (Y() - 0.5) * 0.5, Y); (F.tinnies ||= []).push(q); } }
       }
@@ -299,7 +307,7 @@ function buildRoads(F, scene, occ) {
   const pos = [], dir = [], par = [], idx = [];
   for (const r of F.roads) {
     const pts = r.p; let L = 0;
-    const hw = r.c === 3 ? 1.25 : r.c === 2 ? 1.5 : r.c === 1 ? 2.4 : 3.2;
+    const hw = r.c === 4 ? 1.25 : r.c === 3 ? 1.25 : r.c === 2 ? 1.5 : r.c === 1 ? 2.4 : 3.2;
     const out = [];
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(len / 12));
@@ -346,7 +354,10 @@ function buildRoads(F, scene, occ) {
         vec3 sand = vec3(0.66, 0.58, 0.42);
         float n = texture2D(uNoise, vW.xz / 14.0).r;
         vec3 col; float a;
-        if(cls > 2.5){            // wheel ruts pressed into the beach
+        if(cls > 3.5){            // a driveway: two wheel tracks worn through the grass to bare sand, with a grassy strip left between
+          float rut = smoothstep(0.3, 0.5, abs(vP.x)) * smoothstep(1.0, 0.8, abs(vP.x));
+          col = vec3(0.80, 0.72, 0.52) * (0.9 + 0.2 * n); a = 0.7 * rut * (0.6 + 0.4 * texture2D(uNoise, vec2(vP.y / 23.0, 0.7)).g) * (1.0 - smoothstep(600.0, 1500.0, vD));
+        } else if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
           col = vec3(0.55, 0.45, 0.28); a = 0.16 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
@@ -524,7 +535,7 @@ function buildTrees(F, scene) {
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
         attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
-        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp; varying vec2 vBark; uniform float uPorous;
+        varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp, vLs; varying vec2 vBark; uniform float uPorous;
         #ifdef SPECIES
         attribute float aBlob;            // crown: which clump; limb: which limb
         // a point along a limb, in units of the tree's height: from the fork P to its end E, bowed up by arch and kinked sideways
@@ -583,6 +594,9 @@ function buildTrees(F, scene) {
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
+          #ifdef SPECIES
+          if(yard < 0.5) dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, xz / 60.0 + 0.17).b));      // trees stand in groves with open ground between, not evenly like an orchard
+          #endif
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
           if(uInner > 1.0) s *= smoothstep(0.34, 0.18, lum);
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
@@ -594,7 +608,7 @@ function buildTrees(F, scene) {
           c = mix(c, vec3(lum * 1.15, lum * 1.8, lum * 0.75), 0.28) * (0.9 + 0.5 * h2);
           c = mix(c, c * vec3(1.25, 1.1, 0.7), step(0.8, h3) * 0.5);
           if(uMode < 0.5) c = mix(c, vec3(0.15, 0.21, 0.085) * (0.85 + 0.4 * h2) * (1.0 - 0.22 * yard), max(smoothstep(0.2, 0.36, lum), yard));      // a tree standing on pale sand or in a yard is as green as one in the forest: its leaves do not take the colour of the ground
-          float ao; vec3 lp; vPor = uPorous; vBark = vec2(0.0); vSp = 0.0;
+          float ao; vec3 lp; vPor = uPorous; vBark = vec2(0.0); vSp = 0.0; vLs = 2.53;
           #ifdef SPECIES
             // Each kind of tree has its own build, and each tree its own form: where the trunk forks, how far the limbs
             // spread and bow, how much it leans and wanders. form picks between the distinct forms of a kind.
@@ -619,7 +633,7 @@ function buildTrees(F, scene) {
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
             float dense = smoothstep(0.30, 0.12, lum);                                  // closed forest: crowns spread until they meet
             rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
-            wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); lean *= mix(0.42, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.45 * yard;
+            wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); arch *= 0.6; lean *= mix(0.42, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.25 * yard;
             { float gir = hash12(cell * 5.3 + 8.0); tr *= 0.62 + 0.9 * gir * gir; vSp = sp; if(NLIMB > 3.5) rbK *= 0.84; }            // saplings, grown trees and the odd old giant; with more clumps on a tree each is smaller            // no tree grows straight, but real trunks and limbs bend in long, easy curves
             fork *= 0.85 + 0.3 * h3; H *= big * 1.25;                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
@@ -654,10 +668,11 @@ function buildTrees(F, scene) {
               c = bark * (0.75 + 0.5 * h2) * mix(1.0, 0.5, smoothstep(250.0, 700.0, dc0)); ao = 0.6 + 0.3 * u; vBark = vec2(mott, burnt * 0.25 * (1.0 - u));
             } else if(aPart > 0.5){          // trunk
               float t = position.y;
-              lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.52, t) * (1.0 + 0.6 * (1.0 - t) * (1.0 - t))) * H * s;
+              lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.52, t) * (1.0 + 0.3 * (1.0 - t) * (1.0 - t) * (1.0 - t))) * H * s;
               c = bark * (0.75 + 0.5 * h2) * mix(1.0, 0.5, smoothstep(250.0, 700.0, dc0)); ao = 0.5 + 0.35 * t;      // (far off, pale trunks sink into the shade of the forest instead of sparkling) vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));
             } else {                         // clump of leaves
               float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16)) * (1.0 - deadTree);
+              vLs = max(rb * H * s, 0.5);                 // the clump's size in metres, so its leaves can be drawn at their true size
               bc.y += rb * sc.y * hang;
               vec3 ol = bc + q * rb * sc * (1.0 + 0.7 * (texture2D(uNoise, xz * 0.13 + bc.xz * 3.1 + q.xz * 0.33 + q.y * 0.21).g - 0.5));      // each clump billows unevenly: no ball, no facets
               lp = ol * H * s;
@@ -674,7 +689,7 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.052, 0.082, 0.034), vec3(lum * 0.5, lum * 0.72, lum * 0.3), 0.25) * (0.8 + 0.45 * h1);          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
+            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.068, 0.098, 0.044), vec3(lum * 0.5, lum * 0.72, lum * 0.3), 0.25) * (0.8 + 0.45 * h1);          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.28, h2 + (lum - 0.1) * 2.0); c = mix(mix(vec3(0.30, 0.25, 0.20), alb * 1.3, 0.55), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
@@ -686,13 +701,13 @@ function buildTrees(F, scene) {
           float wrap = aPart > 0.5 ? 0.12 : uMode > 0.5 && uMode < 1.5 ? 1.0 : 0.5, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
           // no leaf is greener than nature allows; and the green varies by the patch of bush, not by the single plant
           if(aPart < 0.5){ c.g = min(c.g, 1.4 * c.r + 0.015); c = mix(vec3(dot(c, vec3(0.3, 0.5, 0.2))), c, 0.82) * (0.8 + 0.42 * texture2D(uNoise, base.xz / 130.0).g); }
-          if(uMode > 0.5 && uMode < 1.5){ ao = mix(0.5, 1.4, smoothstep(-0.25, 0.85, nrm.y)); lp.y += step(0.8, h3) * (2.5 + 3.5 * h1) * s; }      // sunlit tops over dark skirts; one crown in five stands above its neighbours, so the skyline is ragged        // a distant crown is lit from the top down: bright cap, dim skirt
+          if(uMode > 0.5 && uMode < 1.5){ ao = mix(0.62, 1.3, smoothstep(-0.25, 0.85, nrm.y)); lp.y += step(0.8, h3) * (2.5 + 3.5 * h1) * s; }      // sunlit tops over dark skirts; one crown in five stands above its neighbours, so the skyline is ragged        // a distant crown is lit from the top down: bright cap, dim skirt
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
           vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
           ${LOGV}
         }`,
-      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp; varying vec2 vBark;
+      fs: /* glsl */`varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp, vLs; varying vec2 vBark;
         // one layer of leaves: a leaf in each cell of a grid, each hanging at its own angle, slim and a little sickle-curved.
         // returns x: how much of the pixel a leaf covers, y: a number that differs from leaf to leaf, z: where across the leaf (the midrib is at 0)
         // Leaves come in sprays: a dozen or so on one twig end, all hanging much the same way, each spray turned its own way, with thin places between
@@ -714,7 +729,10 @@ function buildTrees(F, scene) {
           if(vTrunk < 0.5){
             #ifdef SPECIES
             // foliage stands in clumps a couple of metres across at the ends of the branches, with sky between them (not in stripes down the crown)
-            float n = texture2D(uNoise, vec2(vObj.x * 0.21 + vObj.z * 0.17, vObj.y * 0.15 + vObj.z * 0.09)).g * 0.66 + texture2D(uNoise, vec2(vObj.x * 0.52 - vObj.z * 0.38, vObj.y * 0.34) + 0.21).r * 0.34, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
+            // (looked up from three sides and blended, so the pattern is the same grain whichever way the surface faces: no stripes down a crown)
+            vec3 tw = abs(normalize(vN)); tw *= tw; tw /= tw.x + tw.y + tw.z;
+            float n = (texture2D(uNoise, vObj.zy * 0.2).g * tw.x + texture2D(uNoise, vObj.xz * 0.2).g * tw.y + texture2D(uNoise, vObj.xy * 0.2).g * tw.z) * 0.66
+                    + (texture2D(uNoise, vObj.zy * 0.47 + 0.21).r * tw.x + texture2D(uNoise, vObj.xz * 0.47 + 0.21).r * tw.y + texture2D(uNoise, vObj.xy * 0.47 + 0.21).r * tw.z) * 0.34, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #else
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #endif
@@ -725,7 +743,8 @@ function buildTrees(F, scene) {
             #ifdef SPECIES
             // gum leaves a hand long, hanging; she-oaks carry no leaves but curtains of long thin needles that hang plumb
             bool oak = vSp > 0.5 && vSp < 1.5;
-            vec2 slim = oak ? vec2(2.5, 1.0) : vec2(4.7, 1.06), lsc = oak ? vec2(24.0, 1.9) : vec2(7.5); float turn = oak ? 0.16 : 1.25, lw = oak ? fwidth(lp.x * 12.0) + fwidth(lp.y * 3.0) : fwidth(lp.x * 7.5) + fwidth(lp.y * 7.5);
+            // (leaves keep their true size whatever the size of the clump; on the top of a clump, seen from above, they lie every way round)
+            vec2 slim = oak ? vec2(2.5, 1.0) : vec2(4.7, 1.06), lsc = (oak ? vec2(24.0, 1.9) : vec2(2.96)) * vLs; float turn = an.y > 0.75 ? 6.28 : oak ? 0.16 : 1.25, lw = oak ? fwidth(lp.x * lsc.x * 0.5) + fwidth(lp.y * lsc.y * 1.6) : fwidth(lp.x * lsc.x) + fwidth(lp.y * lsc.y);
             #else
             vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5), lsc = vec2(20.0); float turn = 3.6, lw = fwidth(lp.x * 20.0) + fwidth(lp.y * 20.0);        // bare scrub shows thin twigs, not leaves
             #endif
@@ -1202,6 +1221,7 @@ export function buildFeatures(scene, F, flyTo) {
   buildOverlay(F);
   buildBuildings(F, g, occ, casters, lights);
   buildRoads(F, scene, occ);
+  if (F.drives.length) buildRoads({ roads: F.drives }, scene, new Set());          // the driveways worn from each street to the cars parked by the houses
   const st = buildStructures(F, g, lights, scene, casters);
   buildShadows(casters, scene);
   const solid = new THREE.Mesh(g.build(), objectMat({ side: THREE.DoubleSide, defines: { WINDOWS: 1 } })); solid.frustumCulled = false; scene.add(solid);

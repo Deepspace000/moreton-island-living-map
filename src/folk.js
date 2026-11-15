@@ -74,7 +74,7 @@ function buildPeople(scene, list) {
       transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
       stencilWrite: true, stencilFunc: THREE.EqualStencilFunc, stencilRef: 0, stencilZPass: THREE.IncrementStencilOp,
       vs: PVS.replace('//SHADOW', `{ float up = wp.y - gy; wp.xz -= uLightDir.xz / max(uLightDir.y, 0.2) * up; wp.y = max(groundY(wp.xz), uSeaM * uVex) + 0.06; vW = wp;
-          ok *= (1.0 - smoothstep(260.0, 400.0, length(wp - cameraPosition))) * step(0.03, uLightDir.y); }`),
+          ok *= (1.0 - smoothstep(260.0, 400.0, length(wp - cameraPosition))) * step(0.03, uLightDir.y) * step(uSeaM * uVex - 0.12, groundY(wp.xz)); }`),
       fs: /* glsl */`varying vec3 vW;
         void main(){ ${LOGF}
           float a = 0.5 * clamp(uLightDir.y * 5.0, 0.0, 1.0) * clamp(dot(uLightCol, vec3(0.2)), 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight);

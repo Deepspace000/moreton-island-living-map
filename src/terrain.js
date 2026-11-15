@@ -164,6 +164,7 @@ export function buildTerrain(scene) {
           float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.40, 0.20, lumP);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
           if(yard > 0.5) dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt);
+          else dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2DLodEXT(uNoise, t / 60.0 + 0.17, 0.0).b));      // groves and gaps, as the trees themselves stand
           if(h3 > dens * 1.15) continue;
           float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), hc = 6.5 * (0.9 + 0.2 * h4), r = 4.0 * big;
           vec3 d = vec3(t.x, hgt * uVex + hc, t.y) - P; float along = dot(d, L);
@@ -362,7 +363,7 @@ export function buildTerrain(scene) {
         col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));
         // seen from a distance, forest is its canopy: dark green, mottled with crowns
         // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
-        float woodFar = max(1.0 - sand, smoothstep(0.46, 0.34, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
+        float woodFar = max(1.0 - sand, smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
         col = mix(col, vec3(0.030, 0.052, 0.023) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
         { // round the houses: low grass in patches, drifts of fallen leaves, and worn sand between (the grass blades and the leaves themselves are drawn on top, see life.js)
           float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h);

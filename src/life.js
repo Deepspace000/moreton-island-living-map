@@ -112,7 +112,7 @@ function buildBeachLife(scene) {
   // fallen branches and sticks
   const sticks = scatter(scene, LOW ? 44 : 64, 2.1, stickGeo, /* glsl */`
         float logK = step(h3, 0.012), stick = (1.0 - logK) * step(h3, 0.3);
-        float len = logK > 0.5 ? 3.2 + 4.2 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.08 + 0.08 * h2 : 0.01 + 0.022 * h2;
+        float len = logK > 0.5 ? 2.4 + 2.4 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.08 + 0.08 * h2 : 0.01 + 0.022 * h2;
         float taper = 1.0 - mix(0.5, 0.72, logK) * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * mix(0.3, 0.07, logK);      // a fallen trunk lies long and nearly straight; only thin sticks are bowed
         s = (logK * (1.0 - smoothstep(0.3, 0.5, mk.g)) * (1.0 - smoothstep(0.03, 0.1, ov.r)) + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
         lp = vec3(position.x * len, (position.y * taper + 0.8) * rad, position.z * rad * taper + crook * len);
