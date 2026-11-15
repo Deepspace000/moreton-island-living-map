@@ -70,7 +70,7 @@ export function buildClouds(scene, renderer) {
         float core = smoothstep(0.15, 0.9, t.g);
         float lit = mix(0.2, 1.0, up) * mix(0.32, 1.0, side) * (1.08 - 0.3 * core);
         vec3 col = uLightCol * 0.36 * lit + uAmbSky * (0.9 + 0.55 * up) + uAmbGnd * 0.25;
-        col *= mix(1.0, 0.62, core * (1.0 - up) * 0.9);                                 // soft dark bellies
+        col *= mix(1.0, 0.86, core * (1.0 - up) * 0.9);                                 // soft grey bellies: fair-weather cloud is never dark
         col = mix(col, col * vec3(0.40, 0.43, 0.50), uOvercast * (1.0 - up * 0.55)) * (1.0 - 0.45 * uOvercast);    // heavy rain cloud
         vec3 V = normalize(vW - cameraPosition);
         col += uLightCol * 0.30 * pow(max(dot(V, L), 0.0), 5.0) * (1.0 - smoothstep(0.1, 0.7, dens));   // silver lining
@@ -160,7 +160,7 @@ export function buildClouds(scene, renderer) {
       }
       aPos.needsUpdate = aPar.needsUpdate = aNrm.needsUpdate = true; geo.instanceCount = n;
       mesh.visible = n > 0;
-      U.uCloudStr.value = 0.72 * (1 - wx.overcast * 0.45); uni.uDark.value = wx.dark; U.uCloudAlt.value = BASE + 300 + wx.calt;
+      U.uCloudStr.value = 0.5 * (1 - wx.overcast * 0.45); uni.uDark.value = wx.dark; U.uCloudAlt.value = BASE + 300 + wx.calt;
       // shadow map
       const old = renderer.getRenderTarget(), oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha();
       renderer.setRenderTarget(srt); renderer.setClearColor(0x000000, 1); renderer.clear();

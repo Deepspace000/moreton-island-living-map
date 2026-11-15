@@ -554,9 +554,9 @@ function buildTrees(F, scene) {
             // near the eye the clusters resolve into single leaves (three layers of them, at different sizes); far away only the clusters are drawn
             vec3 an = abs(normalize(vN)); vec2 lp = an.y > 0.75 ? vObj.xz : an.x > an.z ? vObj.zy : vObj.xy;
             #ifdef SPECIES
-            vec2 slim = vec2(4.4, 1.12); float lsc = 7.0;        // gum leaves a hand long
+            vec2 slim = vec2(4.4, 1.12); float lsc = 16.0;       // gum leaves a hand long
             #else
-            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5); float lsc = 9.0;        // bare scrub shows thin twigs, not leaves
+            vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5); float lsc = 20.0;        // bare scrub shows thin twigs, not leaves
             #endif
             float lw = fwidth(lp.x * lsc) + fwidth(lp.y * lsc), nearL = 1.0 - smoothstep(0.18, 0.6, lw), dens = clamp(clump * 1.25 + 0.12, 0.0, 1.0);
             alpha = clump;
@@ -1005,7 +1005,7 @@ export function buildFeatures(scene, F, flyTo) {
   const occ = new Set(), g = new GB(), lights = makeLights(700);
   const casters = [];
   F.beach = beachRoutes();
-  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.11 + wig) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // several sets of wheel ruts wandering along the sand
+  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9], [-3, 0.8], [-8.5, 4.4], [1.8, 5.1]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.11 + wig) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // several sets of wheel ruts wandering along the sand
   buildOverlay(F);
   buildBuildings(F, g, occ, casters, lights);
   buildRoads(F, scene, occ);

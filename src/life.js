@@ -7,7 +7,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
-import { swimmers, PAINT, PELICAN, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
+import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const LIT_FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
@@ -578,6 +578,40 @@ function buildBirds(scene, F) {
   const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wv = F.views.find(v => /Tangalooma Wrecks/.test(v.n || '')), wrk = wv && (wv.c || wv.p), others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
   const spots = [...(tgl ? [[[tgl[0] - 230, tgl[1] + 340], 3]] : []), ...(wrk ? [[[wrk[0] + 60, wrk[1]], 2]] : []), ...others];
   afloat(PELICAN(), spots, 3);
+  // pelicans ashore: groups of them standing together on the sand spits and beaches of the sheltered side, all facing into the wind,
+  // most of them toward the south end (Kooringal and the banks by the Big Sandhills), as the owner photographed them
+  {
+    const st = [], Rp = rng(9090), gh = (x, z) => heightAt(x, z);
+    const group = (x, z, n) => { for (let i = 0; i < n; i++) { const a = Rp() * 6.283, r = Math.sqrt(Rp()) * (1.5 + n * 0.45); st.push(x + Math.cos(a) * r, z + Math.sin(a) * r * 0.6, Rp(), 0.9 + Rp() * 0.22); } };
+    let made = 0;
+    for (const r of (F.beach || []).filter(q => q.side < 0)) for (let i = 6; i < r.p.length - 6 && made < (MOBILE ? 9 : 16); i += 5 + ((Rp() * 9) | 0)) {
+      const p = r.p[i]; if (Rp() > (p[1] > 6000 ? 0.75 : 0.2)) continue;                 // far more of them in the south
+      let x = p[0], ok = false; for (let t = 0; t < 40 && !ok; t++) { x -= 3; const h = gh(x, p[1]); ok = h < 0.75 && h > 0.35; }      // down the beach to just above the water
+      if (ok) { group(x, p[1], 4 + ((Rp() * 9) | 0)); made++; }
+    }
+    const sg = PELICAN_STAND(), ig2 = new THREE.InstancedBufferGeometry();
+    ig2.index = sg.index; for (const k of ['position', 'normal', 'color']) ig2.setAttribute(k, sg.attributes[k]);
+    ig2.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(st), 4)); ig2.instanceCount = st.length / 4; ig2.boundingSphere = FAR;
+    const smat2 = makeMat({
+      side: THREE.DoubleSide, uniforms: { },
+      vs: /* glsl */`
+        attribute vec3 color; attribute vec4 iP; uniform vec2 uWindDir; varying vec3 vCol, vW;
+        void main(){
+          // each stands facing the wind (give or take), shifting its weight and turning its head a little now and then
+          vec2 up = -normalize(uWindDir + 1e-4); float a = (iP.z - 0.5) * 0.9 + sin(uTime * 0.13 + iP.z * 40.0) * 0.12, ca = cos(a), sa = sin(a);
+          vec2 fwd = vec2(up.x * ca - up.y * sa, up.x * sa + up.y * ca);
+          vec3 lp = position * 1.9 * iP.w; lp.y += sin(uTime * 0.7 + iP.z * 30.0) * 0.012 * step(0.25, position.y);
+          vec3 wp = vec3(iP.x + fwd.x * lp.x - fwd.y * lp.z, groundY(iP.xy) + lp.y, iP.y + fwd.y * lp.x + fwd.x * lp.z);
+          vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
+          float ok = step(uSeaM * uVex - 0.35, groundY(iP.xy)) * (1.0 - smoothstep(1100.0, 1500.0, length(wp - cameraPosition)));       // when the tide covers their spit they are gone (out fishing)
+          vCol = color * (uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y)); vW = wp;
+          gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
+          ${LOGV}
+        }`,
+      fs: LIT_FS,
+    });
+    const sm2 = new THREE.Mesh(ig2, smat2); sm2.name = 'ashore'; sm2.frustumCulled = false; scene.add(sm2);
+  }
   afloat(CORMORANT(), spots, 2);
 
   const f = new THREE.Vector3(); let first = true;

@@ -216,7 +216,11 @@ export function buildTerrain(scene) {
         // Moreton sand: fine quartz, pale yellow, with grey patches (damp or mineral-stained); the photo sets how light it is
         float sLum = dot(alb, vec3(0.3, 0.55, 0.15));
         float greyP = smoothstep(0.56, 0.74, texture2D(uNoise, vW.xz / 1300.0 + 0.61).g * 0.88 + nB.b * 0.12);
-        vec3 sd = mix(vec3(0.97, 0.86, 0.56), vec3(0.82, 0.78, 0.68), greyP * 0.18) * mix(0.94, 1.04, smoothstep(0.2, 0.8, sLum));
+        // the beaches of the bay side (west and south) are white, as the owner's photographs from Kooringal and the south-west show; the ocean beaches and
+        // the high dunes keep their pale yellow. A beach is a bay beach when there is no open ocean within a few hundred metres of it.
+        float ocean = max(max(texture2D(uHeight, cuv + vec2(uHTex.x * 18.0, 0.0)).g, texture2D(uHeight, cuv - vec2(uHTex.x * 18.0, 0.0)).g), max(texture2D(uHeight, cuv + vec2(0.0, uHTex.y * 18.0)).g, texture2D(uHeight, cuv - vec2(0.0, uHTex.y * 18.0)).g));
+        float bayBeach = (1.0 - smoothstep(0.34, 0.55, ocean)) * (1.0 - smoothstep(5.0, 11.0, h));
+        vec3 sd = mix(mix(vec3(0.96, 0.90, 0.71), vec3(0.96, 0.935, 0.865), bayBeach), vec3(0.84, 0.81, 0.73), greyP * 0.14) * mix(0.94, 1.04, smoothstep(0.2, 0.8, sLum));
         sd = mix(sd, alb * vec3(1.04, 0.94, 0.72), 0.05);
         sd *= 0.95 + 0.10 * nA.r;
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
@@ -308,6 +312,15 @@ export function buildTerrain(scene) {
         // wet sand just above the waterline
         float wet = smoothstep(0.9, 0.0, -depth) * step(depth, 0.0);
         col = mix(col, col * vec3(0.72, 0.66, 0.56), wet * 0.8);
+        { // wrack: dark seagrass cast up by the tide. A fresh, wavering line of it at the water's edge, an older broken line at the last high water, and
+          // scraps scattered over the sand between; thickest on the sheltered shores where the seagrass grows
+          float wv = texture2D(uNoise, vW.xz / 13.0).r - 0.5, hw = -depth + wv * 0.14;
+          float clump = smoothstep(0.40, 0.62, texture2D(uNoise, vW.xz / 2.3 + 0.13).g) * (0.45 + 0.55 * smoothstep(0.3, 0.6, texture2D(uNoise, vW.xz / 0.37).b));
+          float fresh = smoothstep(-0.02, 0.04, hw) * (1.0 - smoothstep(0.1, 0.24, hw)), old = 1.0 - smoothstep(0.0, 0.12, abs(h - 0.85 + wv * 0.3));
+          float scraps = step(0.86, texture2D(uNoise, vW.xz / 0.9 + 0.4).r) * smoothstep(0.52, 0.7, texture2D(uNoise, vW.xz / 6.0).g) * step(0.2, hw) * (1.0 - smoothstep(1.5, 2.6, h)) * (1.0 - smoothstep(20.0, 90.0, dist));
+          float wrack = clamp(fresh * clump * 1.2 + old * clump * 0.6 + scraps * 0.7, 0.0, 1.0) * (0.3 + 0.7 * bayBeach) * sand * (1.0 - smoothstep(400.0, 1500.0, dist));
+          col = mix(col, vec3(0.045, 0.04, 0.03) * (0.7 + 0.6 * texture2D(uNoise, vW.xz / 0.21).g), wrack * 0.92);
+        }
         vec3 lit = col * (uLightCol * nl * vis * mix(1.0, clamp(relief, 0.6, 1.25), 0.5) + amb);
         float sp = pow(max(dot(reflect(-L, Nn), V), 0.0), 60.0);
         lit += uLightCol * sp * vis * (sand * 0.5 * step(0.975, texture2D(uNoise, vW.xz / 0.41).b) * (1.0 - smoothstep(10.0, 60.0, dist)) + wet * 0.5);
@@ -326,7 +339,7 @@ export function buildTerrain(scene) {
             float r2 = sin(dot(q, vec2(11.0, 6.0)) + 1.7 * sin(dot(q, vec2(-1.3, 2.1))) + 1.2 * sin(dot(q, vec2(0.37, 0.23)) + bB.g * 3.0));
             bed *= 1.0 - fineK * 0.07 * smoothstep(-0.2, 0.9, r2); }
           float grass = smoothstep(0.46, 0.8, bA.g * 0.5 + bB.g * 0.36 + texture2D(uNoise, p / 17.0).b * 0.24) * smoothstep(0.8, 2.2, depth) * smoothstep(9.0, 3.5, depth) * (1.0 - smoothstep(0.3, 0.8, texture2D(uHeight, cuv).g));
-          bed = mix(bed, vec3(0.07, 0.13, 0.07), grass * 0.7);
+          bed = mix(bed, vec3(0.03, 0.05, 0.035), grass * 0.88);                    // seagrass beds: near-black blotches through the clear water
           bed = mix(col * 0.8, bed, smoothstep(0.0, 0.9, depth));
           float c1 = texture2D(uWaterTex, p / 12.0 + uTime * vec2(0.031, 0.019)).b;
           float c2 = texture2D(uWaterTex, p / 8.3 - uTime * vec2(0.027, 0.034)).b;
@@ -340,7 +353,7 @@ export function buildTerrain(scene) {
           vec3 bl = bed * (uLightCol * sun * vis * (0.72 + caus) * bsh + amb * 0.9);
           float cosr = sqrt(1.0 - (1.0 - V.y * V.y) / 1.77);         // refracted view ray
           float path = depth * (1.0 + 1.0 / max(cosr, 0.3));
-          vec3 Tm = exp(-vec3(0.45, 0.09, 0.105) * uTurb * path * 1.12);
+          vec3 Tm = exp(-vec3(0.33, 0.085, 0.10) * uTurb * path);       // clear water: knee deep you still see the sand its own colour, only a little greener
           float ex = texture2D(uHeight, cuv).g, big = texture2D(uNoise, vW.xz / 9000.0).r;
           vec3 deep = mix(uWaterDeep * vec3(1.0, 1.25, 0.85), uWaterDeep * vec3(1.0, 0.72, 1.12), smoothstep(0.3, 0.9, ex)) * (0.82 + 0.36 * big);   // green bay, indigo ocean
           vec3 scat = deep * (uLightCol * (0.10 + 0.22 * sun) * (0.5 + 0.5 * cs) + uAmbSky * 0.8);

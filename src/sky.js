@@ -32,7 +32,7 @@ function ramp(keys, e, out) {
   return out.set(lerp(a[1], b[1], s), lerp(a[2], b[2], s), lerp(a[3], b[3], s));
 }
 const ZEN = [[-18, .0015, .003, .009], [-8, .008, .016, .05], [-2, .035, .07, .2], [3, .075, .16, .42], [12, .10, .27, .68], [35, .085, .29, .80], [90, .07, .27, .82]];
-const HOR = [[-18, .004, .007, .016], [-9, .02, .025, .06], [-4, .30, .13, .10], [0, .95, .42, .16], [4, .95, .62, .36], [10, .84, .88, .88], [25, .82, .96, 1.12], [90, .78, .94, 1.14]];
+const HOR = [[-18, .004, .007, .016], [-9, .02, .025, .06], [-4, .30, .13, .10], [0, .95, .42, .16], [4, .95, .62, .36], [10, .80, .86, .90], [25, .66, .86, 1.14], [90, .60, .84, 1.16]];
 const SUN = [[-3, 0, 0, 0], [-0.5, 1.1, .28, .05], [2, 2.6, 1.15, .42], [7, 3.3, 2.2, 1.3], [16, 3.5, 2.95, 2.3], [40, 3.6, 3.35, 2.95], [90, 3.7, 3.5, 3.2]];
 const GLOW = [[-10, 0, 0, 0], [-4, .7, .22, .06], [0, 1.6, .62, .16], [6, 1.5, .9, .42], [20, 1.0, .9, .72], [90, .9, .88, .8]];
 
@@ -68,7 +68,7 @@ export function updateSky(date, wx) {
   // haze takes the horizon colour, warmer toward the sun
   U.uFogCol.value.copy(U.uHorizon.value).lerp(U.uZenith.value, 0.25);
   U.uFogSun.value.copy(U.uFogCol.value).addScaledVector(U.uSunGlow.value, 0.55);
-  U.uFogDens.value = lerp(0.000012, 0.00006, Math.pow(wx.haze, 1.4));          // even on the clearest day the far end of the island is paler and bluer than the near
+  U.uFogDens.value = lerp(0.000008, 0.00006, Math.pow(wx.haze, 1.4));          // even on the clearest day the far end of the island is paler and bluer than the near
   U.uStarRot.value = (date / 86164090) * Math.PI * 2;
   // water body colour dims with the light
   const tb = wx.turb;
@@ -99,7 +99,7 @@ export function buildSky(scene) {
           vec2 cu = d.xz / (d.y + 0.25);
           float ci = texture2D(uNoise, cu * vec2(0.03, 0.10) + uWindDir * uTime * 0.0004).r;
           ci = smoothstep(0.5, 0.86, ci) * (0.4 + 0.9 * texture2D(uNoise, cu * 0.37).b);
-          c += (uSunCol * 0.07 + uSunGlow * 0.12 + uAmbSky * 0.3) * ci * smoothstep(0.02, 0.3, d.y) * uCirrus * (1.0 - uNight * 0.8);
+          c += (uSunCol * 0.13 + uSunGlow * 0.12 + uAmbSky * 0.5) * ci * smoothstep(0.02, 0.3, d.y) * uCirrus * (1.0 - uNight * 0.8);
         }
         // below the horizon: sea haze
         c = mix(c, fogColor(d), smoothstep(0.0, -0.06, d.y));

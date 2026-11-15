@@ -9,41 +9,70 @@ const CABIN = /* html */`
 <div class="cab">
   <svg class="shell" viewBox="0 0 1800 1000" preserveAspectRatio="none">
     <defs>
-      <linearGradient id="rdRoof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c0d0e"/><stop offset="1" stop-color="#232629"/></linearGradient>
-      <linearGradient id="rdDash" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2e31"/><stop offset="0.12" stop-color="#1b1d1f"/><stop offset="1" stop-color="#0b0c0d"/></linearGradient>
+      <linearGradient id="rdRoof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#101113"/><stop offset="0.24" stop-color="#2a2d30"/><stop offset="1" stop-color="#1b1d20"/></linearGradient>
+      <linearGradient id="rdDash" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3e42"/><stop offset="0.07" stop-color="#24272a"/><stop offset="0.5" stop-color="#15171a"/><stop offset="1" stop-color="#0a0b0c"/></linearGradient>
       <linearGradient id="rdTint" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(20,40,60,0.42)"/><stop offset="1" stop-color="rgba(20,40,60,0)"/></linearGradient>
+      <linearGradient id="rdGlare" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,255,255,0)"/><stop offset="1" stop-color="rgba(220,225,215,0.16)"/></linearGradient>
+      <linearGradient id="rdVisor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4f54"/><stop offset="1" stop-color="#2e3236"/></linearGradient>
+      <!-- the weave of the roof lining, the grain of the dash plastic and the perforated leather of the seats, each a small tile -->
+      <pattern id="rdCloth" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="none"/><path d="M0,1.5 H7 M0,5 H7" stroke="rgba(255,255,255,0.05)" stroke-width="1"/><path d="M1.5,0 V7 M5,0 V7" stroke="rgba(0,0,0,0.22)" stroke-width="1"/></pattern>
+      <pattern id="rdGrain" width="11" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.9" fill="rgba(255,255,255,0.07)"/><circle cx="7.5" cy="6" r="0.8" fill="rgba(255,255,255,0.055)"/><circle cx="9" cy="1.5" r="0.7" fill="rgba(0,0,0,0.3)"/><circle cx="4" cy="6.8" r="0.9" fill="rgba(0,0,0,0.28)"/></pattern>
+      <pattern id="rdMesh" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.3" fill="#050606"/></pattern>
     </defs>
     <!-- everything that is not glass: the roof, the pillars, the doors and the dashboard, with the windscreen and the two side windows cut out -->
-    <path fill="url(#rdRoof)" fill-rule="evenodd" d="M -50,-50 H 1850 V 1050 H -50 Z
+    <path id="rdShell" fill="url(#rdRoof)" fill-rule="evenodd" d="M -50,-50 H 1850 V 1050 H -50 Z
       M 512,236 Q 900,200 1288,236 Q 1332,240 1340,290 L 1380,566 Q 1384,604 1340,604 Q 900,574 460,604 Q 416,604 420,566 L 460,290 Q 468,240 512,236 Z
       M 96,286 Q 104,262 136,258 L 350,246 Q 380,245 378,278 L 346,560 Q 342,596 308,598 L 80,612 Q 50,614 54,580 Z
       M 1704,286 Q 1696,262 1664,258 L 1450,246 Q 1420,245 1422,278 L 1454,560 Q 1458,596 1492,598 L 1720,612 Q 1750,614 1746,580 Z"/>
+    <use href="#rdShell" fill="url(#rdCloth)"/>
     <path fill="url(#rdTint)" d="M 512,236 Q 900,200 1288,236 Q 1332,240 1340,290 L 1344,320 Q 900,284 456,320 L 460,290 Q 468,240 512,236 Z"/>
-    <path d="M 468,300 L 428,570 M 1332,300 L 1372,570" stroke="#33373b" stroke-width="5" opacity="0.8" vector-effect="non-scaling-stroke"/>
+    <!-- the dash thrown back by the glass, the wipers at rest, the black frit round the edge -->
+    <path fill="url(#rdGlare)" d="M 440,470 L 1360,470 L 1380,566 Q 1384,604 1340,604 Q 900,574 460,604 Q 416,604 420,566 Z"/>
+    <path d="M 512,236 Q 900,200 1288,236 Q 1332,240 1340,290 L 1380,566 Q 1384,604 1340,604 Q 900,574 460,604 Q 416,604 420,566 L 460,290 Q 468,240 512,236 Z" fill="none" stroke="#050606" stroke-width="9" vector-effect="non-scaling-stroke"/>
+    <path d="M 500,597 Q 700,560 884,588 M 930,589 Q 1120,556 1300,590" fill="none" stroke="#0a0b0c" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <path d="M 468,300 L 428,570 M 1332,300 L 1372,570" stroke="#3a3e42" stroke-width="5" opacity="0.8" vector-effect="non-scaling-stroke"/>
+    <!-- grab handles over the doors, door tops under the side windows with their pulls and switches -->
+    <path d="M 150,206 Q 220,180 300,200" fill="none" stroke="#3b3f44" stroke-width="12" stroke-linecap="round"/><path d="M 1650,206 Q 1580,180 1500,200" fill="none" stroke="#3b3f44" stroke-width="12" stroke-linecap="round"/>
+    <path d="M 40,640 L 330,622 Q 360,620 362,650 L 356,760 H 30 Z" fill="#202326"/><path d="M 1760,640 L 1470,622 Q 1440,620 1438,650 L 1444,760 H 1770 Z" fill="#202326"/>
+    <rect x="150" y="668" width="150" height="26" rx="13" fill="#0c0d0e"/><rect x="1500" y="668" width="150" height="26" rx="13" fill="#0c0d0e"/>
+    <g fill="#5a6066"><rect x="168" y="676" width="22" height="10" rx="3"/><rect x="198" y="676" width="22" height="10" rx="3"/><rect x="1580" y="676" width="22" height="10" rx="3"/><rect x="1610" y="676" width="22" height="10" rx="3"/></g>
     <!-- sun visors, the overhead console and the mirror -->
-    <rect x="520" y="150" width="280" height="92" rx="26" fill="#3a3e42"/><rect x="1000" y="150" width="280" height="92" rx="26" fill="#3a3e42"/>
-    <rect x="532" y="158" width="130" height="20" rx="6" fill="#d8d2a8" opacity="0.5"/>
+    <rect x="520" y="150" width="280" height="92" rx="26" fill="url(#rdVisor)"/><rect x="1000" y="150" width="280" height="92" rx="26" fill="url(#rdVisor)"/>
+    <rect x="520" y="150" width="280" height="92" rx="26" fill="url(#rdCloth)"/><rect x="1000" y="150" width="280" height="92" rx="26" fill="url(#rdCloth)"/>
+    <rect x="532" y="158" width="130" height="20" rx="6" fill="#d8d2a8" opacity="0.55"/><path d="M 540,164 H 600 M 540,171 H 650" stroke="#6b6748" stroke-width="2"/>
     <path d="M 815,118 H 985 Q 1000,118 998,140 L 990,214 Q 988,232 970,232 H 830 Q 812,232 810,214 L 802,140 Q 800,118 815,118 Z" fill="#2c3033" stroke="#15171a" stroke-width="3"/>
-    <rect x="838" y="196" width="124" height="18" rx="6" fill="#16181a"/>
-    <rect x="788" y="250" width="224" height="58" rx="22" fill="#0d0f10"/><rect x="798" y="257" width="204" height="44" rx="16" fill="#6f8ea0"/><rect x="798" y="257" width="204" height="18" rx="12" fill="#a9c6d2" opacity="0.7"/>
-    <!-- the dashboard: a padded top with a line of stitching, air vents either side of the screen, the hood over the instruments -->
-    <path d="M 300,640 Q 900,560 1500,640 L 1560,1050 H 240 Z" fill="url(#rdDash)"/>
-    <path d="M 330,668 Q 900,600 1470,668" fill="none" stroke="#c98a2a" stroke-width="2" stroke-dasharray="9 7" opacity="0.7" vector-effect="non-scaling-stroke"/>
-    <path d="M 1080,640 Q 1230,566 1390,636 L 1400,700 H 1075 Z" fill="#15171a"/>
-    <g fill="#0c0d0e" stroke="#4a4f55" stroke-width="2"><rect x="748" y="650" width="58" height="150" rx="12"/><rect x="994" y="650" width="58" height="150" rx="12"/></g>
-    <g stroke="#2e3236" stroke-width="3"><path d="M 756,676 H 798 M 756,700 H 798 M 756,724 H 798 M 756,748 H 798 M 756,772 H 798 M 1002,676 H 1044 M 1002,700 H 1044 M 1002,724 H 1044 M 1002,748 H 1044 M 1002,772 H 1044"/></g>
+    <rect x="838" y="196" width="124" height="18" rx="6" fill="#16181a"/><circle cx="860" cy="160" r="12" fill="#e9e2c4" opacity="0.5"/><circle cx="940" cy="160" r="12" fill="#e9e2c4" opacity="0.5"/>
+    <rect x="788" y="250" width="224" height="58" rx="22" fill="#0d0f10"/><rect x="798" y="257" width="204" height="44" rx="16" fill="#6f8ea0"/><rect x="798" y="257" width="204" height="18" rx="12" fill="#a9c6d2" opacity="0.7"/><path d="M 798,290 Q 900,278 1002,292 L 1002,301 H 798 Z" fill="#c9b98a" opacity="0.6"/>
+    <!-- the dashboard: a padded, grained top with a line of stitching, a speaker grille, air vents either side of the screen, the hood over the instruments, the glovebox -->
+    <path id="rdDashP" d="M 300,640 Q 900,560 1500,640 L 1560,1050 H 240 Z" fill="url(#rdDash)"/>
+    <use href="#rdDashP" fill="url(#rdGrain)"/>
+    <path d="M 330,668 Q 900,600 1470,668" fill="none" stroke="#c98a2a" stroke-width="2" stroke-dasharray="9 7" opacity="0.75" vector-effect="non-scaling-stroke"/>
+    <path d="M 330,676 Q 900,608 1470,676" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="3" vector-effect="non-scaling-stroke"/>
+    <ellipse cx="900" cy="606" rx="120" ry="9" fill="url(#rdMesh)" opacity="0.8"/>
+    <path d="M 1080,640 Q 1230,566 1390,636 L 1400,700 H 1075 Z" fill="#15171a"/><path d="M 1090,640 Q 1230,580 1380,638" fill="none" stroke="#3a3e42" stroke-width="3"/>
+    <g fill="#0c0d0e" stroke="#4a4f55" stroke-width="2"><rect x="748" y="650" width="58" height="150" rx="12"/><rect x="994" y="650" width="58" height="150" rx="12"/><rect x="350" y="664" width="110" height="46" rx="12"/><rect x="1410" y="704" width="80" height="40" rx="12"/></g>
+    <g stroke="#2e3236" stroke-width="3"><path d="M 756,676 H 798 M 756,700 H 798 M 756,724 H 798 M 756,748 H 798 M 756,772 H 798 M 1002,676 H 1044 M 1002,700 H 1044 M 1002,724 H 1044 M 1002,748 H 1044 M 1002,772 H 1044 M 360,680 H 450 M 360,694 H 450 M 1418,718 H 1482 M 1418,730 H 1482"/></g>
     <rect x="320" y="800" width="560" height="10" rx="5" fill="#8d949b" opacity="0.5"/>
+    <rect x="380" y="826" width="330" height="120" rx="14" fill="none" stroke="rgba(0,0,0,0.6)" stroke-width="4"/><rect x="520" y="840" width="50" height="12" rx="5" fill="#5a6066"/>
   </svg>
   <!-- a straw hat left on the dash -->
-  <svg class="hat" viewBox="0 0 200 90"><ellipse cx="100" cy="68" rx="96" ry="20" fill="#7f8f5c"/><ellipse cx="100" cy="64" rx="96" ry="19" fill="#9aa870"/><path d="M 46,62 Q 48,10 100,10 Q 152,10 154,62 Q 100,78 46,62 Z" fill="#8c9b64"/><path d="M 46,56 Q 100,72 154,56" fill="none" stroke="#5d4a2c" stroke-width="5"/><path d="M 60,30 Q 100,16 140,30 M 54,44 Q 100,30 146,44" fill="none" stroke="#7b8a56" stroke-width="2"/></svg>
+  <svg class="hat" viewBox="0 0 200 90"><defs><pattern id="rdStraw" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0,3 H6 M3,0 V6" stroke="rgba(60,70,30,0.35)" stroke-width="1"/></pattern></defs>
+    <ellipse cx="104" cy="74" rx="92" ry="12" fill="rgba(0,0,0,0.35)"/><ellipse cx="100" cy="68" rx="96" ry="20" fill="#7f8f5c"/><ellipse cx="100" cy="64" rx="96" ry="19" fill="#9aa870"/><ellipse cx="100" cy="64" rx="96" ry="19" fill="url(#rdStraw)"/>
+    <path d="M 46,62 Q 48,10 100,10 Q 152,10 154,62 Q 100,78 46,62 Z" fill="#8c9b64"/><path d="M 46,62 Q 48,10 100,10 Q 152,10 154,62 Q 100,78 46,62 Z" fill="url(#rdStraw)"/><path d="M 46,56 Q 100,72 154,56" fill="none" stroke="#5d4a2c" stroke-width="5"/><path d="M 60,30 Q 100,16 140,30" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3"/></svg>
   <!-- the screen in the middle of the dash -->
   <div class="screen"><div class="cam"></div><div class="spd"><b id="rdSpeed">35</b><span>km/h</span></div><div class="row"><span id="rdHead">N</span><span id="rdBeach">Eastern Beach</span></div><div class="near" id="rdNear"></div><div class="knobs"><i></i><i></i><i></i></div></div>
-  <!-- instruments, and the wheel on the right -->
+  <!-- instruments, and the wheel on the right: a leather rim with its stitching, three spokes with their buttons, the boss in the middle -->
   <div class="dials"><b id="rdSpeed2">35</b><span>km/h</span></div>
-  <svg class="wheel" viewBox="0 0 200 200"><circle cx="100" cy="100" r="88" fill="none" stroke="#0a0b0c" stroke-width="20"/><circle cx="100" cy="100" r="95" fill="none" stroke="#3d4247" stroke-width="3" stroke-dasharray="170 600" transform="rotate(-150 100 100)"/><circle cx="100" cy="100" r="81" fill="none" stroke="#26292c" stroke-width="2"/>
-    <path d="M 22,96 Q 60,84 78,92 L 78,118 Q 56,116 30,128 Z M 178,96 Q 140,84 122,92 L 122,118 Q 144,116 170,128 Z M 86,124 H 114 L 120,184 H 80 Z" fill="#101113"/><rect x="66" y="78" width="68" height="52" rx="20" fill="#16181a"/><ellipse cx="100" cy="104" rx="20" ry="9" fill="#2a3f66"/></svg>
+  <svg class="wheel" viewBox="0 0 200 200"><defs><radialGradient id="rdRim" cx="0.5" cy="0.5" r="0.5"><stop offset="0.78" stop-color="#050606"/><stop offset="0.88" stop-color="#2a2d31"/><stop offset="0.96" stop-color="#0d0e10"/><stop offset="1" stop-color="#000"/></radialGradient></defs>
+    <circle cx="100" cy="100" r="88" fill="none" stroke="url(#rdRim)" stroke-width="20"/>
+    <circle cx="100" cy="100" r="80.5" fill="none" stroke="#c98a2a" stroke-width="1.2" stroke-dasharray="2.2 2.6" opacity="0.8"/>
+    <circle cx="100" cy="100" r="95.5" fill="none" stroke="#4a5056" stroke-width="2" stroke-dasharray="120 480" transform="rotate(-150 100 100)" opacity="0.9"/>
+    <path d="M 22,92 Q 60,80 80,90 L 80,120 Q 56,116 28,130 Z M 178,92 Q 140,80 120,90 L 120,120 Q 144,116 172,130 Z M 86,124 H 114 L 122,186 H 78 Z" fill="#17191c" stroke="#2c3034" stroke-width="1.5"/>
+    <g fill="#6b7178"><circle cx="40" cy="106" r="4"/><circle cx="52" cy="102" r="4"/><circle cx="46" cy="116" r="4"/><circle cx="160" cy="106" r="4"/><circle cx="148" cy="102" r="4"/><circle cx="154" cy="116" r="4"/></g>
+    <rect x="64" y="76" width="72" height="56" rx="22" fill="#1b1e21" stroke="#30343a" stroke-width="2"/><ellipse cx="100" cy="104" rx="21" ry="10" fill="none" stroke="#8d949b" stroke-width="2.5"/>
+    <rect x="97" y="6" width="6" height="14" rx="2" fill="#c98a2a"/></svg>
   <!-- the tops of the two front seats -->
-  <div class="seat l"></div><div class="seat r"></div>
+  <div class="seat l"><i></i></div><div class="seat r"><i></i></div>
 </div>
 <button id="rideExit" class="pill">Leave the car</button>
 <div class="tip" id="rideTip">Drag to look around</div>
@@ -81,7 +110,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     return best;
   };
   R.enter = (hit) => {
-    R.active = true; R.kind = hit.kind; R.car = hit.kind === 'car' ? hit.obj : null; R.boat = hit.kind === 'boat' ? hit.obj : null; R.bird = hit.kind === 'bird' ? hit.obj : null; R.look = 0; R.tilt = 0; R.helm = false; steer = 0; gas = 0;
+    R.active = true; R.kind = hit.kind; R.car = hit.kind === 'car' ? hit.obj : null; R.boat = hit.kind === 'boat' ? hit.obj : null; R.bird = hit.kind === 'bird' ? hit.obj : null; R.look = 0; R.tilt = 0; R.helm = false; steer = 0; gas = 0; R.yaw0 = undefined; R.wheel = 0;
     fov0 = camera.fov; near0 = camera.near; camera.near = 0.2;
     if (R.car) { R.car.m.visible = false; camera.fov = innerWidth < innerHeight ? 82 : 66; }
     else camera.fov = innerWidth < innerHeight ? 84 : 70;
@@ -116,7 +145,11 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
       camera.rotation.set(R.tilt + m.rotation.z * 0.7 - 0.03, yaw - Math.PI / 2 - R.look, Math.sin(shake * 0.8) * 0.004, 'YXZ');
       camera.updateMatrixWorld();
       if (c.drive) { c.drive.turn += (steer - c.drive.turn) * Math.min(1, dt * 5); c.drive.throttle = clamp(c.drive.throttle + gas * dt * 0.7, -0.4, 1.6); }
-      wheelEl.style.transform = `rotate(${((c.drive ? c.drive.turn : 0) * 95).toFixed(1)}deg)`; $('hmWheel').style.transform = wheelEl.style.transform;
+      // the wheel in the driver's hands: turned as far as the car is turning, never quite still on the sand, and spinning back as the car straightens
+      let dy = yaw - (R.yaw0 ?? yaw); dy = ((dy + Math.PI * 3) % (Math.PI * 2)) - Math.PI; R.yaw0 = yaw;
+      const want = c.drive ? c.drive.turn * 140 : clamp(-(dt > 0 ? dy / dt : 0) * 150, -200, 200) + Math.sin(shake * 0.9) * 2.5 + Math.sin(shake * 2.3 + 1) * 1.5;
+      R.wheel = (R.wheel ?? 0) + (want - (R.wheel ?? 0)) * Math.min(1, dt * 6);
+      wheelEl.style.transform = `rotate(${R.wheel.toFixed(1)}deg)`; $('hmWheel').style.transform = wheelEl.style.transform;
       // the cabin stays with the car: as the head turns one way it slides the other
       const hf = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
       cab.style.transform = `translate(${(-R.look / hf * 100).toFixed(2)}vw, ${(R.tilt / (camera.fov * Math.PI / 180) * 100 + bump * 30).toFixed(2)}vh)`;

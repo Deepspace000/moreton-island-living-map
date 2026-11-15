@@ -69,7 +69,7 @@ vec3 skyColor(vec3 d){
   float az = dot(normalize(d.xz + 1e-5), normalize(uSunDir.xz + 1e-5));          // +1 toward the sun, -1 opposite
   vec3 anti = mix(uHorizon, uZenith * 2.6 + vec3(0.20, 0.06, 0.13) * dot(uHorizon, vec3(0.45)), 0.8);   // cool violet-pink opposite the sun
   vec3 hz = mix(uHorizon, mix(anti, uHorizon, smoothstep(-0.75, 0.9, az)), low);
-  vec3 c = mix(hz, uZenith, pow(y, 0.62));              // a broad pale band above the horizon, deepening slowly overhead
+  vec3 c = mix(hz, uZenith, pow(y, 0.5));               // pale at the horizon, cobalt overhead
   float sd = max(dot(d, uSunDir), 0.0);
   c += uSunGlow * (pow(sd, 5.0) * 0.22 * (0.4 + low) + pow(sd, 40.0) * 0.5 + pow(sd, 400.0) * 1.2) * (1.0 - 0.6 * y);
   // warm band hugging the horizon at sunrise / sunset
@@ -118,7 +118,7 @@ export function blobShadowMat() {
     transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
     vs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
     fs: /* glsl */`varying vec2 vUv; varying vec3 vW;
-      void main(){ ${LOGF} float r = length(vUv - 0.5) * 2.0, a = (1.0 - smoothstep(0.2, 1.0, r)) * (0.26 + 0.3 * clamp(uLightDir.y * 2.5, 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight));
+      void main(){ ${LOGF} float r = length(vUv - 0.5) * 2.0, a = pow(1.0 - smoothstep(0.0, 1.0, r), 1.6) * 1.25 * (0.26 + 0.3 * clamp(uLightDir.y * 2.5, 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight));
         gl_FragColor = vec4(applyFog(vec3(0.04, 0.05, 0.085) * (uAmbSky + 0.15), vW), a); }`,
   });
 }

@@ -78,7 +78,7 @@ export function buildWater(scene) {
         if(depth < 6.0 && depth > 0.0){
           float oe = seaward(wp.xz, expo), sv = uSurf * (0.18 + 0.82 * oe * oe), db = 2.0 * sv;
           // each wave has a long back and a steep face on its shoreward side (s is 0 on the crest, just under 1 on the face)
-          float s = fract(depth / 0.9 + uTime / 7.0 - 0.25);
+          float s = fract(depth / 0.9 + uTime / 7.0 - 0.25 + (texture2D(uNoise, wp.xz / 46.0 + uTime * 0.008).r - 0.5) * 0.3);        // the line of the crest wanders along the beach (the same wander the foam uses)
           float prof = s < 0.86 ? pow(1.0 - s / 0.86, 2.4) : pow((s - 0.86) / 0.14, 1.6);
           float dprof = s < 0.86 ? -2.79 * pow(1.0 - s / 0.86, 1.4) : 11.4 * pow((s - 0.86) / 0.14, 0.6);
           float env = smoothstep(db * 1.5, db * 0.6, depth) * smoothstep(0.03, db * 0.22, depth) * (1.0 - smoothstep(70.0, 200.0, length(position.xz))) * (0.55 + 0.9 * texture2D(uNoise, wp.xz / 140.0 + uTime * 0.004).r);
