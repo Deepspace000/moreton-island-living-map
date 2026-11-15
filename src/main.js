@@ -20,6 +20,8 @@ import { buildFolk } from './folk.js';
 import { makeSound } from './sound.js';
 import { makeDive } from './dive.js';
 import { makeRide } from './ride.js';
+import { buildPlanes } from './plane.js';
+import { buildTraveller } from './traveller.js';
 import { rideable, flyers } from './life.js';
 
 const $ = (id) => document.getElementById(id);
@@ -67,7 +69,7 @@ const rideWhere = (x, z) => {
   let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
   return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
 };
-const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
+const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
@@ -155,7 +157,7 @@ function enterRide(hit) {
 const veil = document.createElement('div'); veil.id = 'veil'; document.body.appendChild(veil);
 const dip = () => { veil.classList.remove('dip'); void veil.offsetWidth; veil.classList.add('dip'); };
 function exitRide() {
-  if (!ride.active) return; dip();
+  if (!ride.active) return; dip(); if (tour.on && !tour.busy) stopTour();
   const m = (ride.car || ride.boat || ride.bird).m, yaw = m.rotation.y, far = ride.boat ? Math.max(140, (ride.boat.len || 12) * 6) : ride.bird ? 70 : 110; ride.exit(); controls.enabled = true; document.body.classList.remove('riding');
   controls.target.set(m.position.x, m.position.y, m.position.z);
   camera.position.set(m.position.x - Math.cos(yaw) * far, m.position.y + far * 0.55, m.position.z + Math.sin(yaw) * far);
@@ -170,6 +172,8 @@ const TRAVEL = {
   jetski: () => boats.boats.filter(b => b.jet).map(o => ({ kind: 'boat', obj: o })),
   pelican: () => flyers.filter(p => p.kind === 'pelican').map(o => ({ kind: 'bird', obj: o })),
   eagle: () => flyers.filter(p => p.kind === 'eagle').map(o => ({ kind: 'bird', obj: o })),
+  plane: () => (air ? air.planes : []).map(o => ({ kind: 'bird', obj: o })),
+  walker: () => (trek ? trek.walkers : []).map(o => ({ kind: 'bird', obj: o })),
 };
 const riding = () => (ride.active ? ride.car || ride.boat || ride.bird : null);
 const travelKind = () => { const o = riding(); return !o ? '' : ride.car ? 'car' : ride.bird ? o.kind : o.jet ? 'jetski' : o.sail ? 'yacht' : o.ferry || o.anchor ? '' : 'boat'; };
@@ -186,8 +190,29 @@ function syncTravel() {
   const k = travelKind();
   for (const row of document.querySelectorAll('#travel .tv-row')) { const on = row.dataset.kind === k; row.classList.toggle('on', on); for (const b of row.querySelectorAll('button')) b.classList.toggle('on', on && (b.dataset.ctl === '1') === ride.helm); }
 }
-for (const b of document.querySelectorAll('#travel .tv-row button')) b.onclick = () => travel(b.parentElement.dataset.kind, b.dataset.ctl === '1');
-$('tvBack').onclick = () => { exitRide(); syncTravel(); };
+for (const b of document.querySelectorAll('#travel .tv-row button')) b.onclick = () => { stopTour(); travel(b.parentElement.dataset.kind, b.dataset.ctl === '1'); };
+$('tvBack').onclick = () => { stopTour(); exitRide(); syncTravel(); };
+// The tour: it takes each kind of travel in turn for the time you choose, a third of it looking out through the eyes, a third from close behind
+// and a third from far behind, then moves on to the next, round and round until you stop it or take over.
+const TOUR_KINDS = ['car', 'boat', 'yacht', 'jetski', 'pelican', 'eagle', 'plane', 'walker'], tour = { on: false, busy: false, k: -1, t: 0, lv: -1, secs: 30 };
+function tourNext() {
+  for (let n = 0; n < TOUR_KINDS.length; n++) {
+    tour.k = (tour.k + 1) % TOUR_KINDS.length; const kind = TOUR_KINDS[tour.k]; if (!TRAVEL[kind]().length) continue;
+    tour.busy = true; travel(kind, false); if (ride.helm) ride.take(false); tour.busy = false; tour.t = 0; tour.lv = 0; ride.setView(0); syncTravel(); return;
+  }
+  stopTour();
+}
+function tourTick(dt) {
+  if (!ride.active) return stopTour();
+  tour.t += dt; const lv = Math.min(2, Math.floor(tour.t / (tour.secs / 3)));
+  if (lv !== tour.lv) { tour.lv = lv; ride.setView(lv); }
+  if (tour.t >= tour.secs) tourNext();
+}
+function startTour() { if (!boats) return; tour.on = true; tour.k = -1; tour.secs = +$('tvSecs').value || 30; tourNext(); syncTour(); }
+function stopTour() { if (!tour.on) return; tour.on = false; syncTour(); }
+function syncTour() { const b = $('tvTour'); b.textContent = tour.on ? 'Stop the tour' : 'Tour them all'; b.classList.toggle('on', tour.on); }
+$('tvTour').onclick = () => (tour.on ? (stopTour(), exitRide(), syncTravel()) : startTour());
+$('tvSecs').onchange = () => { tour.secs = +$('tvSecs').value || 30; };
 // the left-hand column stacks: title, then Travel, then Places, whatever size each is just now
 function layoutLeft() {
   const t = $('title'), tv = $('travel'), pl = $('places'), tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
@@ -280,7 +305,7 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water, detail, life, folk;
+let features, boats, clouds, water, detail, life, folk, air, trek;
 const sound = makeSound();
 const dive = makeDive();
 const clock = new THREE.Clock();
@@ -299,6 +324,8 @@ async function boot() {
   boats = buildBoats(scene, F);
   life = buildLife(scene, F);
   folk = buildFolk(scene, F);
+  air = buildPlanes(scene, F);
+  trek = buildTraveller(scene, F);
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   pct(98); msg('Checking the weather'); await paint();
@@ -310,7 +337,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c) };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -363,6 +390,8 @@ function frame() {
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
   life.update(dt, acc, t, camDist);
+  air.update(dt, acc); trek.update(dt, acc);
+  if (tour.on) tourTick(dt);
   if (ride.active) ride.update(dt, acc);       // the eye is placed last, once the thing you ride has moved
   sound.update({ x: t.x, z: t.z, dist: camDist, wind: wx.wind, wave: wx.wave, rain: wx.rain, dt });
   const e = sky.sunEl;

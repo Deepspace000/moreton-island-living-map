@@ -14,7 +14,7 @@ const TOWNS = [[/^Tangalooma/, 26, 650], [/Bulwer/, 14, 520], [/Kooringal/, 16, 
 // ---------------------------------------------------------------- people
 // One rounded figure, drawn many times. Parts: 0 shirt, 1 trousers, 2 skin, 3 hat, 4 fishing rod.
 // swing says how far a point of a leg or arm moves in the stride (legs and arms on opposite sides swing together).
-function figure() {
+export function figure() {
   const pos = [], nrm = [], part = [], swing = [], idx = [], S = 6;
   const tube = (st, pt, sw) => {
     const base = pos.length / 3, n = st.length;
@@ -78,7 +78,7 @@ function buildPeople(scene, list) {
 // ---------------------------------------------------------------- signs
 // Signposts stand only where tracks meet. Each has one pointed board for every way on from there, naming what that
 // way leads to and how far it is (worked out along the tracks and the beach highways, not as the crow flies).
-function trackGraph(F) {
+export function trackGraph(F) {
   const nodes = new Map(), list = [], H = Math.hypot;
   const node = (p) => { const k = Math.round(p[0] / 4) + ',' + Math.round(p[1] / 4); let n = nodes.get(k); if (!n) { n = { i: list.length, p, e: [] }; nodes.set(k, n); list.push(n); } return n; };
   const link = (a, b, o) => { if (a === b || a.e.some(e => e.to === b)) return; const d = H(a.p[0] - b.p[0], a.p[1] - b.p[1]); a.e.push({ to: b, d, ...o }); b.e.push({ to: a, d, ...o }); };
@@ -92,7 +92,7 @@ function trackGraph(F) {
   }
   return list;
 }
-function shortest(list, src) {                      // how far every point of the network is, and which way out of src the shortest route takes
+export function shortest(list, src) {                      // how far every point of the network is, and which way out of src the shortest route takes
   const dist = new Float64Array(list.length).fill(Infinity), first = new Int16Array(list.length).fill(-1), hd = [], hi = [];
   const push = (d, i) => { let k = hd.length; hd.push(d); hi.push(i); while (k > 0) { const p = (k - 1) >> 1; if (hd[p] <= d) break; hd[k] = hd[p]; hi[k] = hi[p]; k = p; } hd[k] = d; hi[k] = i; };
   const pop = () => { const top = hi[0], d = hd.pop(), i = hi.pop(), n = hd.length; if (n) { let k = 0; for (;;) { let c = 2 * k + 1; if (c >= n) break; if (c + 1 < n && hd[c + 1] < hd[c]) c++; if (hd[c] >= d) break; hd[k] = hd[c]; hi[k] = hi[c]; k = c; } hd[k] = d; hi[k] = i; } return top; };

@@ -131,7 +131,7 @@ const CABIN = /* html */`
     <button id="hmFast" class="pill" title="More speed (W or up arrow)">+</button>
     <button id="hmRight" class="pill" title="Steer to starboard (D or right arrow)">&#9654;</button>
   </div>
-  <button id="hmTake" class="pill">Take the helm</button>
+  <div class="acts"><button id="hmTake" class="pill">Take the helm</button><button id="hmCamp" class="pill" title="Pitch the tent and rest; press again to pack up and walk on">Camp</button></div>
 </div>`;
 
 export function makeRide(camera, canvas, cars, getBoats, env = {}) {
@@ -147,6 +147,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   const ease = (key, to, rate, dt, ang) => { let v0 = sm[key]; if (v0 === undefined || !(dt >= 0)) return (sm[key] = to); let d0 = to - v0; if (ang) d0 -= Math.PI * 2 * Math.round(d0 / (Math.PI * 2)); return (sm[key] = v0 + d0 * (1 - Math.exp(-dt * rate))); };
   const point = (ang) => COMPASS[(Math.round(((ang * 180 / Math.PI) + 360) % 360 / 45)) % 8];
   // what is under a tap: the nearest 4WD or boat whose place on the screen is within about its own size (and never less than a fingertip)
+  const things = () => [...(env.birds || []), ...(env.others ? env.others() : [])];
   R.pick = (cx, cy) => {
     let best = null, bd = 1e9; camera.getWorldDirection(d);
     const px = innerHeight / (2 * Math.tan(camera.fov * Math.PI / 360));
@@ -157,38 +158,42 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     };
     for (const c of cars) test('car', c, c.m.position, 1.3, 5);
     for (const b of getBoats()) test('boat', b, b.m.position, 2, (b.len || 12) * 0.55);
-    for (const p of env.birds || []) test('bird', p, p.m.position, 0.3, 2.8);
+    for (const p of things()) test('bird', p, p.m.position, p.kind === 'plane' ? 1.5 : p.kind === 'walker' ? 1.0 : 0.3, p.kind === 'plane' ? 9 : 2.8);
     return best;
   };
   R.enter = (hit) => {
-    R.active = true; R.kind = hit.kind; R.car = hit.kind === 'car' ? hit.obj : null; R.boat = hit.kind === 'boat' ? hit.obj : null; R.bird = hit.kind === 'bird' ? hit.obj : null; R.look = 0; R.tilt = 0; R.helm = false; steer = 0; gas = 0; R.yaw0 = undefined; R.wheel = 0; sm = {}; R.zoom = 0;
+    R.active = true; R.kind = hit.kind; R.car = hit.kind === 'car' ? hit.obj : null; R.boat = hit.kind === 'boat' ? hit.obj : null; R.bird = hit.kind === 'bird' ? hit.obj : null; R.look = 0; R.tilt = 0; R.helm = false; steer = 0; gas = 0; R.yaw0 = undefined; R.wheel = 0; sm = {}; R.zoom = R.bird ? base() : 0;
     fov0 = camera.fov; near0 = camera.near; camera.near = 0.2;
     if (R.car) { R.car.m.visible = false; camera.fov = innerWidth < innerHeight ? 82 : 66; }
     else camera.fov = innerWidth < innerHeight ? 84 : 70;
     camera.updateProjectionMatrix();
     cab.style.display = R.car ? 'block' : 'none'; helmEl.style.display = 'flex'; el.classList.toggle('incar', !!R.car);
-    $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? (R.boat.jet ? 'Leave the jet ski' : R.boat.sail ? 'Leave the yacht' : 'Leave the boat') : 'Leave the ' + (R.bird.kind || 'bird');
-    $('hmUnit').textContent = R.boat ? 'kn' : 'km/h'; $('hmDepthL').textContent = R.boat ? 'depth' : 'height';
+    $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? (R.boat.jet ? 'Leave the jet ski' : R.boat.sail ? 'Leave the yacht' : 'Leave the boat') : 'Leave the ' + ({ walker: 'traveller', eagle: 'sea eagle' }[R.bird.kind] || R.bird.kind || 'bird');
+    $('hmUnit').textContent = R.boat ? 'kn' : 'km/h'; $('hmDepthL').textContent = R.boat ? 'depth' : 'height'; el.classList.toggle('walker', !!(R.bird && R.bird.kind === 'walker'));
     const b = R.boat, can = canSteer(); $('hmTake').style.display = can ? '' : 'none';
-    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor'; $('rideTip').textContent += ' · scroll or pinch to watch from outside';
+    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'walker' ? 'Drag to look around · walk them yourself, or press Camp to rest' : R.bird.kind === 'plane' ? 'Drag to look around · fly it yourself: steer, climb, and land on a strip' : R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor'; $('rideTip').textContent += ' · scroll or pinch to watch from outside';
     sync(); syncZoom(); if (hit.control === true || (b && b.jet && hit.control !== false)) take(true);       // a jet ski is yours to ride as soon as you are on it (unless you asked only to watch)
     el.style.display = 'block'; uiT = 0; R.update(0, 0);
   };
   const canSteer = () => !!(R.car || R.bird || (R.boat && R.boat.move && !R.boat.ferry));
-  const WORDS = { car: ['Take the wheel', 'Let it drive itself'], boat: ['Take the helm', 'Let her sail herself'], bird: ['Fly it yourself', 'Let it fly on'] };
-  const sync = () => { el.classList.toggle('steering', R.helm); $('hmTake').textContent = (R.boat && R.boat.jet ? ['Ride it yourself', 'Let it run itself'] : WORDS[R.kind] || WORDS.boat)[R.helm ? 1 : 0]; $('hmTake').classList.toggle('on', R.helm); };
+  const WORDS = { car: ['Take the wheel', 'Let it drive itself'], boat: ['Take the helm', 'Let her sail herself'], bird: ['Fly it yourself', 'Let it fly on'], walker: ['Walk them yourself', 'Let them walk on'] };
+  const sync = () => { el.classList.toggle('steering', R.helm); $('hmTake').textContent = (R.boat && R.boat.jet ? ['Ride it yourself', 'Let it run itself'] : R.bird && R.bird.kind === 'walker' ? WORDS.walker : WORDS[R.kind] || WORDS.boat)[R.helm ? 1 : 0]; $('hmTake').classList.toggle('on', R.helm); };
   const take = (on) => {
     if (!canSteer()) return; R.helm = on; steer = 0; gas = 0;
     if (R.boat) R.boat.helm = on ? { turn: 0, throttle: 1 } : null; else if (R.car) R.car.setDrive(on); else R.bird.ctl = on ? { turn: 0, climb: 0 } : null;
     sync();
   };
   R.exit = () => {
-    if (!R.active) return; if (R.helm) take(false); R.active = false; if (R.car) R.car.m.visible = true; if (R.boat) R.boat.helm = null; if (R.bird) R.bird.ctl = null; R.helm = false;
+    if (!R.active) return; if (R.helm) take(false); R.active = false; if (R.car) R.car.m.visible = true; if (R.boat) R.boat.helm = null; if (R.bird) { R.bird.ctl = null; R.bird.m.visible = true; if (env.showWalker) env.showWalker(true); } R.helm = false;
     el.style.display = 'none'; camera.near = near0; camera.fov = fov0; camera.up.set(0, 1, 0); camera.updateProjectionMatrix(); drag = null;
   };
   // Watching from outside. Zoom out (wheel, pinch, the Further button or the - key) and the eye leaves the seat and follows from behind and above,
   // as far back as you like; drag to swing round it. Zoom all the way in and you are back aboard.
-  const minD = () => (R.car ? 9 : R.boat ? Math.max(9, (R.boat.len || 12) * 1.1) : 5);
+  const base = () => (R.bird ? R.bird.zoom0 || (R.bird.kind === 'eagle' ? 7 : 8) : 0);
+  const minD = () => (R.car ? 9 : R.boat ? Math.max(9, (R.boat.len || 12) * 1.1) : base() * 0.8);
+  // three set views: 0 through the eyes, 1 close behind, 2 far behind
+  R.setView = (lv) => { if (!R.active) return; const lo = minD(); R.zoom = lv <= 0 ? 0 : lv === 1 ? (R.bird ? base() : lo * 1.25) : (R.bird ? base() * 7 : lo * 6); syncZoom(); };
+  R.view = () => (R.zoom < 1 ? 0 : R.zoom < minD() * 3 ? 1 : 2);
   const syncZoom = () => { $('rideIn').style.opacity = R.zoom > 0 ? 1 : 0.45; el.classList.toggle('outside', R.zoom > 0); };
   R.zoomBy = (f) => { if (!R.active) return; const lo = minD(); let z = R.zoom < lo ? (f > 1 ? lo : 0) : R.zoom * f; if (z < lo * 0.93) z = 0; R.zoom = Math.min(z, 700); syncZoom(); };
   const chase = (a, tx, ty, tz, dist, dt, sea) => {
@@ -240,15 +245,19 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     if (R.bird) {            // following a bird: just behind and above it, swinging round after it as it turns and rising and falling a little after it
       const p = R.bird, sea = env.sea ? env.sea() : 0; R.pos.copy(p.m.position);
       let by = ease('by', p.y, 3.2, dt); by = sm.by = clamp(by, p.y - 1.5, p.y + 1.5);        // it may lag the bird a little, never lose it
-      const yawB = ease('byaw', Math.atan2(-Math.cos(p.hd), Math.sin(p.hd)), 3.5, dt, true);
-      const yawC = yawB - R.look, fx = -Math.sin(yawC), fz = -Math.cos(yawC), back = ease('bk', p.afloat ? 5 : p.kind === 'eagle' ? 6 : 7.5, 2, dt);
-      const cx = p.x - fx * back, cz = p.z - fz * back, zm = ease('zm', R.zoom, 5, dt);
-      if (zm > 1) chase(p.hd, p.x, by + 0.5, p.z, back + zm, dt, sea);
-      else { camera.position.set(cx, Math.max(by + 2.3 - R.tilt * 7, sea + 0.4, env.ground ? env.ground(cx, cz) + 1.2 : -1e9), cz); v.set(p.x + fx * 4, by + 0.7, p.z + fz * 4); camera.up.set(0, 1, 0); camera.lookAt(v); camera.updateMatrixWorld(); }
+      const zm = ease('zm', R.zoom, 5, dt), fp = zm < 1, show = !fp || p.hideInFP === false;
+      if (p.m.visible !== show) p.m.visible = show; if (p.kind === 'walker' && env.showWalker) env.showWalker(show);
+      if (!fp) chase(p.hd, p.x, by + (p.kind === 'walker' ? 1.3 : p.kind === 'plane' ? 2.2 : 0.5), p.z, zm, dt, sea);
+      else {                 // through its own eyes: the horizon tips as it banks, lifts and drops as it climbs and dives
+        const a = ease('ca', p.hd, 7, dt, true), e = p.fpEye || [0.6, 0.3], k = p.kind === 'plane' ? 1.5 : 1, cs = Math.cos(a), sn = Math.sin(a);
+        camera.position.set(p.x + cs * e[0] * k, by + e[1] * k, p.z - sn * e[0] * k);
+        camera.rotation.set(R.tilt + (p.nose || 0) * 0.8 * Math.cos(R.look) - 0.04, a - Math.PI / 2 - R.look, -(p.roll || 0) * 0.85 * Math.cos(R.look), 'YXZ'); camera.updateMatrixWorld();
+      }
       if (p.ctl) $('hmWheel').style.transform = `rotate(${(p.ctl.turn * 60).toFixed(1)}deg)`;
       uiT -= dt; if (uiT <= 0) {
         uiT = 0.3; $('hmSpeed').textContent = Math.round((p.v ?? p.sp) * 3.6); $('hmHead').textContent = point(Math.atan2(Math.cos(p.hd), Math.sin(p.hd)));
-        $('hmWind').textContent = env.wind ? env.wind() : '-'; $('hmDepth').textContent = p.afloat ? 'on the water' : Math.max(0, (p.y - sea) / 1.7).toFixed(0) + ' m'; $('hmNear').textContent = env.where ? env.where(p.x, p.z) : '';
+        $('hmWind').textContent = env.wind ? env.wind() : '-'; $('hmDepth').textContent = p.afloat ? 'on the water' : Math.max(0, (p.y - sea) / 1.7).toFixed(0) + ' m'; $('hmNear').textContent = (p.next ? p.next + ' · ' : '') + (env.where ? env.where(p.x, p.z) : '');
+        if (p.kind === 'walker') { const cb = $('hmCamp'); cb.textContent = p.camped ? 'Break camp' : 'Camp'; cb.classList.toggle('on', !!p.camped); }
       }
       return;
     }
@@ -291,6 +300,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   hold('hmLeft', () => { steer = -1; }, () => { steer = 0; }); hold('hmRight', () => { steer = 1; }, () => { steer = 0; });
   hold('hmSlow', () => { gas = -1; }, () => { gas = 0; }); hold('hmFast', () => { gas = 1; }, () => { gas = 0; });
   $('hmTake').onclick = () => take(!R.helm);
+  $('hmCamp').onclick = () => { const p = R.bird; if (p && p.kind === 'walker') { p.askCamp = !p.camped; if (R.helm && !p.camped) take(false); } };
   $('rideOut').onclick = () => R.zoomBy(1.6); $('rideIn').onclick = () => R.zoomBy(1 / 1.6);
   const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1] };
   addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });

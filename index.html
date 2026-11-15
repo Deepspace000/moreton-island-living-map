@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }</script>
 </head>
 <body>
@@ -61,6 +61,9 @@
   <div class="tv-row" data-kind="jetski"><span>Jet ski</span><button data-ctl="0" title="Ride along on the nearest jet ski">Watch</button><button data-ctl="1" title="Ride it yourself">Ride</button></div>
   <div class="tv-row" data-kind="pelican"><span>Pelican</span><button data-ctl="0" title="Follow the nearest pelican in flight">Watch</button><button data-ctl="1" title="Fly it yourself">Fly</button></div>
   <div class="tv-row" data-kind="eagle"><span>Sea eagle</span><button data-ctl="0" title="Follow the nearest sea eagle as it soars">Watch</button><button data-ctl="1" title="Fly it yourself">Fly</button></div>
+  <div class="tv-row" data-kind="plane"><span>Plane</span><button data-ctl="0" title="Go along with the light aircraft as it tours the island and lands">Watch</button><button data-ctl="1" title="Fly it yourself">Fly</button></div>
+  <div class="tv-row" data-kind="walker"><span>Traveller</span><button data-ctl="0" title="Walk along with the traveller, who is going round every place on the island">Watch</button><button data-ctl="1" title="Walk them yourself">Walk</button></div>
+  <div class="tv-tour"><button id="tvTour" title="Go from one kind of travel to the next by itself: through the eyes, close behind, then far behind">Tour them all</button><label>each <select id="tvSecs"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option></select></label></div>
   <button id="tvBack" class="tv-back">Back to the map</button>
 </nav>
 <nav id="places" class="glass win" data-win="Places"></nav>
@@ -88,6 +91,6 @@
 <div id="stick"><i></i></div>
 <div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=33"></script>
+<script type="module" src="src/main.js?v=34"></script>
 </body>
 </html>

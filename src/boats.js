@@ -293,26 +293,75 @@ export function buildBoats(scene, F) {
 
   // ---- wakes ----
   const movers = boats.filter(b => b.move), NW = 44;
-  const wp = new Float32Array(movers.length * NW * 2 * 3), wa = new Float32Array(movers.length * NW * 2 * 2), wi = [];
+  const wp = new Float32Array(movers.length * NW * 2 * 3), wa = new Float32Array(movers.length * NW * 2 * 3), wi = [];
   movers.forEach((b, k) => { b.hist = []; b.wk = k; for (let j = 0; j < NW - 1; j++) { const o = (k * NW + j) * 2; wi.push(o, o + 1, o + 2, o + 2, o + 1, o + 3); } });
   const wg = new THREE.BufferGeometry();
   wg.setAttribute('position', new THREE.BufferAttribute(wp, 3).setUsage(THREE.DynamicDrawUsage));
-  wg.setAttribute('aA', new THREE.BufferAttribute(wa, 2).setUsage(THREE.DynamicDrawUsage));
+  wg.setAttribute('aA', new THREE.BufferAttribute(wa, 3).setUsage(THREE.DynamicDrawUsage));
   wg.setIndex(wi); wg.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
   const wmat = makeMat({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    vs: /* glsl */`attribute vec2 aA; varying vec2 vA; varying vec3 vW; void main(){ vA = aA; vW = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
-    fs: /* glsl */`varying vec2 vA; varying vec3 vW;
+    vs: /* glsl */`attribute vec3 aA; varying vec3 vA; varying vec3 vW; void main(){ vA = aA; vW = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+    // aA: x how fresh this part of the wake is (1 at the boat, 0 where it dies), y which edge (-1 .. 1 across), z its half-width in metres
+    fs: /* glsl */`varying vec3 vA; varying vec3 vW;
       void main(){ ${LOGF}
-        float n = texture2D(uNoise, vW.xz / 4.3).b * 0.55 + texture2D(uNoise, vW.xz / 13.0 + uTime * 0.02).g * 0.5 + texture2D(uNoise, vW.xz / 37.0).r * 0.3;
-        float e = abs(vA.y);
-        float arms = smoothstep(1.0, 0.8, e) * smoothstep(0.45, 0.85, e);                     // the two foaming edges of the V
-        float churn = (1.0 - e) * vA.x * vA.x;                                                // prop wash, strongest right behind the boat
-        float a = vA.x * smoothstep(0.55 - vA.x * 0.35, 0.95, n + arms * 0.45 + churn * 0.5) * (arms + churn * 0.9 + 0.12);
+        float n = (texture2D(uNoise, vW.xz / 4.3).b * 0.55 + texture2D(uNoise, vW.xz / 13.0 + uTime * 0.02).g * 0.5 + texture2D(uNoise, vW.xz / 37.0).r * 0.3) / 1.35;
+        // foam is not a film: it lies in webs and clots with clear water between
+        float lace = 1.0 - smoothstep(0.015, 0.11, abs(texture2D(uNoise, vW.xz / 2.4 + uTime * 0.03).g - 0.5)), clot = smoothstep(0.5, 0.66, n), foam = max(clot, lace * 0.85);
+        float e = abs(vA.y), w = vA.z, d = (1.0 - e) * w, fresh = vA.x;                       // d: metres in from the edge of the V
+        // the bow wave: a line of broken water along each edge of the V, crisp near the boat and softening as it ages, with a few ripples trailing in behind it
+        float arm = smoothstep(0.0, 0.2, d) * (1.0 - smoothstep(0.35, 1.1 + (1.0 - fresh) * 2.2, d));
+        float ripple = (1.0 - smoothstep(1.2, 5.0, d)) * smoothstep(0.6, 1.4, d) * smoothstep(0.55, 0.95, sin(d * 2.6 - fresh * 26.0)) * 0.35;
+        // the wash straight astern: white and boiling just behind the stern, thinning to streaks of foam
+        float washW = 0.7 + w * 0.13, wash = 1.0 - smoothstep(washW * 0.3, washW, e * w);
+        float a = arm * (0.3 + 0.7 * foam) * fresh
+                + ripple * lace * fresh
+                + wash * mix(foam * 0.8, 1.0, fresh * fresh * fresh) * fresh;
         vec3 c = vec3(0.93, 0.96, 0.97) * (uLightCol * 0.3 * cloudShadow(vW) + uAmbSky * 0.9);
-        gl_FragColor = vec4(applyFog(c, vW), a * 0.8); }`,
+        gl_FragColor = vec4(applyFog(c, vW), clamp(a, 0.0, 1.0) * 0.85); }`,
   });
   const wm = new THREE.Mesh(wg, wmat); wm.frustumCulled = false; wm.renderOrder = 12; scene.add(wm);
+  // ---- spray ----
+  // What a moving hull throws up: a curling sheet of water off each side of the bow, higher and longer the faster she goes, and behind a jet ski
+  // the plume of its jet. Each is one small curved sheet; the shader tears it into ragged streaks and drops that stream aft.
+  const SG = 12, SV = 5, sgeo = new THREE.InstancedBufferGeometry(), suv = [], sidx = [];
+  for (let j = 0; j <= SV; j++) for (let i = 0; i <= SG; i++) suv.push(i / SG, j / SV, 0);
+  for (let j = 0; j < SV; j++) for (let i = 0; i < SG; i++) { const o = j * (SG + 1) + i; sidx.push(o, o + 1, o + SG + 1, o + SG + 1, o + 1, o + SG + 2); }
+  sgeo.setAttribute('position', new THREE.Float32BufferAttribute(suv, 3)); sgeo.setIndex(sidx);
+  const NSP = movers.length * 3, spA = new Float32Array(NSP * 4), spB = new Float32Array(NSP * 4);
+  sgeo.setAttribute('iA', new THREE.InstancedBufferAttribute(spA, 4).setUsage(THREE.DynamicDrawUsage)); sgeo.setAttribute('iB', new THREE.InstancedBufferAttribute(spB, 4).setUsage(THREE.DynamicDrawUsage));
+  sgeo.instanceCount = NSP; sgeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+  const smesh = new THREE.Mesh(sgeo, makeMat({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    // iA: where the boat is (x, y of the water, z) and its heading; iB: length of the sheet, its height, which side (-1, 1, or 0 for the plume astern), how hard she is going (0..1)
+    vs: /* glsl */`attribute vec4 iA, iB; varying vec3 vW; varying vec3 vS;
+      void main(){
+        float u = position.x, v = position.y, L = iB.x, H = iB.y, side = iB.z, k = iB.w;
+        vec2 f = vec2(cos(iA.w), -sin(iA.w)), r = vec2(sin(iA.w), cos(iA.w));
+        float along, outw, up;
+        if(abs(side) > 0.5){                // off the bow: it leaves the hull low, climbs as it is thrown outward, curls over and falls back in a widening fan
+          float reach = (0.25 + 1.5 * u) * H * 1.5;
+          along = L * (0.42 - 1.25 * u) - v * H * 0.5; outw = side * (0.25 + L * 0.085 * smoothstep(0.0, 0.3, u) + v * reach);
+          up = H * (1.0 - 0.6 * u) * 4.0 * v * (1.0 - v * 0.92) * smoothstep(0.0, 0.12, u);
+        } else {                            // the jet: it leaves the stern as a tight stream, arches up and back, and spreads as it comes down
+          along = -L * 0.2 - u * L * 1.5; outw = (v - 0.5) * (0.25 + 1.7 * u) * H; up = 0.2 + H * 1.25 * 4.0 * u * (1.0 - u) * (0.7 + 0.3 * sin(v * 3.1416));
+        }
+        vec3 wp = vec3(iA.x + f.x * along + r.x * outw, iA.y + up, iA.z + f.y * along + r.y * outw);
+        vW = wp; vS = vec3(u, v, k * (abs(side) > 0.5 ? 1.0 : 1.15));
+        gl_Position = k <= 0.01 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
+        ${LOGV}
+      }`,
+    fs: /* glsl */`varying vec3 vW; varying vec3 vS;
+      void main(){ ${LOGF}
+        float u = vS.x, v = vS.y, k = vS.z;
+        float n = texture2D(uNoise, vec2(u * 1.3 + uTime * 0.9, v * 0.8) + vW.xz * 0.07).r * 0.6 + texture2D(uNoise, vec2(u * 4.0 + uTime * 2.3, v * 2.6)).g * 0.4;      // streaming aft
+        float body = (1.0 - smoothstep(0.55, 1.0, v)) * (1.0 - smoothstep(0.6, 1.0, u)) * smoothstep(0.0, 0.06, u);
+        float a = smoothstep(0.62 - 0.45 * k * body, 0.8, n + 0.25 * (1.0 - v)) * body * smoothstep(0.02, 0.3, k);          // solid near the hull, torn to drops at the edges
+        vec3 c = vec3(0.95, 0.97, 0.98) * (uLightCol * 0.42 * cloudShadow(vW) + uAmbSky * 0.85);
+        gl_FragColor = vec4(applyFog(c, vW), a * 0.9); }`,
+  }));
+  smesh.frustumCulled = false; smesh.renderOrder = 13; scene.add(smesh);
+  const setSpray = (i, b, len, hgt, side, k, y) => { spA[i * 4] = b.x; spA[i * 4 + 1] = y; spA[i * 4 + 2] = b.z; spA[i * 4 + 3] = b.hd; spB[i * 4] = len; spB[i * 4 + 1] = hgt; spB[i * 4 + 2] = side; spB[i * 4 + 3] = k; };
   scene.add(lights.pts);
   lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -389,19 +438,26 @@ export function buildBoats(scene, F) {
         lights.move(b.li, b.x, my, b.z);
         if (b.move) {
           lights.move(b.lg, b.x + sn * 2.4, b.m.position.y + 3, b.z + cs * 2.4); lights.move(b.lr, b.x - sn * 2.4, b.m.position.y + 3, b.z - cs * 2.4);
-          if (rec) { b.hist.unshift({ x: b.x - cs * 4 * S, z: b.z + sn * 4 * S, nx: sn, nz: cs, t, sp: b.sp }); if (b.hist.length > NW) b.hist.length = NW; }
-          const w0 = b.big ? 7 : 1.6, life = b.big ? 26 : 9;
+          // The wake starts at the shoulders of the bow, as wide as the hull, and opens out behind at the angle a real wake does (wider for a
+          // displacement hull, narrower for a planing one): its width grows with the speed the boat had when it passed that spot.
+          const back = b.len * 0.12;
+          if (rec) { b.hist.unshift({ x: b.x - cs * back, z: b.z + sn * back, nx: sn, nz: cs, t, sp: b.sp }); if (b.hist.length > NW) b.hist.length = NW; }
+          const w0 = b.big ? 6 : b.jet ? 0.75 : b.small ? 1.2 : b.len * 0.15, life = b.big ? 26 : 11, spread = b.jet || b.small ? 0.2 : 0.3;
           for (let j = 0; j < NW; j++) {
             const h = b.hist[Math.min(j, b.hist.length - 1)] || { x: b.x, z: b.z, nx: sn, nz: cs, t, sp: 0 };
-            const age = t - h.t, w = w0 + age * (b.big ? 1.5 : 0.75), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp(h.sp / 5, 0, 1) * (j === 0 ? 0 : 1);
+            const age = t - h.t, w = w0 + age * clamp(h.sp * spread, 0.5, 4.5), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp(h.sp / 4, 0, 1);
             const y = sea + 0.45 + (j < 3 ? wy : 0);
             wp[o * 3] = h.x - h.nx * w; wp[o * 3 + 1] = y; wp[o * 3 + 2] = h.z - h.nz * w;
             wp[o * 3 + 3] = h.x + h.nx * w; wp[o * 3 + 4] = y; wp[o * 3 + 5] = h.z + h.nz * w;
-            wa[o * 2] = al; wa[o * 2 + 1] = -1; wa[o * 2 + 2] = al; wa[o * 2 + 3] = 1;
+            wa[o * 3] = al; wa[o * 3 + 1] = -1; wa[o * 3 + 2] = w; wa[o * 3 + 3] = al; wa[o * 3 + 4] = 1; wa[o * 3 + 5] = w;
           }
+          // spray: nothing below a walking pace, in full flight at planing speed; a yacht only lifts a small bow wave
+          const go = clamp((b.sp - (b.sail ? 1.2 : 2.5)) / (b.jet ? 7 : b.sail ? 6 : 9), 0, 1) * (b.py - sea < 1.5 ? 1 : 0), sy = sea + 0.1 + wy * 0.6;
+          const sl = b.big ? b.len * 0.5 : b.len * 0.85, sh = (b.big ? 2.2 : b.jet ? 0.95 : b.small ? 0.6 : b.sail ? 0.45 : 0.9) * (0.35 + 0.65 * go);
+          setSpray(b.wk * 3, b, sl, sh, -1, go, sy); setSpray(b.wk * 3 + 1, b, sl, sh, 1, go, sy); setSpray(b.wk * 3 + 2, b, b.len, b.jet ? 1.5 : 0, 0, b.jet ? go : 0, sy);
         }
       }
-      wg.attributes.position.needsUpdate = true; wg.attributes.aA.needsUpdate = true;
+      wg.attributes.position.needsUpdate = true; wg.attributes.aA.needsUpdate = true; sgeo.attributes.iA.needsUpdate = true; sgeo.attributes.iB.needsUpdate = true;
     },
   };
 }
