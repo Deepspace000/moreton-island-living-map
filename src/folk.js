@@ -32,9 +32,7 @@ function buildPeople(scene, list) {
   const a = new Float32Array(n * 4), b = new Float32Array(n * 4), c = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 11, i * 11 + 4), i * 4); b.set(list.slice(i * 11 + 4, i * 11 + 8), i * 4); c.set(list.slice(i * 11 + 8, i * 11 + 11), i * 3); }
   g.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 4)); g.setAttribute('iC', new THREE.InstancedBufferAttribute(c, 3)); g.instanceCount = n; g.boundingSphere = FAR;
-  const mat = makeMat({
-    side: THREE.DoubleSide,
-    vs: /* glsl */`
+  const PVS = /* glsl */`
       attribute vec2 aPS; attribute vec4 iA, iB; attribute vec3 iC; varying vec3 vW, vObj, vNw, vShirt; varying float vPart, vSeed;
       ${PERSON_POSE}
       void main(){
@@ -49,7 +47,7 @@ function buildPeople(scene, list) {
         vec3 q0 = position;
         q0.z *= mix(1.0, mix(1.07, 0.88, smoothstep(1.0, 1.3, q0.y)), woman * step(q0.y, 1.5));
         if(part > 8.5 && part < 9.5 && q0.y < 1.7) q0.y = 1.7 - (1.7 - q0.y) * mix(1.0, 2.9, woman * step(0.3, fract(iB.x * 3.9)));          // long hair, to the shoulders
-        if(q0.y > 1.5 && part < 4.5 || part > 8.5 && part < 9.5) q0 = vec3(0.0, 1.5, 0.0) + (q0 - vec3(0.0, 1.5, 0.0)) * mix(1.0, 1.22, child);
+        if(q0.y > 1.5 && part < 4.5 || part > 8.5 && part < 9.5) q0 = vec3(0.0, 1.5, 0.0) + (q0 - vec3(0.0, 1.5, 0.0)) * mix(1.1, 1.25, child);      // (heads a little larger: at a distance a true-size head looks pinched)
         vec3 lp = personPose(q0, aPS, uTime * 4.6 * iB.y / build + iB.x * 40.0, moving);
         if(part > 3.5 && part < 4.5 && (iB.z < 0.5 || iB.z > 1.5)) lp = vec3(0.0, 1.0, 0.0);              // only those fishing hold a rod
         if(part > 3.5 && part < 4.5) lp.y += sin(uTime * 0.7 + iB.x * 9.0) * 0.06 * lp.x;
@@ -64,41 +62,26 @@ function buildPeople(scene, list) {
         vec3 wp = vec3(p.x + dir.x * lp.x + side.x * lp.z, gy + lp.y, p.y + dir.y * lp.x + side.y * lp.z);
         vNw = normalize(vec3(dir.x * normal.x + side.x * normal.z, normal.y, dir.y * normal.x + side.y * normal.z));
         vObj = position; vPart = part; vSeed = iB.x; vShirt = iC; vW = wp;
+        //SHADOW
         gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
-      }`,
-    fs: PERSON_FS,
-  });
+      }`;
+  const mat = makeMat({ side: THREE.DoubleSide, vs: PVS, fs: PERSON_FS });
   const m = new THREE.Mesh(g, mat); m.name = 'people'; m.frustumCulled = false; scene.add(m);
-  { // Everyone's shadow: a soft long shape on the ground that points away from the sun, short at noon and long in the evening, and walks with them.
-    const sg = new THREE.InstancedBufferGeometry();
-    sg.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1], 3)); sg.setIndex([0, 2, 1, 0, 3, 2]);
-    sg.setAttribute('iA', g.getAttribute('iA')); sg.setAttribute('iB', g.getAttribute('iB')); sg.instanceCount = n; sg.boundingSphere = FAR;
+  { // Everyone's shadow is their own shape: the same body, in the same pose and stride, laid flat on the ground away from the sun.
+    // It is short at noon and long in the evening. The stencil buffer darkens each pixel once, and not at all where a building's shadow already lies.
     const sm = makeMat({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-      vs: /* glsl */`
-        attribute vec4 iA, iB; varying vec2 vUv; varying vec3 vW; varying float vK;
-        void main(){
-          float len = max(distance(iA.xy, iA.zw), 1.0), f = fract(iB.x + uTime * iB.y / len * 0.5), tri = abs(2.0 * f - 1.0), walks = step(iB.z, 0.5);
-          vec2 p = mix(iA.xy, mix(iA.xy, iA.zw, smoothstep(0.03, 0.97, tri)), walks);
-          float child = step(fract(iB.x * 17.3), 0.13), tall = 1.75 * iB.w * mix(1.0, 0.64, child);
-          vec2 sd = -normalize(uLightDir.xz + 1e-4); float reach = tall * clamp(length(uLightDir.xz) / max(uLightDir.y, 0.12), 0.0, 5.0);
-          float a = reach * 0.5 + 0.3, b = 0.25 * iB.w;
-          vec2 q = p + sd * (reach * 0.5) + sd * position.x * a + vec2(-sd.y, sd.x) * position.z * b;
-          float y = max(groundY(q), uSeaM * uVex) + 0.07;
-          float awake = 1.0 - smoothstep(0.55, 0.85, uNight) * step(0.2, fract(iB.x * 7.7));
-          float ok = awake * (1.0 - smoothstep(280.0, 420.0, length(vec3(p.x, y, p.y) - cameraPosition)));
-          vUv = position.xz; vW = vec3(q.x, y, q.y); vK = ok / (1.0 + reach * 0.12);
-          gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(vW, 1.0);
-          ${LOGV}
-        }`,
-      fs: /* glsl */`varying vec2 vUv; varying vec3 vW; varying float vK;
+      stencilWrite: true, stencilFunc: THREE.EqualStencilFunc, stencilRef: 0, stencilZPass: THREE.IncrementStencilOp,
+      vs: PVS.replace('//SHADOW', `{ float up = wp.y - gy; wp.xz -= uLightDir.xz / max(uLightDir.y, 0.2) * up; wp.y = max(groundY(wp.xz), uSeaM * uVex) + 0.06; vW = wp;
+          ok *= (1.0 - smoothstep(260.0, 400.0, length(wp - cameraPosition))) * step(0.03, uLightDir.y); }`),
+      fs: /* glsl */`varying vec3 vW;
         void main(){ ${LOGF}
-          float r = length(vUv), sun = clamp(uLightDir.y * 4.0, 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight);
-          float a = (1.0 - smoothstep(0.4, 1.0, r)) * (0.15 + 0.33 * sun) * vK;
+          float a = 0.5 * clamp(uLightDir.y * 5.0, 0.0, 1.0) * clamp(dot(uLightCol, vec3(0.2)), 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight);
+          if(a < 0.01) discard;
           gl_FragColor = vec4(applyFog(vec3(0.04, 0.05, 0.085) * (uAmbSky + 0.15), vW), a); }`,
     });
-    const sh = new THREE.Mesh(sg, sm); sh.name = 'peopleShade'; sh.frustumCulled = false; sh.renderOrder = 4; scene.add(sh);
+    const sh = new THREE.Mesh(g, sm); sh.name = 'peopleShade'; sh.frustumCulled = false; sh.renderOrder = 4; scene.add(sh);
   }
 }
 
@@ -355,6 +338,13 @@ export function buildFolk(scene, F) {
       if (i % 3) people.push(x, z, x - 8, z, R(), 0, 1, 1.25 + R() * 0.15, ...shirt());                                  // fishing, facing the water
       else people.push(x + 7, z - 20 - R() * 30, x + 7, z + 20 + R() * 30, R(), 1.0 + R() * 0.4, 0, 1.25 + R() * 0.15, ...shirt());   // walking the beach
     }
+  }
+  { // people at home in the townships: someone hanging out the washing, someone by the car or the boat, a few just standing in the yard (see the yards in features.js)
+    const H = rng(8088), at = (q, d, p) => { if (H() > p) return; const a = H() * 6.283, x = q[0] + Math.cos(a) * d, z = q[1] + Math.sin(a) * d; if (maskAt(x, z).land < 0.9) return; people.push(x, z, q[0], q[1], H(), 0, 2, 1.25 + H() * 0.15, ...shirt());
+      if (H() < 0.35) { const b = a + 1.6, x2 = x + Math.cos(b) * 0.9, z2 = z + Math.sin(b) * 0.9; people.push(x2, z2, x, z, H(), 0, 2, 1.25 + H() * 0.15, ...shirt()); } };      // often two together, talking
+    for (const q of F.hoists || []) at(q, 1.5, 0.3);
+    for (const q of F.parked || []) at(q, 3.4, 0.16);
+    for (const q of F.tinnies || []) at(q, 2.6, 0.22);
   }
   const shade = [], camps = buildCamps(scene, F, people, R, shade), signs = collectSigns(F);
   { // one flat patch of shade under each, laid on the ground as it slopes

@@ -87,7 +87,9 @@ Run locally: serve this folder with any static web server (for example `python -
 - Townships with the critic: tanks only go where there is room between neighbours; roofs have fascia and barge boards and a ridge cap, in weathered zinc, grey-green and old red, with rust starting at the eaves and sheet laps; verandahs have balustrades and open timber stairs with treads and a handrail, and sliding glass doors behind them; highset houses stand a storey up on stumps with batten screens beneath; rainwater tanks are round, ribbed and lidded
 - Yards: garden trees (gum, she-oak, banksia, paperbark) stand between the houses and shade them, patchy lawn grows round them, and beside many houses there is a parked 4WD, a rotary clothes hoist with washing out, or a tinny on its trailer
 - Round the houses: low ankle-high grass in patches and drifts of fallen leaves, with worn sand between, both on the ground and as single blades and leaves up close
-- People cast a shadow that points away from the sun, long in the evening, and it walks with them
+- Third round with the critic: gum leaves hang in distinct sprays, each spray turned its own way, with thin places between and the odd glossy leaf catching the light; she-oaks are grey-green; town trees are tall gums that stand over the roofs; far hills are dark olive with sunlit crown tops and a ragged skyline; fewer two-storey houses; low houses show their stumps in shade under the walls; not every bay has a window and the glass shows the sky; the Cape Moreton light is white with two red bands; low plants and ground litter no longer fall in rows
+- People's shadows are their own shape, in the same pose and stride, laid on the ground away from the sun; people stand in the town yards (by the washing, the car, the boat), often two together
+- Wallabies are few
 - Map data: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, ODbL
 - Weather and marine data: [Open-Meteo](https://open-meteo.com)
 - Rendering: [three.js](https://threejs.org) (MIT)

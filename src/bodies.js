@@ -114,7 +114,7 @@ vec3 personColour(vec3 p, float part, vec3 shirt, float seed){
       col = mix(col, hair * 0.7, brow * front * 0.85);
       float mouth = (1.0 - smoothstep(0.003, 0.007, abs(p.y - 1.6 - az * az * 3.0))) * step(az, 0.03);
       col = mix(col, vec3(0.42, 0.19, 0.17), mouth * front * 0.85);
-      col *= 1.0 - 0.14 * front * smoothstep(1.66, 1.7, p.y) * (1.0 - smoothstep(1.7, 1.715, p.y)) * step(az, 0.06);              // the eye sockets sit in shadow
+      col *= 1.0 - 0.07 * front * smoothstep(1.66, 1.7, p.y) * (1.0 - smoothstep(1.7, 1.715, p.y)) * step(az, 0.06);              // the eye sockets sit in shadow
       col = mix(col, skin * vec3(1.12, 0.86, 0.84), 0.3 * front * (1.0 - smoothstep(0.015, 0.035, length(vec2(az - 0.05, p.y - 1.635)))));   // colour in the cheeks
       float beard = step(0.78, h3) * step(fract(seed * 7.1), 0.5) * step(0.13, fract(seed * 17.3)) * (1.0 - smoothstep(1.6, 1.635, p.y)) * smoothstep(0.0, 0.03, p.x) * (1.0 - mouth);      // men only
       col = mix(col, hair * (0.7 + 0.5 * fine), beard * 0.85);

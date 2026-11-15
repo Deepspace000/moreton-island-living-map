@@ -254,6 +254,10 @@ export function objectMat(opts = {}) {
               float rs = texture2D(uNoise, vec2(vFx.y * 0.31, vFx.z * 0.045)).g;
               alb = mix(alb, vec3(0.20, 0.085, 0.03), smoothstep(0.5, 0.8, rs) * smoothstep(2.6, 0.1, vFx.z) * 0.7);
             }
+            if(vFx.z < 0.0 && kind < 2.5 && plain < 0.5){   // below the floor there is no wall: the house stands on stumps, with deep shade between them and a bearer along the top
+              float post = step(abs(fract(vFx.y / 1.8) - 0.5), 0.06);
+              alb = mix(vec3(0.045, 0.042, 0.04), vec3(0.33, 0.29, 0.24), post); alb = mix(alb, vec3(0.30, 0.26, 0.21), smoothstep(-0.16, -0.1, vFx.z));
+            }
             // weather: patchy paint, and dark streaks run down by the rain
             alb *= 0.84 + 0.26 * texture2D(uNoise, vFx.yz * 0.11).r;
             alb *= 1.0 - 0.2 * smoothstep(0.55, 0.9, texture2D(uNoise, vec2(vFx.y * 0.45, vFx.z * 0.03)).b);
@@ -272,12 +276,12 @@ export function objectMat(opts = {}) {
                 alb = mix(alb, trim, fr); alb = mix(alb, dc, dr);
                 em = vec3(1.0, 0.72, 0.36) * pane * dr * lit * uNight * 2.0;
               } else {
-                float slide = front * step(h2, 0.74) * step(abs(id.y), 0.5);                                          // onto the verandah: sliding glass doors, floor to head height
+                float slide = front * step(h2, 0.74) * step(abs(id.y), 0.5), blank = step(fract(h * 91.7), 0.3) * (1.0 - slide);      // some bays are plain wall: windows are not ruled along a house like a motel                                          // onto the verandah: sliding glass doors, floor to head height
                 float hw = slide > 0.5 ? 0.31 : h3 < 0.45 ? 0.17 : 0.26, hh = slide > 0.5 ? 0.33 : 0.2, cy = slide > 0.5 ? c.y + 0.15 : c.y + 0.04, up = step(slide > 0.5 ? 0.02 : 0.3, vFx.z);
-                float fr = step(abs(c.x), hw + 0.022) * step(abs(cy), hh + 0.026) * up, win = step(abs(c.x), hw) * step(abs(cy), hh) * up;
+                up *= 1.0 - blank; float fr = step(abs(c.x), hw + 0.022) * step(abs(cy), hh + 0.026) * up, win = step(abs(c.x), hw) * step(abs(cy), hh) * up;
                 float sill = step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.04), 0.014) * up * (1.0 - slide);
                 float bar = max(step(abs(c.x), 0.008), kind < 1.5 && slide < 0.5 ? step(abs(cy), 0.009) : 0.0);                       // sliding sashes; the old weatherboard places have four panes
-                vec3 gl = mix(vec3(0.015, 0.028, 0.04), vec3(0.09, 0.15, 0.21), smoothstep(-hh, hh, cy)) + 0.05 * step(0.8, fract((c.x + cy) * 5.0 + h * 3.0));    // glass: dark, with the sky in it
+                vec3 gl = mix(vec3(0.02, 0.035, 0.05), vec3(0.20, 0.29, 0.38), smoothstep(-hh, hh, cy) * (1.0 - uNight)) + 0.05 * step(0.8, fract((c.x + cy) * 5.0 + h * 3.0));    // glass: dark, with the sky in it
                 float blind = step(h4, 0.45) * step(mix(-0.1, 0.12, h2), cy);                                          // some have a blind half down
                 gl = mix(gl, vec3(0.42, 0.40, 0.34), blind * 0.8);
                 alb = mix(alb, trim, max(fr, sill)); alb = mix(alb, mix(gl, trim, bar), win);
