@@ -842,7 +842,7 @@ function buildLizards(scene) {
         float ok = step(0.92, mk.r) * step(1.5, hgt) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * step(h3, ${big ? '0.05' : '0.04'});
         float f = fract(uTime * ${big ? '0.02' : '0.05'} * (0.7 + 0.6 * h2) + h1 * 5.0), tri = abs(2.0 * f - 1.0), fwd = f < 0.5 ? -1.0 : 1.0;
         float go = smoothstep(${big ? '0.15, 0.85' : '0.42, 0.58'}, tri), moving = smoothstep(${big ? '0.15, 0.2' : '0.42, 0.44'}, tri) * (1.0 - smoothstep(${big ? '0.8, 0.85' : '0.56, 0.58'}, tri));
-        s = ${big ? '(0.8 + 0.45 * h2)' : '(0.22 + 0.2 * h2)'} * ok;
+        s = ${big ? '(0.8 + 0.45 * h2)' : '(0.32 + 0.23 * h2)'} * ok;
         float wag = sin(position.x * 7.0 - uTime * ${big ? '5.0' : '14.0'}) * moving;                                          // the body snakes from side to side as it walks
         lp = vec3(position.x * fwd, position.y, position.z + wag * 0.045 * (0.3 + abs(position.x)));
         if(aK > 1.5) lp.x += sin(uTime * ${big ? '5.0' : '14.0'} + position.x * 20.0 + position.z * 30.0) * 0.04 * moving;
@@ -896,7 +896,7 @@ function buildPelicans(scene, F) {
       let at = null; for (let r = 60; r < 900 && !at; r += 45) for (let a = 0; a < 12 && !at; a++) { const x = c[0] + Math.cos(a * 0.524 + k) * r, z = c[1] + Math.sin(a * 0.524 + k) * r, h = heightAt(x, z), mk = maskAt(x, z); if (h > 2 && h < 40 && mk.sand < 0.75 && mk.land > 0.9) at = [x, z]; }
       if (!at) return;
       const g = new THREE.Group(), tree = new THREE.Mesh(tg, mat); g.add(tree);
-      for (const [px, py, pz, ry] of [[-2.0, 5.1, 0.28, 0.4], [1.65, 6.47, -0.42, 2.6]]) { const e = new THREE.Mesh(perch, mat); e.position.set(px, py, pz); e.rotation.y = ry + k; e.scale.setScalar(0.85); g.add(e); }
+      for (const [px, py, pz, ry] of [[-2.0, 5.13, 0.28, 0.4], [1.65, 6.5, -0.42, 2.6]]) { const e = new THREE.Mesh(perch, mat); e.position.set(px, py, pz); e.rotation.y = ry + k; e.scale.setScalar(0.74); g.add(e); }
       g.userData.birds = g.children.slice(1);
       g.position.set(at[0], meshY(at[0], at[1]), at[1]); g.rotation.y = k * 1.7; g.scale.setScalar(1.35); for (const m of g.children) m.frustumCulled = false; scene.add(g); (flyers.stags ||= []).push(g);
     });

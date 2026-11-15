@@ -49,7 +49,7 @@ export function human() {
   m.limb([[0, 1.755, 0, 0.098, 0.108], [0, 1.82, 0, 0.092, 0.102], [0, 1.848, 0, 0.06, 0.07]], 3, { S: 14 });                                                                               // hat crown
   for (const sg of [-1, 1]) {
     const z = 0.085 * sg, legSw = (y) => sg * (0.02 + Math.max(0, 0.93 - y) / 0.9), armSw = (y) => -sg * (0.02 + Math.max(0, 1.42 - y) / 0.55);
-    m.limb([[0, 0.94, z, 0.085, 0.096], [0.005, 0.72, z, 0.075, 0.086], [0.012, 0.51, z, 0.052, 0.058], [-0.006, 0.36, z, 0.052, 0.061], [-0.01, 0.13, z, 0.035, 0.04], [-0.01, 0.06, z, 0.036, 0.042]], 1, { sw: legSw });       // thigh, knee, calf, ankle
+    m.limb([[0, 0.94, z, 0.078, 0.08], [0.005, 0.74, z, 0.075, 0.086], [0.012, 0.51, z, 0.052, 0.058], [-0.006, 0.36, z, 0.052, 0.061], [-0.01, 0.13, z, 0.035, 0.04], [-0.01, 0.06, z, 0.036, 0.042]], 1, { sw: legSw });       // thigh, knee, calf, ankle
     m.limb([[-0.075, 0.036, z, 0.036, 0.034], [0.02, 0.042, z, 0.047, 0.04], [0.125, 0.032, z, 0.05, 0.03], [0.185, 0.024, z, 0.034, 0.02]], 10, { sw: legSw, S: 10 });                                                    // shoe
     m.limb([[0, 1.45, 0.13 * sg, 0.045, 0.05], [0, 1.42, 0.168 * sg, 0.052, 0.058], [0, 1.3, 0.195 * sg, 0.046, 0.052], [0.012, 1.15, 0.205 * sg, 0.039, 0.043], [0.04, 1.0, 0.205 * sg, 0.034, 0.038], [0.068, 0.885, 0.2 * sg, 0.027, 0.03]], 2, { sw: armSw, S: 10 });   // upper arm, elbow, forearm, wrist
     m.limb([[0.074, 0.86, 0.2 * sg, 0.02, 0.036], [0.086, 0.79, 0.196 * sg, 0.019, 0.042], [0.094, 0.735, 0.192 * sg, 0.012, 0.026]], 2, { sw: armSw, S: 8, sub: 3 });                                                       // hand
@@ -97,7 +97,7 @@ vec3 personColour(vec3 p, float part, vec3 shirt, float seed){
     tr *= (0.78 + 0.3 * fold) * (0.92 + 0.14 * weave) * (1.0 - 0.2 * (1.0 - smoothstep(hem, hem + 0.02, p.y)));
     col = p.y > hem ? tr : skin * (0.92 + 0.1 * fine) * (1.0 - 0.12 * (1.0 - smoothstep(0.004, 0.02, abs(p.y - 0.51))));         // bare legs, a shadow at the knee
   } else if(part < 2.5){
-    bool arm = abs(p.z) > 0.125 && p.y < 1.48;
+    bool arm = abs(p.z) > 0.06 && p.y < 1.48;
     float cuff = h4 > 0.82 ? 0.9 : 1.22 + 0.06 * h3;
     if(arm && p.y > cuff) col = cloth * (1.0 - 0.2 * (1.0 - smoothstep(cuff, cuff + 0.02, p.y)));                               // the sleeve
     else col = skin * (0.93 + 0.1 * fine);
@@ -112,7 +112,7 @@ vec3 personColour(vec3 p, float part, vec3 shirt, float seed){
       col = mix(col, vec3(0.42, 0.19, 0.17), mouth * front * 0.85);
       col *= 1.0 - 0.14 * front * smoothstep(1.66, 1.7, p.y) * (1.0 - smoothstep(1.7, 1.715, p.y)) * step(az, 0.06);              // the eye sockets sit in shadow
       col = mix(col, skin * vec3(1.12, 0.86, 0.84), 0.3 * front * (1.0 - smoothstep(0.015, 0.035, length(vec2(az - 0.05, p.y - 1.635)))));   // colour in the cheeks
-      float beard = step(0.78, h3) * (1.0 - smoothstep(1.6, 1.635, p.y)) * smoothstep(0.0, 0.03, p.x) * (1.0 - mouth);
+      float beard = step(0.78, h3) * step(fract(seed * 7.1), 0.5) * step(0.13, fract(seed * 17.3)) * (1.0 - smoothstep(1.6, 1.635, p.y)) * smoothstep(0.0, 0.03, p.x) * (1.0 - mouth);      // men only
       col = mix(col, hair * (0.7 + 0.5 * fine), beard * 0.85);
     }
   } else if(part < 3.5){
@@ -142,7 +142,7 @@ export function wallaby() {
   m.limb([[0.33, 0.655, 0, 0.05, 0.056], [0.4, 0.672, 0, 0.058, 0.062], [0.46, 0.66, 0, 0.045, 0.048], [0.51, 0.642, 0, 0.03, 0.032], [0.535, 0.634, 0, 0.016, 0.018]], 4, { S: 12, ref: UP });                               // skull to muzzle
   m.limb([[-0.3, 0.27, 0, 0.085, 0.085], [-0.56, 0.16, 0, 0.06, 0.06], [-0.82, 0.07, 0, 0.04, 0.04], [-1.06, 0.036, 0, 0.022, 0.022], [-1.22, 0.03, 0, 0.008, 0.008]], 3, { S: 10, ref: UP });                                   // the long heavy tail
   for (const sg of [-1, 1]) {
-    m.limb([[0.385, 0.705, 0.034 * sg, 0.02, 0.011], [0.365, 0.79, 0.058 * sg, 0.04, 0.009], [0.35, 0.87, 0.064 * sg, 0.01, 0.005]], 4, { S: 8, sub: 3, ref: [1, 0, 0] });                                                // ears
+    m.limb([[0.385, 0.705, 0.034 * sg, 0.02, 0.011], [0.37, 0.765, 0.056 * sg, 0.038, 0.009], [0.36, 0.808, 0.062 * sg, 0.02, 0.006]], 4, { S: 8, sub: 3, ref: [1, 0, 0] });                                                // ears
     const z = 0.125 * sg;
     m.limb([[-0.17, 0.33, z * 0.9, 0.068, 0.112], [0.0, 0.175, z * 1.1, 0.05, 0.066], [-0.1, 0.075, z * 1.12, 0.03, 0.036], [0.02, 0.03, z * 1.12, 0.027, 0.022], [0.21, 0.022, z * 1.12, 0.024, 0.016]], 2, { S: 10 });          // thigh, shin, hock, the long foot
     m.limb([[0.2, 0.44, z * 0.72, 0.03, 0.036], [0.27, 0.325, z * 0.8, 0.022, 0.024], [0.305, 0.245, z * 0.8, 0.015, 0.017]], 1, { S: 8, sub: 3 });                                                                            // forearm and paw
@@ -150,7 +150,7 @@ export function wallaby() {
   return m;
 }
 export const WALLABY_PAINT = /* glsl */`
-  { vec3 p = vObj; float fur = texture2D(uNoise, vec2(p.x * 7.0 + p.y * 3.0, p.z * 9.0 + p.y * 14.0)).r, fine = texture2D(uNoise, vec2(p.x * 31.0, p.y * 43.0 + p.z * 37.0)).g;
+  { vec3 p = vObj; float fur = texture2D(uNoise, vec2(p.x * 2.2 + p.y * 1.5, p.z * 13.0 + p.y * 17.0)).r, fine = texture2D(uNoise, vec2(p.x * 31.0, p.y * 43.0 + p.z * 37.0)).g;
     vec3 back = mix(vec3(0.15, 0.125, 0.105), vec3(0.2, 0.165, 0.135), vH.w), belly = vec3(0.5, 0.27, 0.12), rufous = vec3(0.42, 0.2, 0.1);        // a swamp wallaby: dark grey-brown above, rusty below
     float under = 1.0 - smoothstep(-0.75, -0.25, normalize(vNo).y);
     c = mix(back, belly, under * 0.9);
@@ -162,9 +162,9 @@ export const WALLABY_PAINT = /* glsl */`
       c = mix(c, vec3(0.55, 0.47, 0.36), (1.0 - smoothstep(0.0, 0.016, abs(p.y - 0.645 + (p.x - 0.46) * 0.3))) * step(0.42, p.x) * 0.7);   // with a pale stripe along the cheek
       c = mix(c, vec3(0.02, 0.018, 0.015), 1.0 - smoothstep(0.011, 0.016, length(vec3(p.x - 0.44, p.y - 0.685, abs(p.z) - 0.049))));       // eye
       c = mix(c, vec3(0.03, 0.028, 0.028), smoothstep(0.522, 0.53, p.x));                                                           // nose
-      c = mix(c, vec3(0.42, 0.2, 0.1), smoothstep(0.7, 0.74, p.y) * (1.0 - smoothstep(0.8, 0.86, p.y)) * 0.6); c = mix(c, vec3(0.06, 0.05, 0.045), smoothstep(0.8, 0.86, p.y));      // ears rusty at the base, dark at the tip
+      c = mix(c, vec3(0.42, 0.2, 0.1), smoothstep(0.7, 0.73, p.y) * (1.0 - smoothstep(0.76, 0.8, p.y)) * 0.6); c = mix(c, vec3(0.06, 0.05, 0.045), smoothstep(0.76, 0.8, p.y));      // ears rusty at the base, dark at the tip
     }
-    c *= (0.72 + 0.5 * fur) * (0.9 + 0.2 * fine); }`;
+    c *= (0.5 + 0.45 * fur) * (0.9 + 0.2 * fine); }`;
 
 // ---------------------------------------------------------------- lizards
 // A lace monitor (goanna), and the same build at a smaller size for skinks. Parts: 0 head, body and tail, 2 legs. Low to the ground, x forward.
@@ -185,7 +185,7 @@ export function bluetongue() {
   return m;
 }
 export const LIZARD_PAINT = (big) => /* glsl */`
-  { vec3 p = vObj; float under = 1.0 - smoothstep(-0.3, 0.2, normalize(vNo).y), a = atan(p.z, p.y - 0.05);
+  { vec3 p = vObj; float under = 1.0 - smoothstep(-0.8, -0.4, normalize(vNo).y), a = atan(p.z, p.y - 0.05);
     vec2 sc = vec2(p.x * 150.0, a * 12.0); float scale = 0.8 + 0.2 * smoothstep(0.1, 0.35, abs(fract(sc.x + step(0.5, fract(sc.y * 0.5)) * 0.5) - 0.5)) * smoothstep(0.1, 0.35, abs(fract(sc.y) - 0.5));     // rows of small scales
     ${big ? `
     vec3 dark = vec3(0.04, 0.045, 0.05), cream = vec3(0.5, 0.44, 0.22);                                                            // a lace monitor: near black, sprinkled and barred with dull cream
@@ -195,7 +195,7 @@ export const LIZARD_PAINT = (big) => /* glsl */`
     c = mix(dark, cream, max(tailBand, max(dots * 0.8, speck)));
     c = mix(c, vec3(0.46, 0.42, 0.28), under * 0.7);
     if(vK > 1.5) c = mix(dark, cream, (1.0 - smoothstep(0.1, 0.2, length(fract(vec2(p.z * 22.0, p.x * 22.0)) - 0.5))) * 0.7);       // spotted legs` : `
-    vec3 base = vec3(0.55, 0.5, 0.42), bar = vec3(0.2, 0.15, 0.1);                                                                 // a blue-tongue: fawn, with eight or so dark bars across the back and tail
+    vec3 base = vec3(0.4, 0.35, 0.27), bar = vec3(0.14, 0.1, 0.07);                                                                 // a blue-tongue: fawn, with eight or so dark bars across the back and tail
     c = mix(base, bar, smoothstep(0.28, 0.36, abs(fract(p.x * 8.5 + vH.y) - 0.5)) * (1.0 - under) * step(p.x, 0.3));
     c = mix(c, vec3(0.16, 0.12, 0.09), (1.0 - smoothstep(0.0, 0.012, abs(p.y - 0.06 - (p.x - 0.4) * 0.1))) * step(0.36, p.x) * step(p.x, 0.47) * 0.8);     // a dark streak back from the eye
     c = mix(c, vec3(0.7, 0.66, 0.56), under * 0.75);`}
