@@ -371,8 +371,13 @@ export function buildBoats(scene, F) {
         const wy = waveAt(b.x, b.z, t, wo) * VEX;
         const cs = Math.cos(b.hd), sn = Math.sin(b.hd);
         const sb = (wo.sx * cs - wo.sz * sn) * VEX, sr = (wo.sx * sn + wo.sz * cs) * VEX, k = b.big ? 0.25 : b.small ? 1 : 0.7;
-        b.m.position.set(b.x, Math.max(sea + wy * (b.big ? 0.4 : 1) - (b.small ? 0.05 : 0.1), heightAt(b.x, b.z) * VEX + 0.3), b.z);      // when the tide leaves a boat, it sits on the sand
-        b.m.rotation.set(-Math.atan(sr) * k + roll + Math.sin(t * 0.9 + b.ph) * 0.02, b.hd, Math.atan(sb) * k);
+        // A hull has weight: it does not follow every ripple that passes under one point of it. Its rise and fall, pitch and roll ease toward what the
+        // sea asks of it, a ferry slowly, a yacht or cruiser more quickly, a dinghy or jet ski almost at once.
+        const ty = Math.max(sea + wy * (b.big ? 0.4 : 1) - (b.small ? 0.05 : 0.1), heightAt(b.x, b.z) * VEX + 0.3), trx = -Math.atan(sr) * k + roll + Math.sin(t * 0.9 + b.ph) * 0.02, trz = Math.atan(sb) * k;      // when the tide leaves a boat, it sits on the sand
+        const kk = b.py === undefined ? 1 : 1 - Math.exp(-dt * (b.big ? 1.1 : b.small ? 4.5 : 2.0));
+        b.py = (b.py ?? ty) + (ty - (b.py ?? ty)) * kk; b.rx = (b.rx ?? trx) + (trx - (b.rx ?? trx)) * kk; b.rz = (b.rz ?? trz) + (trz - (b.rz ?? trz)) * kk;
+        b.m.position.set(b.x, b.py, b.z);
+        b.m.rotation.set(b.rx, b.hd, b.rz);
         const my = b.m.position.y + b.mast * S * (b.scale || 1);
         lights.move(b.li, b.x, my, b.z);
         if (b.move) {

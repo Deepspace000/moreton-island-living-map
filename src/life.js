@@ -324,13 +324,20 @@ function buildCars(scene, F, lights) {
         while (c.i > 1 && c.cum[c.i - 1] > c.s) c.i--;
         const a = c.p[c.i - 1], b = c.p[c.i], f = (c.s - c.cum[c.i - 1]) / Math.max(1, c.cum[c.i] - c.cum[c.i - 1]);
         tx = (b[0] - a[0]) * c.dir; tz = (b[1] - a[1]) * c.dir; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-        x = a[0] + (b[0] - a[0]) * f + tz * c.lane; z = a[1] + (b[1] - a[1]) * f - tx * c.lane;
+        // The track is a chain of straight pieces, but a car does not kink at each joint: it keeps to its lane on the heading it actually has
+        // (which swings round smoothly, below), and when it turns back at the end of the beach it crosses over to the other lane as it comes about.
+        if (c.laneS === undefined) { c.laneS = c.lane; c.m.rotation.y = Math.atan2(-tz, tx); }
+        c.laneS += (c.lane - c.laneS) * (1 - Math.exp(-dt * 0.9));
+        const yw = c.m.rotation.y; x = a[0] + (b[0] - a[0]) * f - Math.sin(yw) * c.laneS; z = a[1] + (b[1] - a[1]) * f - Math.cos(yw) * c.laneS;
       }
       const y = Math.max(meshY(x, z), U.uSeaM.value * VEX - 0.2), yf = meshY(x + tx * 3, z + tz * 3), yb = meshY(x - tx * 3, z - tz * 3);
       c.y += (y - c.y) * Math.min(1, dt * 8);
       c.m.position.set(x, c.y, z);
       const hd = Math.atan2(-tz, tx); let d = ((hd - c.m.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      c.m.rotation.set(0, c.m.rotation.y + clamp(d, -dt * 2.5, dt * 2.5), Math.atan2(yf - yb, 6 * S));
+      // the wheel is turned in and taken off gradually, so the turning speed never jumps; the nose rises and dips over the sand without snatching
+      c.w = (c.w ?? 0) + (clamp(d * 2.2, -1.5, 1.5) - (c.w ?? 0)) * (1 - Math.exp(-dt * 5));
+      const ptT = Math.atan2(yf - yb, 6 * S); c.pt = (c.pt ?? ptT) + (ptT - (c.pt ?? ptT)) * (1 - Math.exp(-dt * 5));
+      c.m.rotation.set(0, c.drive ? hd : c.m.rotation.y + clamp(c.w * dt, -Math.abs(d), Math.abs(d)), c.pt);
       const fx = x + tx * 3.5 * S, fz = z + tz * 3.5 * S;
       lights.move(c.li[0], fx - tz * 0.9, c.y + 1.2 * S, fz + tx * 0.9); lights.move(c.li[1], fx + tz * 0.9, c.y + 1.2 * S, fz - tx * 0.9);
       const step = Math.hypot(x - c.lx, z - c.lz);
@@ -864,28 +871,32 @@ function buildPelicans(scene, F) {
       let bank = 0, flap;
       if (p.ctl) {                      // flown by hand: turn, climb and sink; down on the water it folds its wings and paddles
         const c = p.ctl; p.hd -= c.turn * 0.85 * dt; bank = c.turn * 0.5;
-        p.y += c.climb * 5 * dt; const floor = sea + 0.25;
-        if (p.kind !== 'pelican') { p.y = Math.max(p.y, floor + 1.6); p.afloat = false; }       // only a pelican settles on the water
+        const eagle = p.kind === 'eagle';
+        p.y += c.climb * (eagle ? 8 + Math.max(0, p.y - sea) * 0.05 : 5) * dt; const floor = sea + 0.25;       // an eagle climbs fast, and faster the higher it is (it has the whole sky to cross)
+        if (p.kind !== 'pelican') { p.y = Math.max(p.y, floor + 0.7); p.afloat = false; }       // only a pelican settles on the water; an eagle can skim it
         else if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
-        p.y = Math.min(p.y, sea + 160); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
+        p.y = Math.min(p.y, sea + (eagle ? 1000 : 300)); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
         const nx = p.x + Math.cos(p.hd) * p.v * dt, nz = p.z - Math.sin(p.hd) * p.v * dt; if (Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { p.x = nx; p.z = nz; }
-        p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : 1.2));
+        p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : eagle ? 0.9 : 1.2));
         flap = c.climb > 0.1 || p.y < sea + 3;
       } else {                          // on its own: a wide circle off the shore, in line astern, rising and falling a little
         p.afloat = false; p.v = p.sp; p.ang += p.way * p.sp / p.rad * dt;
         const tx = p.home[0] + Math.cos(p.ang) * p.rad, tz = p.home[1] + Math.sin(p.ang) * p.rad * (p.round ? 1 : 1.6), want = Math.atan2(-(tz - p.z), tx - p.x);
         let d = ((want - p.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI; const turn = clamp(d, -dt * 0.9, dt * 0.9); p.hd += turn; bank = -turn / Math.max(dt, 1e-3) * 0.5;
         p.x += Math.cos(p.hd) * p.sp * dt; p.z -= Math.sin(p.hd) * p.sp * dt;
-        const goal = Math.max(sea + p.alt + Math.sin(t * 0.13 + p.ph) * 2.5, meshY(p.x, p.z) + 6); p.y += (goal - p.y) * Math.min(1, dt * 0.6);
+        // a pelican keeps its height; a sea eagle rides the rising air up in its circles until it is a speck, then slides all the way down again to treetop height
+        const swing = 0.5 - 0.5 * Math.cos(t * 0.045 + p.ph), goalAlt = p.kind === 'eagle' ? 14 + (p.alt * 3.2 - 14) * swing * swing : p.alt + Math.sin(t * 0.13 + p.ph) * 2.5;
+        const goal = Math.max(sea + goalAlt, meshY(p.x, p.z) + 6); p.vy = (p.vy ?? 0) + (clamp((goal - p.y) * 0.25, -6, 6) - (p.vy ?? 0)) * (1 - Math.exp(-dt * 0.8)); p.y += p.vy * dt;
         flap = Math.sin(t * 0.21 + p.ph * 3) > p.beats;     // beats in bursts, glides between (an eagle hardly beats at all)
       }
       p.beat = (p.beat ?? 0) + ((flap ? 1 : 0) - (p.beat ?? 0)) * Math.min(1, dt * 2.5);
       const w = p.afloat ? 1.25 : 0.1 + p.beat * Math.sin(t * p.rate + p.ph) * p.sweep + (1 - p.beat) * p.glide;      // wings folded to the body, beating, or held out in the glide
       p.fold = (p.fold ?? 0) + ((p.afloat ? 1 : 0) - (p.fold ?? 0)) * Math.min(1, dt * 3);
       p.wl.rotation.set(-w * (1 - p.fold) - 0.2 * p.fold, -1.25 * p.fold, 0); p.wr.rotation.set(w * (1 - p.fold) + 0.2 * p.fold, 1.25 * p.fold, 0);
-      p.m.position.set(p.x, p.y + (p.afloat ? 0 : p.beat * Math.sin(t * p.rate + p.ph + 1.2) * 0.12), p.z);
+      p.m.position.set(p.x, p.y + (p.afloat ? 0 : p.beat * Math.sin(t * p.rate + p.ph + 1.2) * 0.06), p.z);
       p.roll = (p.roll ?? 0) + (bank - (p.roll ?? 0)) * Math.min(1, dt * 3);
-      p.m.rotation.set(p.roll, p.hd, p.ctl && !p.afloat ? p.ctl.climb * 0.18 : 0);
+      p.nose = (p.nose ?? 0) + ((p.afloat ? 0 : p.ctl ? p.ctl.climb * 0.18 : clamp((p.vy ?? 0) * 0.04, -0.2, 0.2)) - (p.nose ?? 0)) * (1 - Math.exp(-dt * 3));      // nose up in the climb, down in the slide
+      p.m.rotation.set(p.roll, p.hd, p.nose);
     }
   };
 }

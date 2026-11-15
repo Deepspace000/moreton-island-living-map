@@ -148,6 +148,11 @@ body.ui-off #walkHint, body.ui-off #dot, body.ui-off #stick { display: none !imp
 #ride .wheel { position: absolute; left: calc(50% + 19vmin); top: calc(64vh - 3vmin); width: 42vmin; }
 #ride .cab::before, #ride .cab::after { content: ''; position: absolute; left: 0; right: 0; height: 40vh; background: #0b0c0d; }
 #ride .cab::before { bottom: 100%; } #ride .cab::after { top: 100%; }
+#ride .rear { position: absolute; top: 0; height: 100vh; width: 212vw; }
+#ride .rear.l { right: calc(100% - 0.4vw); } #ride .rear.r { left: calc(100% - 0.4vw); }
+#ride .rear svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#ride .rear::before, #ride .rear::after { content: ''; position: absolute; left: 0; right: 0; height: 40vh; background: #0b0c0d; }
+#ride .rear::before { bottom: 100%; } #ride .rear::after { top: 100%; }
 #ride .seat { position: absolute; bottom: -4vh; width: 34vmin; height: 20vh; background: radial-gradient(120% 90% at 50% 0%, #34383d, #15171a 55%, #08090a); border-radius: 9vmin 9vmin 0 0; box-shadow: inset 0 0.6vmin 0 rgba(255,255,255,.08), 0 -1vmin 2vmin rgba(0,0,0,.5); overflow: hidden; }
 #ride .seat i { position: absolute; inset: 1.6vmin 2vmin 0; border-radius: 7vmin 7vmin 0 0; border: 1px dashed rgba(201,138,42,.55); border-bottom: 0; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.05) 0 0.5px, transparent 1px) 0 0 / 1.1vmin 1.1vmin; }
 #ride .seat.l { left: calc(50% - 54vmin); } #ride .seat.r { left: calc(50% + 22vmin); }
