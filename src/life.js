@@ -125,6 +125,10 @@ function buildBeachLife(scene) {
   }, /* glsl */`
         float bark = step(h3, 0.05), leaf = (1.0 - bark) * step(h3, 0.75);
         s = (bark + leaf) * ${WOODED} * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));
+        { // round the houses too: fallen leaves lie in drifts in the yards, thick in places and swept thin in others
+          float yardK = smoothstep(0.05, 0.11, ov.r) * (1.0 - smoothstep(0.3, 0.7, ov.g)) * step(0.92, mk.r) * step(2.0, hgt);
+          float drift = smoothstep(0.36, 0.6, texture2D(uNoise, xz / 9.0).r * 0.7 + texture2D(uNoise, xz / 2.3 + 0.4).g * 0.3);
+          s = max(s, yardK * step(h3, 0.12 + 0.72 * drift)); }
         float len = bark > 0.5 ? 0.16 + 0.26 * h1 : 0.07 + 0.07 * h1, wid = bark > 0.5 ? 0.025 + 0.02 * h2 : 0.02;
         lp = vec3(position.x * len, 0.012 + abs(position.x) * len * (0.06 + 0.3 * h2 * bark) + aK * 0.006, position.z * wid * 2.0);       // lying nearly flat, bark curled up at the ends
         nrm = vec3(0.0, 1.0, 0.0);
@@ -163,7 +167,11 @@ function buildBeachLife(scene) {
         float band = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.68, 0.84, mk.g));                // the map's sand value is mid-way here: neither bush nor bare beach
         float dry = step(0.7, h2), thick = mix(1.0, 0.1, smoothstep(0.55, 0.8, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
         s = (0.55 + 0.5 * h1) * step(h3, thick * band * smoothstep(2.5, 3.4, hgt)) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * (1.0 - smoothstep(0.02, 0.1, ov.r));       // behind the beach only, starting at the foot of the dune: the lower beach is bare
-        lp = position * mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.5 + 0.2 * h4, 1.5), dry) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry);
+        // and round the houses: low grass, ankle high, in patches with bare sand and leaf drifts between (the same patches the ground is tinted with)
+        float yardK = smoothstep(0.05, 0.11, ov.r) * (1.0 - smoothstep(0.3, 0.7, ov.g)) * step(0.92, mk.r) * step(2.0, hgt);
+        float sYard = (0.55 + 0.4 * h1) * step(h3, 0.95 * yardK * smoothstep(0.30, 0.46, texture2D(uNoise, xz / 13.0 + 0.3).g)), low = step(s, 0.001) * step(0.001, sYard);
+        s = max(s, sYard); dry = mix(dry, step(0.82, h2), low);
+        lp = position * mix(mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.5 + 0.2 * h4, 1.5), dry), vec3(1.15, 0.26 + 0.16 * h4, 1.15), low) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry) * (1.0 - 0.7 * low);
         nrm = vec3(0.0, 1.0, 0.0);
         vec3 green = mix(vec3(0.13, 0.25, 0.08), vec3(0.20, 0.30, 0.17), step(0.5, h4)), straw = mix(vec3(0.50, 0.46, 0.33), vec3(0.36, 0.33, 0.27), h1);
         c = mix(green, straw, dry) * (0.45 + 0.7 * aK);

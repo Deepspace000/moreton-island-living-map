@@ -364,9 +364,12 @@ export function buildTerrain(scene) {
         // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
         float woodFar = max(1.0 - sand, smoothstep(0.46, 0.34, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
         col = mix(col, vec3(0.034, 0.066, 0.024) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
-        { // round the houses people keep some grass: patchy couch lawn worn through to sand, never a bowling green
-          float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.4, 3.6, h) * (1.0 - 0.6 * sand), pt = smoothstep(0.4, 0.62, nB.g * 0.4 + nC.r * 0.6);
-          col = mix(col, vec3(0.19, 0.25, 0.10) * (0.7 + 0.6 * nC.g), yd * pt * 0.5); }
+        { // round the houses: low grass in patches, drifts of fallen leaves, and worn sand between (the grass blades and the leaves themselves are drawn on top, see life.js)
+          float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h);
+          float grassP = smoothstep(0.30, 0.46, texture2D(uNoise, vW.xz / 13.0 + 0.3).g), driftP = smoothstep(0.36, 0.6, texture2D(uNoise, vW.xz / 9.0).r * 0.7 + texture2D(uNoise, vW.xz / 2.3 + 0.4).g * 0.3);
+          col = mix(col, mix(sd * 0.9, vec3(0.17, 0.215, 0.09) * (0.75 + 0.5 * nC.g), 0.62), yd * grassP * 0.7);
+          float speck = texture2D(uNoise, vW.xz / 0.9).b;
+          col = mix(col, mix(vec3(0.25, 0.17, 0.09), vec3(0.13, 0.095, 0.065), speck), yd * driftP * (1.0 - 0.5 * grassP) * (0.38 + 0.4 * smoothstep(0.35, 0.65, speck))); }
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
