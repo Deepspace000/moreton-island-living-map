@@ -281,3 +281,13 @@ body.ui-off #settings { display: none !important; }
 #getOut { position: fixed; z-index: 6; left: 150px; top: 12px; display: none; background: rgba(8, 28, 40, .7); color: #fff; }
 body.riding.canOut #getOut { display: block; }
 body.ui-off #getOut { display: none !important; }
+
+/* the steering box: small, and it can be shrunk to a chip like every other panel */
+#ride .helm { gap: 5px; padding: 6px 34px 6px 8px; border-radius: 12px; font-size: 11.5px; max-width: 250px; }
+#ride .helm .gauges { gap: 2px 9px; justify-content: flex-start; } #ride .helm .gauges b { font-size: 12.5px; }
+#ride .helm .keys { gap: 5px; } #ride .helm .keys .pill { min-width: 32px; min-height: 28px; padding: 3px 8px; font-size: 13px; }
+#ride .helm .spokes { width: 36px; height: 36px; }
+#ride .helm .acts { gap: 5px; } #ride .helm .acts .pill { padding: 4px 10px; font-size: 11.5px; }
+#ride .helm .hm-speed { min-width: 150px; font-size: 11px; } #ride .helm .hm-speed input { height: 14px; }
+#ride .helm.min { max-width: none; }
+@media (pointer: coarse) { #ride .helm .keys .pill { min-width: 42px; min-height: 38px; font-size: 15px; } }

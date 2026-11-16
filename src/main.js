@@ -324,7 +324,7 @@ function layoutLeft() {
   const t = $('title'), tv = $('travel'), pl = $('places'); t.style.top = document.body.classList.contains('riding') ? '52px' : '';
   const tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
   tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
-  pl.style.maxHeight = `calc(100vh - ${Math.round(b + (document.body.classList.contains('riding') ? 236 : 86))}px)`;          // (while riding, the helm sits under the list)
+  pl.style.maxHeight = `calc(100vh - ${Math.round(b + (document.body.classList.contains('riding') ? 210 : 86))}px)`;          // (while riding, the helm sits under the list)
   // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
   // and on a narrow screen it goes under the Travel chip
   const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); if (mm.classList.contains('moved')) return;          // (dragged somewhere by hand: it stays there)
@@ -418,7 +418,8 @@ $('stFull').onclick = () => { if (document.fullscreenElement) document.exitFulls
 document.addEventListener('fullscreenchange', () => applyOpts(false));
 applyOpts(false);
 // ---------- windows: each one can be shrunk to a small named chip and opened again (remembered between visits) ----------
-if (innerWidth <= 820) $('mini').dataset.min = '1';          // on a phone the mini map starts as a chip
+if (innerWidth <= 820) $('mini').dataset.min = '1';
+{ const hm = document.querySelector('#ride .helm'); hm.id = 'helmBox'; hm.classList.add('win'); hm.dataset.win = 'Steering'; }          // the steering box of a ride can be shrunk to a chip too          // on a phone the mini map starts as a chip
 for (const w of document.querySelectorAll('.win')) {
   const b = document.createElement('button'), key = 'min:' + w.id, name = w.dataset.win;
   b.className = 'win-min'; b.innerHTML = `<span>${name}</span><i></i>`;
