@@ -241,6 +241,8 @@ function buildBuildings(F, g, occ, casters, lights) {
     let h = b.ht > 0 ? b.ht : b.lv > 0 ? b.lv * 3.1 : area < 45 ? 2.5 : area < 300 ? (R() < 0.12 ? 5.4 : 2.7) : area < 900 ? (R() < 0.22 ? 5.6 : 3.0) : 7.6;
     h *= HK;
     let wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
+    const inResort = resort && Math.hypot(cx - resort[0] - 120, cz - resort[1] + 150) < 620;
+    if (inResort && area > 340) { if (!(b.ht > 0) && !(b.lv > 0)) h = (area > 700 ? 4 : 3) * 3.1 * HK; wall = [[.95, .93, .86], [.93, .89, .78], [.96, .95, .92]][(R() * 3) | 0]; }      // the resort's apartment blocks: three and four storeys, cream and white (the owner's photograph from the jetty)
     if (cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350) { wall = [.94, .93, .89]; roof = [.50, .52, .54]; }       // the lighthouse keepers' cottages and sheds: white walls, grey roofs
     const isCape = cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350, st = n === 4 && area < 340 ? houseStyle(R, area, isCape) : null;
     if (st) h = (st.stump + st.wallH) * HK;
@@ -272,8 +274,20 @@ function buildBuildings(F, g, occ, casters, lights) {
     let along = 0;
     for (let i = 0; i < n; i++) {
       const p = pts[i], q = pts[(i + 1) % n], len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      // a big block's wall that looks to the sea: glass doors on every floor, each opening on a balcony with a balustrade
+      const ex = (q[0] - p[0]) / (len || 1), ez = (q[1] - p[1]) / (len || 1), sgn = ((p[0] + q[0]) / 2 - cx) * ez - ((p[1] + q[1]) / 2 - cz) * ex > 0 ? 1 : -1, ox = ez * sgn, oz = -ex * sgn;
+      const storeys = Math.round(h / HK / 3.1), sea = area > 340 && storeys >= 2 && win === 3 && len > 9 && maskAt(cx + ox * 45, cz + oz * 45).shore < maskAt(cx, cz).shore - 12, wk = sea ? win + 0.05 : win;
       g.quad([q[0], y0, q[1]], [p[0], y0, p[1]], [p[0], y1, p[1]], [q[0], y1, q[1]], wall,
-        [win, along + len, (y0 - hi) / HK], [win, along, (y0 - hi) / HK], [win, along, h / HK], [win, along + len, h / HK]);
+        [wk, along + len, (y0 - hi) / HK], [wk, along, (y0 - hi) / HK], [wk, along, h / HK], [wk, along + len, h / HK]);
+      if (sea) for (let k = 1; k < storeys; k++) {
+        const yk = hi + k * 3.1 * HK, D = 1.7, a0 = [p[0] + ex * 0.4, p[1] + ez * 0.4], a1 = [q[0] - ex * 0.4, q[1] - ez * 0.4], SLAB = [.80, .79, .75], BAL = [.90, .92, .93];
+        const P = (e, out, y) => [e[0] + ox * out, y, e[1] + oz * out];
+        g.quad(P(a0, 0, yk), P(a1, 0, yk), P(a1, D, yk), P(a0, D, yk), SLAB); g.quad(P(a0, 0, yk - 0.22), P(a0, D, yk - 0.22), P(a1, D, yk - 0.22), P(a1, 0, yk - 0.22), [.5, .5, .48]);
+        g.quad(P(a0, D, yk - 0.22), P(a1, D, yk - 0.22), P(a1, D, yk + 1.05 * HK), P(a0, D, yk + 1.05 * HK), BAL);                                        // the balustrade along the front
+        for (const e of [a0, a1]) g.quad(P(e, 0, yk - 0.22), P(e, D, yk - 0.22), P(e, D, yk + 1.05 * HK), P(e, 0, yk + 1.05 * HK), BAL);
+        for (let d = 7.2; d < len - 4; d += 7.2) { const e = [p[0] + ex * d, p[1] + ez * d]; g.quad(P(e, 0, yk), P(e, D, yk), P(e, D, yk + 2.4 * HK), P(e, 0, yk + 2.4 * HK), wall); }      // a screen wall between one apartment's balcony and the next
+      }
+      if (sea) { const yk = y1 + 0.05, a0 = [p[0], p[1]], a1 = [q[0], q[1]]; g.quad([a0[0], yk, a0[1]], [a1[0], yk, a1[1]], [a1[0] + ox * 1.9, yk - 0.1, a1[1] + oz * 1.9], [a0[0] + ox * 1.9, yk - 0.1, a0[1] + oz * 1.9], [.82, .82, .80]); }      // the roof carries out over the top balconies
       along += len + 1.3;
     }
     if (n === 4 && area < 700) {
@@ -1080,17 +1094,41 @@ function buildStructures(F, g, lights, scene, casters) {
 
   // jetty
   const TIM = [.50, .40, .30];
+  { // The Tangalooma jetty (the owner's aerial photograph): it is not in the map data, but the resort ferry's charted route ends at its head. From there
+    // it runs in over the shallows and across the beach to the back of the sand, with a wider head at the seaward end where the ferry lies alongside.
+    const fr = (F.ferries || []).find(f => /Tangalooma/.test(f.n || '')), res = F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p;
+    if (fr && res) {
+      const head = [fr.p[0], fr.p[fr.p.length - 1]].sort((a, b) => Math.hypot(a[0] - res[0], a[1] - res[1]) - Math.hypot(b[0] - res[0], b[1] - res[1]))[0];
+      const dx = 0.972, dz = 0.233, o = [head[0] + dx * 6, head[1] + dz * 6 + 12], pts = [o];        // (the bearing of the real jetty, a little north of east)
+      for (let d = 22; d <= 400; d += 22) { const q = [o[0] + dx * d, o[1] + dz * d]; pts.push(q); if (groundH(q[0], q[1]) > 1.7) break; }      // it lands at the back of the beach
+      F.piers.push({ p: pts, n: 'Tangalooma Jetty' }, { p: [[o[0] + dz * 16, o[1] - dx * 16], [o[0] - dz * 16, o[1] + dx * 16]], n: 'Tangalooma Jetty head', wide: 5.5 });
+    }
+  }
   for (const p of F.piers) {
     const pts = p.p, yd = 2.7 * VEX;
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]); if (len < 0.5) continue;
-      const tx = (b[0] - a[0]) / len, tz = (b[1] - a[1]) / len, w = 2.6, nx = -tz * w, nz = tx * w;
-      g.quad([a[0] - nx, yd, a[1] - nz], [a[0] + nx, yd, a[1] + nz], [b[0] + nx, yd, b[1] + nz], [b[0] - nx, yd, b[1] - nz], [.62, .54, .42]);
+      const tx = (b[0] - a[0]) / len, tz = (b[1] - a[1]) / len, w = p.wide || 2.6, nx = -tz * w, nz = tx * w;
+      g.quad([a[0] - nx, yd, a[1] - nz], [a[0] + nx, yd, a[1] + nz], [b[0] + nx, yd, b[1] + nz], [b[0] - nx, yd, b[1] - nz], [.60, .57, .52], [1.35, -w, i * 40], [1.35, w, i * 40], [1.35, w, i * 40 + len], [1.35, -w, i * 40 + len]);      // weathered grey planks laid across the deck
       g.quad([a[0] - nx, yd - 0.9, a[1] - nz], [b[0] - nx, yd - 0.9, b[1] - nz], [b[0] - nx, yd, b[1] - nz], [a[0] - nx, yd, a[1] - nz], TIM);
       g.quad([b[0] + nx, yd - 0.9, b[1] + nz], [a[0] + nx, yd - 0.9, a[1] + nz], [a[0] + nx, yd, a[1] + nz], [b[0] + nx, yd, b[1] + nz], TIM);
       for (let d = 0; d < len; d += 11) for (const s of [-1, 1]) {
         const x = a[0] + tx * d + nx * s * 0.85, z = a[1] + tz * d + nz * s * 0.85, bed = Math.min(meshY(x, z), 0) - 1;
         if (meshY(x, z) < yd - 1) g.box(x, bed, z, 0.6, yd - bed, 0.6, TIM);
+      }
+      { // a rail down each side, on posts, and a lamp standard now and then
+        const RAILC = [.92, .92, .90], hr = 1.1 * VEX * 0.74;
+        for (const sd of [-1, 1]) {
+          const ex = nx * sd * 0.96, ez = nz * sd * 0.96;
+          g.quad([a[0] + ex, yd + hr - 0.09, a[1] + ez], [b[0] + ex, yd + hr - 0.09, b[1] + ez], [b[0] + ex, yd + hr, b[1] + ez], [a[0] + ex, yd + hr, a[1] + ez], RAILC);
+          for (const f of [0.66, 0.36, 0.1]) g.quad([a[0] + ex, yd + hr * f - 0.05, a[1] + ez], [b[0] + ex, yd + hr * f - 0.05, b[1] + ez], [b[0] + ex, yd + hr * f, b[1] + ez], [a[0] + ex, yd + hr * f, a[1] + ez], RAILC);
+          for (let d = 0; d <= len; d += 2.2) g.box(a[0] + tx * d + ex, yd, a[1] + tz * d + ez, 0.1, hr, 0.1, RAILC);
+        }
+        if (i % 2 === 0) { g.box(a[0] + nx * 0.9, yd, a[1] + nz * 0.9, 0.14, 3.6 * VEX * 0.74, 0.14, [.3, .3, .32]); g.box(a[0] + nx * 0.9, yd + 3.6 * VEX * 0.74, a[1] + nz * 0.9, 0.5, 0.22, 0.5, [.9, .88, .8]); }
+      }
+      if (p.wide) for (const sd of [-1, 1]) for (const d of [2, len / 2, len - 2]) {            // fender piles at the head, standing above the deck: black caps, a yellow band
+        const x = a[0] + tx * d + nx * sd * 1.08, z = a[1] + tz * d + nz * sd * 1.08, bed = Math.min(meshY(x, z), 0) - 1;
+        g.cyl(x, bed, z, 0.34, 0.34, yd + 1.3 - bed, 10, [.42, .34, .26]); g.cyl(x, yd + 0.5, z, 0.36, 0.36, 0.45, 10, [.92, .74, .12]); g.cyl(x, yd + 1.3, z, 0.37, 0.37, 0.22, 10, [.08, .08, .09], [.08, .08, .09]);
       }
       if (i % 3 === 0) lights.add([a[0], yd + 5, a[1]], [1, .8, .5], 0, 1, 0, 1.1);
     }

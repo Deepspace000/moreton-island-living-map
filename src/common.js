@@ -276,7 +276,8 @@ export function objectMat(opts = {}) {
                 alb = mix(alb, trim, fr); alb = mix(alb, dc, dr);
                 em = vec3(1.0, 0.72, 0.36) * pane * dr * lit * uNight * 2.0;
               } else {
-                float slide = front * step(h2, 0.74) * step(abs(id.y), 0.5), blank = step(fract(h * 91.7), 0.3) * (1.0 - slide);      // some bays are plain wall: windows are not ruled along a house like a motel                                          // onto the verandah: sliding glass doors, floor to head height
+                float slide = front * step(h2, kind > 2.5 ? 0.9 : 0.74) * (kind > 2.5 && kind < 3.5 ? 1.0 : step(abs(id.y), 0.5)),      // (an apartment block has them on every floor)
+                      blank = step(fract(h * 91.7), 0.3) * (1.0 - slide);      // some bays are plain wall: windows are not ruled along a house like a motel                                          // onto the verandah: sliding glass doors, floor to head height
                 float hw = slide > 0.5 ? 0.31 : h3 < 0.45 ? 0.17 : 0.26, hh = slide > 0.5 ? 0.33 : 0.2, cy = slide > 0.5 ? c.y + 0.15 : c.y + 0.04, up = step(slide > 0.5 ? 0.02 : 0.3, vFx.z);
                 up *= 1.0 - blank; float fr = step(abs(c.x), hw + 0.022) * step(abs(cy), hh + 0.026) * up, win = step(abs(c.x), hw) * step(abs(cy), hh) * up;
                 float sill = step(abs(c.x), hw + 0.04) * step(abs(cy + hh + 0.04), 0.014) * up * (1.0 - slide);
