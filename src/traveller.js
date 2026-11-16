@@ -35,7 +35,7 @@ export function buildTraveller(scene, F) {
       ${PERSON_POSE}
       void main(){
         float part = aPS.x, sit = uGait.z;
-        vec3 lp = personPose(position, aPS, uGait.x, uGait.y);
+        vec3 lp = personPose(position, aPS, uGait.x, uGait.y, 0.0);
         // sat down beside the tent: the body low, the knees up, the pack off and set down beside
         lp.y -= sit * 0.52 * smoothstep(0.2, 0.95, position.y) + sit * 0.08;
         lp.x += sit * 0.22 * (1.0 - smoothstep(0.3, 0.95, position.y)) * (step(0.5, part) * step(part, 1.5) + step(9.5, part) * step(part, 10.5));

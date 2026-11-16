@@ -530,11 +530,11 @@ function buildTrees(F, scene) {
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
     const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
     geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); geo.instanceCount = n * n; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
-    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 } };       // (scrub sets its own porosity per bush)
+    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 }, uForceSp: { value: -1 } };       // (scrub sets its own porosity per bush)
     const mat = makeMat({
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
-        attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
+        attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uForceSp, uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
         varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp, vLs; varying vec2 vBark; uniform float uPorous;
         #ifdef SPECIES
         attribute float aBlob;            // crown: which clump; limb: which limb
@@ -588,6 +588,7 @@ function buildTrees(F, scene) {
             float bay = 1.0 - smoothstep(0.25, 0.4, texture2D(uHeight, uv).g), stand = step(0.6, texture2D(uNoise, xz / 240.0 + 0.4).r);
             if(hgt > -0.5 && hgt < 0.9 && shoreD > -70.0 && shoreD < 40.0 && xz.y > 9000.0 && bay * stand > 0.5){ sp = 4.0; dens = 0.55 * clr; } }
           if(yard > 0.5){ dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt); sp = hs < 0.58 ? 0.0 : hs < 0.8 ? 1.0 : hs < 0.9 ? 2.0 : 3.0; }      // in the yards: a gum, a she-oak, a banksia or a paperbark by the house
+          if(uForceSp > -0.5) sp = uForceSp;          // (for looking at one kind of tree on its own)
           #endif
           if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           if(uMode > 1.5){ float th = texture2D(uNoise, xz / 85.0 + 0.37).g * 0.7 + texture2D(uNoise, xz / 23.0 + 0.11).r * 0.3; dens *= mix(0.07, 1.7, smoothstep(0.43, 0.57, th)); }      // low growth stands in thickets some metres across, with open sand between them
@@ -613,17 +614,22 @@ function buildTrees(F, scene) {
             // Each kind of tree has its own build, and each tree its own form: where the trunk forks, how far the limbs
             // spread and bow, how much it leans and wanders. form picks between the distinct forms of a kind.
             float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), form = hash12(cell * 3.1 + 11.0);
-            float H, tr, lean, wig, fork, spread, top0, arch, kink, twig, rbK, hang = 0.2; vec3 sc = vec3(1.0), bark, tint;
+            float H, tr, lean, wig, fork, spread, top0, top1 = 0.98, arch, kink, twig, rbK, hang = 0.2; vec3 sc = vec3(1.0), bark, tint;
             if(sp < 0.5){ H = 14.0; tr = 0.0165; vPor = 0.67; rbK = 0.115; sc.y = 1.05; twig = 0.2;                      // eucalypt: pale scribbly gum or dark rough bloodwood
               bark = hs2 < 0.45 ? vec3(0.62, 0.60, 0.54) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
               if(form < 0.38){ fork = 0.46; spread = 0.24; top0 = 0.76; arch = 0.12; kink = 0.09; lean = 0.16; wig = 0.07; }           // tall, forking high
               else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
               else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.38; wig = 0.13; } }                 // leaning and crooked
-            else if(sp < 1.5){ H = 11.0; tr = 0.0145; vPor = 0.75; rbK = 0.085; sc = vec3(0.85, 2.1, 0.85); twig = 0.17; hang = -0.8;                               // she-oak (casuarina): slender dark stems,
-              bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.97, 0.84, 1.27); top0 = 0.34; arch = 0.26; kink = 0.07; wig = 0.05;                                      // grey-green tassels of needles hanging from the twig ends
-              if(form < 0.55){ fork = 0.16; spread = 0.33; lean = 0.1; }               // the classic form: several stems rising from low down, the limbs reaching out and drooping
-              else if(form < 0.8){ fork = 0.3; spread = 0.24; lean = 0.08; }           // one stem, branching higher
-              else { fork = 0.3; spread = 0.26; lean = 0.42; } }                       // bent over by the sea wind
+            else if(sp < 1.5){                                                          // she-oak (casuarina), in the two forms the owner photographed:
+              bark = vec3(0.20, 0.17, 0.15); tint = vec3(1.2, 1.12, 1.45); kink = 0.07; wig = 0.05;
+              float tallOak = step(0.5, smoothstep(45.0, 110.0, shoreD) + (hs2 - 0.5) * 0.4 + yard);
+              if(tallOak > 0.5){                                                       // the tall one, standing behind the beach-front trees and through the forest: several thin dark stems that climb steeply
+                H = 14.0; tr = 0.012; vPor = 0.74; rbK = 0.07; sc = vec3(0.9, 1.3, 0.9); twig = 0.12; hang = -0.45;      // from near the ground, an open see-through crown, a tuft of long drooping needles at every twig end
+                top0 = 0.5; top1 = 1.0; arch = 0.07; fork = 0.09 + 0.12 * form; spread = 0.2; lean = 0.1;
+              } else {                                                                 // the low one at the back of the beach: limbs that reach out and droop over the sand, hung with plumes of needles
+                H = 8.5; tr = 0.017; vPor = 0.62; rbK = 0.1; sc = vec3(0.85, 1.6, 0.85); twig = 0.14; hang = -0.8;
+                top0 = 0.22; top1 = 0.85; arch = 0.24; fork = 0.16 + 0.1 * form; spread = 0.42; lean = form > 0.8 ? 0.42 : 0.12;
+              } }
             else if(sp < 2.5){ H = 6.0; tr = 0.029; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
               fork = 0.14 + 0.2 * form; spread = 0.46; top0 = 0.55; arch = 0.1; kink = 0.2; lean = 0.38; wig = 0.14; }
             else if(sp < 3.5){ H = 10.0; tr = 0.021; vPor = 0.62; rbK = 0.13; sc.y = 1.15; twig = 0.09; bark = vec3(0.70, 0.68, 0.62); tint = vec3(0.92, 1.0, 0.84);     // paperbark: white papery stems, often several
@@ -644,7 +650,7 @@ function buildTrees(F, scene) {
             vec3 P = TRUNK(1.0);
             float li = (aPart > 1.5 && aPart < 2.5) ? aBlob : mod(aBlob, NLIMB);          // the limb this vertex belongs to, or the limb its clump and twig grow from
             float hb = hash12(cell + li * 13.7), hb2 = hash12(cell * 1.3 + li * 5.1 + 2.0), la = 6.2832 * (li / NLIMB + 0.3 * hb + h1), reach = spread * (0.55 + 0.6 * hb);
-            vec3 E = vec3(P.x + cos(la) * reach, mix(top0, 0.98, hb2), P.z + sin(la) * reach);
+            vec3 E = vec3(P.x + cos(la) * reach, mix(top0, top1, hb2), P.z + sin(la) * reach);
             E.xz += ld * (E.y - fork);                                                  // the crown carries on the lean
             // the clump of leaves this vertex belongs to (for a twig: the clump it carries). One sits at the end of each limb;
             // the rest hang out on twigs that leave the limbs every which way, and some twigs have lost their leaves.
@@ -674,9 +680,9 @@ function buildTrees(F, scene) {
               float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16)) * (1.0 - deadTree);
               vLs = max(rb * H * s, 0.5);                 // the clump's size in metres, so its leaves can be drawn at their true size
               bc.y += rb * sc.y * hang;
-              vec3 ol = bc + q * rb * sc * (1.0 + 0.7 * (texture2D(uNoise, xz * 0.13 + bc.xz * 3.1 + q.xz * 0.33 + q.y * 0.21).g - 0.5));      // each clump billows unevenly: no ball, no facets
+              vec3 ol = bc + q * sc * rb * (1.0 + 0.7 * (texture2D(uNoise, xz * 0.13 + bc.xz * 3.1 + q.xz * 0.33 + q.y * 0.21).g - 0.5));      // each clump billows unevenly: no ball, no facets
               lp = ol * H * s;
-              c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.4);
+              c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.2);
               ao = 0.58 + 0.42 * smoothstep(-0.9, 0.9, nrm.y + (ol.y - 0.75) * 1.6);
             }
             vObj = (aPart > 0.5 ? position : q + (aBlob + 1.0) * vec3(0.9, 0.4, 0.7)) * 2.6 + vec3(h1, h2, h3) * 9.0;
@@ -713,10 +719,11 @@ function buildTrees(F, scene) {
         // Leaves come in sprays: a dozen or so on one twig end, all hanging much the same way, each spray turned its own way, with thin places between
         // one spray and the next. m and o say how this layer's grid sits on the surface, so that all three layers agree where the sprays are.
         vec3 leafLayer(vec2 p, float seed, vec2 slim, float dens, float turn, float m, float o){
+          if(turn < 0.3) p.y += fract(sin(floor(p.x) * 12.9898 + seed) * 43758.5453);         // needles: each column of strands starts at its own height, so no lattice shows
           vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7);
           float sh = hash12(floor((id + 0.5 - o) / m / vec2(3.4, 3.0)) + 7.7), a = (fract(sh * 7.3) - 0.5) * turn * 0.9 + (h - 0.5) * turn * 0.45;
           dens *= mix(0.14, 1.0, step(0.3, sh));
-          f += (vec2(h2, fract(h * 31.1)) - 0.5) * 0.34;
+          f += (vec2(h2, fract(h * 31.1)) - 0.5) * vec2(turn < 0.3 ? 0.6 : 0.34, 0.34);
           vec2 q = vec2(f.x * cos(a) - f.y * sin(a), f.x * sin(a) + f.y * cos(a));
           q.x += q.y * q.y * (h2 - 0.5) * 2.2;
           float d = length(q * slim), w = fwidth(d) * 0.8 + 0.006;      // a hard edge: leaves are crisp, not smudges
@@ -731,8 +738,9 @@ function buildTrees(F, scene) {
             // foliage stands in clumps a couple of metres across at the ends of the branches, with sky between them (not in stripes down the crown)
             // (looked up from three sides and blended, so the pattern is the same grain whichever way the surface faces: no stripes down a crown)
             vec3 tw = abs(normalize(vN)); tw *= tw; tw /= tw.x + tw.y + tw.z;
-            float n = (texture2D(uNoise, vObj.zy * 0.2).g * tw.x + texture2D(uNoise, vObj.xz * 0.2).g * tw.y + texture2D(uNoise, vObj.xy * 0.2).g * tw.z) * 0.66
-                    + (texture2D(uNoise, vObj.zy * 0.47 + 0.21).r * tw.x + texture2D(uNoise, vObj.xz * 0.47 + 0.21).r * tw.y + texture2D(uNoise, vObj.xy * 0.47 + 0.21).r * tw.z) * 0.34, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
+            vec3 vO = vSp > 0.5 && vSp < 1.5 ? vObj * vec3(2.6, 0.45, 2.6) : vObj;            // a she-oak's foliage hangs: its pattern is drawn out downward into streaks
+            float n = (texture2D(uNoise, vO.zy * 0.2).g * tw.x + texture2D(uNoise, vO.xz * 0.2).g * tw.y + texture2D(uNoise, vO.xy * 0.2).g * tw.z) * 0.66
+                    + (texture2D(uNoise, vO.zy * 0.47 + 0.21).r * tw.x + texture2D(uNoise, vO.xz * 0.47 + 0.21).r * tw.y + texture2D(uNoise, vO.xy * 0.47 + 0.21).r * tw.z) * 0.34, n2 = texture2D(uNoise, vO.xy * 1.3 + 0.3).b;
             #else
             float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #endif
@@ -744,7 +752,7 @@ function buildTrees(F, scene) {
             // gum leaves a hand long, hanging; she-oaks carry no leaves but curtains of long thin needles that hang plumb
             bool oak = vSp > 0.5 && vSp < 1.5;
             // (leaves keep their true size whatever the size of the clump; on the top of a clump, seen from above, they lie every way round)
-            vec2 slim = oak ? vec2(2.5, 1.0) : vec2(4.7, 1.06), lsc = (oak ? vec2(24.0, 1.9) : vec2(2.96)) * vLs; float turn = an.y > 0.75 ? 6.28 : oak ? 0.16 : 1.25, lw = oak ? fwidth(lp.x * lsc.x * 0.5) + fwidth(lp.y * lsc.y * 1.6) : fwidth(lp.x * lsc.x) + fwidth(lp.y * lsc.y);
+            vec2 slim = oak ? vec2(1.9, 1.0) : vec2(4.7, 1.06), lsc = (oak ? vec2(20.0, 1.45) : vec2(2.96)) * vLs; float turn = an.y > 0.75 ? 6.28 : oak ? 0.16 : 1.25, lw = oak ? fwidth(lp.x * lsc.x * 0.4) + fwidth(lp.y * lsc.y * 3.0) : fwidth(lp.x * lsc.x) + fwidth(lp.y * lsc.y);
             #else
             vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5), lsc = vec2(20.0); float turn = 3.6, lw = fwidth(lp.x * 20.0) + fwidth(lp.y * 20.0);        // bare scrub shows thin twigs, not leaves
             #endif
@@ -756,10 +764,13 @@ function buildTrees(F, scene) {
               // leaves grow in sprays on the twigs: none hang loose in the sky outside a clump, and the heart of a clump is full, leaf behind leaf
               float la = max(l1.x, max(l2.x, l3.x)) * smoothstep(0.1, 0.35, clump) * (1.0 - smoothstep(0.66, 0.9, rim)),      // (and none are drawn where the clump's surface is seen edge-on, where they would smear into streaks)
                      core = smoothstep(vPor + 0.05, vPor + 0.2, n - rim * 0.55 + (n2 - 0.5) * 0.36) * 0.94;
+              #ifdef SPECIES
+              if(oak) core *= 0.45;                    // a curtain of needles lets the light through
+              #endif
               alpha = mix(clump, max(la, core), nearL);
               col *= mix(1.0, mix(0.5, (0.78 + 0.6 * lf.y) * (1.0 + 0.18 * smoothstep(0.12, 0.0, abs(lf.z))), la), nearL);
               #ifdef SPECIES
-              if(oak) col = mix(col, col * vec3(1.5, 1.3, 1.0), la * nearL * smoothstep(0.45, 0.1, fract(lp.y * lsc.y)));      // the needle tips are paler, yellow-green
+              if(oak) col = mix(col, col * vec3(1.22, 1.14, 0.95), la * nearL * smoothstep(0.45, 0.1, fract(lp.y * lsc.y)));      // the needle tips are paler, yellow-green
               else col = mix(col, vec3(dot(col, vec3(0.3333))) * vec3(1.85, 2.0, 1.65), step(0.9, lf.y) * la * nearL * 0.55);      // one gum leaf in ten turns its glossy face to the light
               #endif        // every leaf its own shade of green, a paler midrib; the leaves behind are in shade
             }
@@ -767,7 +778,7 @@ function buildTrees(F, scene) {
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
             col *= (0.7 + 0.45 * smoothstep(-0.3, 0.75, normalize(vN).y)) * (0.78 + 0.34 * smoothstep(vPor, vPor + 0.22, n));      // lit on top, dark underneath; the heart of each clump fuller than its ragged edge
             if(!gl_FrontFacing) col *= 0.72;                                 // the shaded inside of the crown seen through the gaps
-            col += vCol * 0.7 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
+            col += vCol * 0.5 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
             col = max(col, vec3(0.035, 0.06, 0.022) * (uLightCol * 0.12 + uAmbSky));        // a leaf in the shade is dark green, never black
           }
           #endif

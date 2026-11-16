@@ -60,22 +60,23 @@ export function human() {
 // How a person moves when they walk: the thigh swings from the hip, the shin folds back at the knee as the leg comes forward, the arms swing
 // from the shoulder against the legs, and the whole body rises and falls with each step. ph is the phase of the stride, w how much they are walking.
 export const PERSON_POSE = /* glsl */`
-vec3 personPose(vec3 p, vec2 ps, float ph, float w){
+// sit = 1 seats the figure: thighs level, shins down, forearms resting forward, the whole body lowered to chair height
+vec3 personPose(vec3 p, vec2 ps, float ph, float w, float sit){
   float part = ps.x, sw = ps.y, st = sin(ph) * w; vec3 lp = p;
   if((part > 0.5 && part < 1.5) || (part > 9.5 && part < 10.5)){
-    float sg = sign(sw), a = st * sg * 0.48, bend = (max(0.0, cos(ph) * sg) * 0.95 + 0.06) * w;
+    float sg = sign(sw), a = mix(st * sg * 0.48, 1.42 + 0.1 * sg, sit), bend = mix((max(0.0, cos(ph) * sg) * 0.95 + 0.06) * w, 1.45 - 0.2 * sg, sit);
     vec2 q = vec2(p.x, p.y - 0.93);
     if(p.y < 0.52){ vec2 k = q - vec2(0.01, -0.42); float cb = cos(bend), sb = sin(bend); q = vec2(k.x * cb + k.y * sb, -k.x * sb + k.y * cb) + vec2(0.01, -0.42); }
     float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c);
     lp.x = q.x; lp.y = q.y + 0.93;
   } else if(abs(sw) > 0.001){
-    float a = st * sign(sw) * 0.42; vec2 q = vec2(p.x, p.y - 1.42);
+    float a = mix(st * sign(sw) * 0.42, 0.3, sit); vec2 q = vec2(p.x, p.y - 1.42);
     if(p.y < 1.13 && part < 2.5){        // nobody's arms hang ruler-straight: the elbow is always a little bent, more as the arm swings forward
-      float eb = 0.2 + 0.3 * w + 0.35 * max(0.0, st * sign(sw)), ce = cos(eb), se = sin(eb); vec2 k = q - vec2(0.0, -0.29);
+      float eb = mix(0.2 + 0.3 * w + 0.35 * max(0.0, st * sign(sw)), 1.05, sit), ce = cos(eb), se = sin(eb); vec2 k = q - vec2(0.0, -0.29);
       q = vec2(k.x * ce - k.y * se, k.x * se + k.y * ce) + vec2(0.0, -0.29); }
     float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c); lp.x = q.x; lp.y = q.y + 1.42;
   }
-  lp.y += abs(cos(ph)) * 0.022 * w;
+  lp.y += abs(cos(ph)) * 0.022 * w - 0.43 * sit;
   return lp;
 }`;
 // What a person looks like, pixel by pixel. p is the point on the body as built (before it moved), seed says who this is.

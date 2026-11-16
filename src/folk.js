@@ -36,7 +36,7 @@ function buildPeople(scene, list) {
       attribute vec2 aPS; attribute vec4 iA, iB; attribute vec3 iC; varying vec3 vW, vObj, vNw, vShirt; varying float vPart, vSeed;
       ${PERSON_POSE}
       void main(){
-        // iA: the two ends of a beat; iB: start, pace (m/s), kind (0 walks the beat, 1 stands fishing, 2 just stands), size
+        // iA: the two ends of a beat; iB: start, pace (m/s), kind (0 walks the beat, 1 stands fishing, 2 just stands, 3 sits), size
         float len = max(distance(iA.xy, iA.zw), 1.0), f = fract(iB.x + uTime * iB.y / len * 0.5), tri = abs(2.0 * f - 1.0), walks = step(iB.z, 0.5);
         float along = smoothstep(0.03, 0.97, tri), moving = walks * smoothstep(0.0, 0.06, tri) * (1.0 - smoothstep(0.94, 1.0, tri));      // they slow and stop at each end before turning back
         vec2 p = mix(iA.xy, mix(iA.xy, iA.zw, along), walks);
@@ -48,7 +48,7 @@ function buildPeople(scene, list) {
         q0.z *= mix(1.0, mix(1.07, 0.88, smoothstep(1.0, 1.3, q0.y)), woman * step(q0.y, 1.5));
         if(part > 8.5 && part < 9.5 && q0.y < 1.7) q0.y = 1.7 - (1.7 - q0.y) * mix(1.0, 2.9, woman * step(0.3, fract(iB.x * 3.9)));          // long hair, to the shoulders
         if(q0.y > 1.5 && part < 4.5 || part > 8.5 && part < 9.5) q0 = vec3(0.0, 1.5, 0.0) + (q0 - vec3(0.0, 1.5, 0.0)) * mix(1.1, 1.25, child);      // (heads a little larger: at a distance a true-size head looks pinched)
-        vec3 lp = personPose(q0, aPS, uTime * 4.6 * iB.y / build + iB.x * 40.0, moving);
+        vec3 lp = personPose(q0, aPS, uTime * 4.6 * iB.y / build + iB.x * 40.0, moving, step(2.5, iB.z));
         if(part > 3.5 && part < 4.5 && (iB.z < 0.5 || iB.z > 1.5)) lp = vec3(0.0, 1.0, 0.0);              // only those fishing hold a rod
         if(part > 3.5 && part < 4.5) lp.y += sin(uTime * 0.7 + iB.x * 9.0) * 0.06 * lp.x;
         if(part > 2.5 && part < 3.5 && fract(iB.x * 11.3) > 0.55) lp = vec3(0.0, 1.7, 0.0);               // not everyone wears a hat
@@ -212,6 +212,15 @@ function buildSigns(scene, posts) {
 }
 
 // ---------------------------------------------------------------- camps
+// A folding camp chair under someone who is sitting: canvas seat and back on a light frame. (x, z) is where the sitter is, (tx, tz) what they face.
+function campChair(g, x, z, tx, tz, size, col) {
+  const S = size * 0.97, y = meshY(x, z), l = Math.hypot(tx - x, tz - z) || 1, dx = (tx - x) / l, dz = (tz - z) / l, sx = -dz, sz = dx, FR = [.2, .2, .22];
+  const P = (f, sd, h) => [x + dx * f * S + sx * sd * S, y + h * S, z + dz * f * S + sz * sd * S];
+  g.quad(P(-0.2, -0.24, 0.40), P(-0.2, 0.24, 0.40), P(0.3, 0.24, 0.43), P(0.3, -0.24, 0.43), col);                                   // seat
+  g.quad(P(-0.2, -0.24, 0.42), P(-0.2, 0.24, 0.42), P(-0.34, 0.24, 0.95), P(-0.34, -0.24, 0.95), [col[0] * .85, col[1] * .85, col[2] * .85]);      // back
+  for (const sd of [-0.25, 0.25]) { g.quad(P(-0.3, sd, 0), P(-0.26, sd, 0), P(0.32, sd, 0.44), P(0.28, sd, 0.44), FR); g.quad(P(0.3, sd, 0), P(0.26, sd, 0), P(-0.3, sd, 0.6), P(-0.26, sd, 0.6), FR);      // crossed legs
+    g.quad(P(-0.34, sd, 0.58), P(0.3, sd, 0.62), P(0.3, sd, 0.65), P(-0.34, sd, 0.61), FR); }                                          // arm rests
+}
 function buildCamps(scene, F, people, R, shade) {
   const g = new GB(), lights = makeLights(90), K = VEX * 0.9, cars = []; let fires = 0;
   const TENT = [[.85, .35, .15], [.2, .45, .7], [.3, .6, .35], [.9, .75, .2], [.75, .75, .7], [.55, .25, .5], [.2, .3, .25]];
@@ -225,7 +234,11 @@ function buildCamps(scene, F, people, R, shade) {
     spots.push([x, z]);
     const n = big ? 3 + ((R() * 3) | 0) : 1 + ((R() * 2) | 0);
     for (let i = 0; i < n; i++) dome(x + (R() - .5) * (big ? 30 : 9), z + (R() - .5) * (big ? 30 : 9), 1.3 + R() * 0.7, TENT[(R() * TENT.length) | 0]);
-    for (let i = 0; i < (big ? 3 : 1 + (R() < 0.5 ? 1 : 0)); i++) stander(x + (R() - .5) * 10, z + (R() - .5) * 10);
+    for (let i = 0; i < (big ? 3 : 1 + (R() < 0.5 ? 1 : 0)); i++) {
+      if (R() < 0.5) { const a = R() * 6.283, d = 1.7 + R() * 0.8, px = x + 2 + Math.cos(a) * d, pz = z + 2 + Math.sin(a) * d, size = 1.25 + R() * 0.12;      // sitting by the fire in a camp chair
+        people.push(px, pz, x + 2, z + 2, R(), 0, 3, size, 0.3 + R() * 0.6, 0.3 + R() * 0.5, 0.25 + R() * 0.5); campChair(g, px, pz, x + 2, z + 2, size, TENT[(R() * TENT.length) | 0].map(v => v * 0.6)); }
+      else stander(x + (R() - .5) * 10, z + (R() - .5) * 10);
+    }
     if (R() < (big ? 1 : 0.65)) cars.push([x + (R() - .5) * 5, z + (R() < 0.5 ? -1 : 1) * (7 + R() * 4), R() * 6.283]);
     if (fires++ < 88) lights.add([x + 2, meshY(x + 2, z) + 0.8, z + 2], [1, .5, .15], -1, 1, R(), 1.5);
   };
@@ -340,11 +353,12 @@ export function buildFolk(scene, F) {
     }
   }
   { // people at home in the townships: someone hanging out the washing, someone by the car or the boat, a few just standing in the yard (see the yards in features.js)
-    const H = rng(8088), at = (q, d, p) => { if (H() > p) return; const a = H() * 6.283, x = q[0] + Math.cos(a) * d, z = q[1] + Math.sin(a) * d; if (maskAt(x, z).land < 0.9) return; people.push(x, z, q[0], q[1], H(), 0, 2, 1.25 + H() * 0.15, ...shirt());
+    const H = rng(8088), yg = new GB(), at = (q, d, p) => { if (H() > p) return; const a = H() * 6.283, x = q[0] + Math.cos(a) * d, z = q[1] + Math.sin(a) * d; if (maskAt(x, z).land < 0.9) return; const sit = H() < 0.3, size = 1.25 + H() * 0.15; people.push(x, z, q[0], q[1], H(), 0, sit ? 3 : 2, size, ...shirt()); if (sit) campChair(yg, x, z, q[0], q[1], size, [[.12, .2, .32], [.14, .28, .18], [.42, .14, .12], [.3, .3, .32]][(H() * 4) | 0]);
       if (H() < 0.35) { const b = a + 1.6, x2 = x + Math.cos(b) * 0.9, z2 = z + Math.sin(b) * 0.9; people.push(x2, z2, x, z, H(), 0, 2, 1.25 + H() * 0.15, ...shirt()); } };      // often two together, talking
     for (const q of F.hoists || []) at(q, 1.5, 0.3);
     for (const q of F.parked || []) at(q, 3.4, 0.16);
     for (const q of F.tinnies || []) at(q, 2.6, 0.22);
+    if (yg.p.length) { const ym = new THREE.Mesh(yg.build(), objectMat({ side: THREE.DoubleSide })); ym.name = 'yardChairs'; ym.frustumCulled = false; scene.add(ym); }
   }
   const shade = [], camps = buildCamps(scene, F, people, R, shade), signs = collectSigns(F);
   { // one flat patch of shade under each, laid on the ground as it slopes
