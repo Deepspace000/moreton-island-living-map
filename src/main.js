@@ -212,16 +212,17 @@ ride.onExit = exitRide;
 let goal = null;
 function headFor(x, z) { goal = { x, z, best: 1e9, since: acc }; if (!ride.helm) ride.take(true); syncTravel(); }
 function stepGoal() {
-  if (!goal) return; if (!ride.active || !ride.helm || ride.steering) { goal = null; ride.autoSteer = null; return; }
+  const halt = ride.halt; ride.halt = false;          // (Stop in the walking box, or a finger held on the view)
+  if (!goal) return; if (!ride.active || !ride.helm || ride.steering || halt) { goal = null; ride.autoSteer = null; if (ride.bird) ride.bird.autoGo = false; return; }
   const o = ride.car || ride.boat || ride.bird, px = o.m.position.x, pz = o.m.position.z, hd = ride.car ? o.m.rotation.y : o.hd, d = Math.hypot(goal.x - px, goal.z - pz), foot = o.kind === 'person' || o.kind === 'walker';
   let e = Math.atan2(-(goal.z - pz), goal.x - px) - hd; e -= Math.PI * 2 * Math.round(e / (Math.PI * 2));
   ride.autoSteer = clamp(-e * 1.6, -1, 1);
   const near = ride.car ? 7 : ride.boat ? Math.max(14, (o.len || 10) * 0.8) : foot ? 2 : 70;
   if (ride.car && o.drive) o.drive.throttle = d < near ? 0 : d < 40 || Math.abs(e) > 1 ? 0.3 : Math.max(o.drive.throttle, 0.8);
   else if (ride.boat && o.helm) o.helm.throttle = d < near ? 0 : d < 60 ? 0.45 : 1;
-  else if (foot) o.pace = d < near ? 0 : 1.7;
+  else if (o.kind === 'person') o.autoGo = d >= near; else if (foot) o.pace = d < near ? 0 : 1.7;
   if (d < goal.best - 4) { goal.best = d; goal.since = acc; }
-  if (d < near || acc - goal.since > 12) { if (d >= near) { if (ride.car && o.drive) o.drive.throttle = 0; if (foot) o.pace = 0; } goal = null; ride.autoSteer = null; }          // there, or it cannot get any nearer (land in a boat's way, the sea or a tree in a car's)
+  if (d < near || acc - goal.since > 12) { if (d >= near) { if (ride.car && o.drive) o.drive.throttle = 0; if (foot) o.pace = 0; } if (foot) o.autoGo = false; goal = null; ride.autoSteer = null; }          // there, or it cannot get any nearer (land in a boat's way, the sea or a tree in a car's)
 }
 // Getting out of the vehicle you are in (the Get out button, or G): on foot beside a 4WD, in the water beside a boat, falling from a plane in flight
 const say = (txt) => { const h = $('hint'); h.textContent = txt; h.style.opacity = 1; clearTimeout(say.t); say.t = setTimeout(() => { h.style.opacity = 0; }, 6000); };
@@ -272,12 +273,13 @@ function syncHelp() {
     const k = ride.car ? 'car' : ride.boat ? 'boat' : o.kind, canOut = !!(ride.car || ride.boat || k === 'plane');
     name = ride.car ? '4WD' : ride.boat ? (o.jet ? 'Jet ski' : o.sail ? 'Yacht' : o.ferry ? 'Ferry' : 'Boat') : ({ plane: 'Plane', pelican: 'Pelican', eagle: 'Sea eagle', walker: 'Traveller', person: 'On foot' }[k] || 'Bird');
     const out = canOut ? ' · G to get out' : '';
-    if (touch) t = ride.helm ? 'In control · steer and change speed with the buttons at the bottom left · drag to look around · pinch to see it from outside' : 'Watching · drag to look around · pinch to see it from outside · the button at the bottom left gives you control';
+    if (touch && k === 'person') t = 'Hold a finger on the view to walk · hold it towards the left or the right to turn that way · the box at the bottom left has Forward, Left, Right, Stop and three speeds · pinch to see yourself from outside · double-tap a vehicle to get in';
+    else if (touch) t = ride.helm ? 'In control · steer and change speed with the buttons at the bottom left · drag to look around · pinch to see it from outside' : 'Watching · drag to look around · pinch to see it from outside · the button at the bottom left gives you control';
     else if (!ride.helm) t = 'Watching · drag to look around · scroll to see it from outside · H to take control' + out + ' · M for the map';
     else if (k === 'car') t = 'A D steer · W faster · down arrow slower, then reverse · hold Shift to go faster, S to go slower · H to let it drive itself' + out + ' · M for the map';
     else if (k === 'boat') t = 'A D steer · W faster · down arrow slower · hold Shift to go faster, S to go slower · H to let it go on by itself' + out + ' · M for the map';
     else if (k === 'walker') t = 'A D turn · W faster · down arrow slower · hold Shift to run, S to slow down · H to let them walk on · M for the map';
-    else if (k === 'person') t = 'A D turn · W to walk, and faster · down arrow slower · hold Shift to run, S to slow down · scroll out to see yourself · double-click a vehicle to get in · M for the map';
+    else if (k === 'person') t = 'Hold the mouse button on the view to walk, towards the left or the right to turn that way · or W to walk, A D to turn, down arrow to stop · the box at the bottom left has Forward, Stop and three speeds · hold Shift to go faster, S slower · scroll out to see yourself · double-click a vehicle to get in · M for the map';
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
   } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
@@ -324,7 +326,7 @@ function layoutLeft() {
   const t = $('title'), tv = $('travel'), pl = $('places'); t.style.top = document.body.classList.contains('riding') ? '52px' : '';
   const tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
   tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
-  pl.style.maxHeight = Math.max(80, Math.round(innerHeight - b - (document.body.classList.contains('riding') ? 210 : 86))) + 'px';          // (while riding, the helm sits under the list)
+  pl.style.maxHeight = Math.max(80, Math.round(innerHeight - b - (document.body.classList.contains('riding') ? (document.querySelector('#ride.person') ? 292 : 210) : 86))) + 'px';          // (while riding, the helm sits under the list)
   // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
   // and on a narrow screen it goes under the Travel chip
   const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); if (mm.classList.contains('moved')) return;          // (dragged somewhere by hand: it stays there)
@@ -387,7 +389,7 @@ function openMenu(cx, cy, el) {
   else if (ride.active) items.push({ label: 'Back to the map', run: () => { stopTour(); exitRide(); syncTravel(); } });
   else {
     items.push({ label: 'Face north', run: () => $('btNorth').click() });
-    items.push({ label: 'Show the whole island', run: () => { const w = features.places[0]; flyTo(w.x, w.z, w.d, w.az, w.pol); } });
+    items.push({ label: 'Show the whole island', run: () => goPlace(features.places[0]) });
   }
   items.push(null);
   if (mini && onMini && !mm.classList.contains('min')) {
@@ -489,6 +491,15 @@ canvas.addEventListener('pointerdown', () => { hideHint(); fly = null; }, { pass
 canvas.addEventListener('wheel', () => { hideHint(); fly = null; }, { passive: true });
 setTimeout(hideHint, 9000);
 
+// A place picked from the Places list. From the map the view flies there. On foot you are put down at the place, still on foot (in the water where it is the sea);
+// walking in Walk mode likewise. From a vehicle, a boat or a bird you leave it and the map flies to the place. (Whole island always shows the map.)
+function goPlace(p) {
+  const whole = /Whole island/.test(p.n), me = ride.active && ride.bird && ride.bird.kind === 'person' ? ride.bird : null;
+  if (me && !whole && aboard && me.state !== 'dead' && me.state !== 'fall') { const hd = me.hd; enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, hd), control: true }); ride.setView(0); syncTravel(); return; }
+  if (walk.active && !whole) { exitWalk(); enterWalk(p.x, p.z); return; }
+  if (walk.active) exitWalk(); if (ride.active) { stopTour(); exitRide(); syncTravel(); }
+  flyTo(p.x, p.z, p.d, p.az, p.pol);
+}
 // ---------- camera flights ----------
 let fly = null;
 const sph = new THREE.Spherical(), off = new THREE.Vector3();
@@ -545,7 +556,7 @@ async function boot() {
   pct(98); msg('Checking the weather'); await paint();
   // quick-jump list
   const P = features.places;
-  for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => flyTo(p.x, p.z, p.d, p.az, p.pol); $('places').appendChild(b); }
+  for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => goPlace(p); $('places').appendChild(b); }
   if (Q.has('cam')) { const c = Q.get('cam').split(',').map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); }
   if (Q.has('go')) { const p = P.find(p => p.n.toLowerCase().startsWith(Q.get('go').toLowerCase())); if (p) flyTo(p.x, p.z, p.d, p.az, p.pol, 0.01); }
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);

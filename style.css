@@ -298,3 +298,14 @@ html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout
 input, textarea { -webkit-user-select: auto; user-select: auto; }
 #places::-webkit-scrollbar { display: none; }
 @supports (height: 100dvh) { #wx { max-height: calc(100dvh - 120px); } }
+
+/* on foot the steering box is a walking box: Forward on top, Left / Stop / Right under it, then the three speeds */
+#ride .helm .foot { display: none; flex-direction: column; align-items: stretch; gap: 5px; width: 100%; }
+#ride.person.steering .helm .foot { display: flex; } #ride.person .helm .keys { display: none; }
+#ride .helm .foot .pill { min-height: 32px; padding: 4px 9px; font-size: 12.5px; text-align: center; touch-action: none; -webkit-user-select: none; user-select: none; }
+#ride .helm .foot #ftFwd { align-self: center; min-width: 108px; }
+#ride .helm .foot .ft-row { display: flex; gap: 5px; } #ride .helm .foot .ft-row .pill { flex: 1; }
+#ride .helm .foot .ft-speed { display: flex; align-items: center; gap: 5px; color: #9fb4bd; } #ride .helm .foot .ft-speed .pill { flex: 1; min-height: 28px; touch-action: manipulation; }
+#ride.person .helm { max-width: 270px; }
+#ride .helm.min .foot { display: none !important; }
+@media (pointer: coarse) { #ride .helm .foot .pill { min-height: 40px; font-size: 14px; } #ride .helm .foot .ft-speed .pill { min-height: 36px; } #ride.person .helm { max-width: 284px; } }

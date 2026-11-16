@@ -74,7 +74,7 @@ export function buildAboard(scene, o) {
     if (av.on) despawn();
     const m = veh.m, yaw = veh.hd ?? m.rotation.y, fx = Math.cos(yaw), fz = -Math.sin(yaw), rx = -fz, rz = fx, side = kind === 'car' ? 2.3 : kind === 'boat' ? Math.max(2.2, (veh.len || 8) * 0.22) : 0;
     let sd = 1; if (kind === 'car' && probe.hit(m.position.x + rx * side, m.position.z + rz * side, 0.4, true)) sd = -1;
-    av.x = m.position.x + rx * side * sd; av.z = m.position.z + rz * side * sd; av.hd = yaw; av.v = 0; av.vy = 0; av.pace = 0; av.dead = 0; av.next = ''; av.on = true; av.from = veh; veh.empty = true;
+    av.x = m.position.x + rx * side * sd; av.z = m.position.z + rz * side * sd; av.hd = yaw; av.v = 0; av.vy = 0; av.pace = 0; av.autoGo = false; av.dead = 0; av.next = ''; av.on = true; av.from = veh; veh.empty = true;
     me.uni.uShirtC.value.set(...(veh.rider ? veh.rider.sh : SHIRTS[0])); phase = swing = flat = back = roll = 0;
     const gy = Math.max(meshY(av.x, av.z), sea());
     if (kind === 'plane' && m.position.y > gy + 3) { av.state = 'fall'; av.x = m.position.x; av.z = m.position.z; av.y = m.position.y - 1; vx = fx * (veh.v || 0); vz = fz * (veh.v || 0); flat = 1; }
@@ -85,7 +85,7 @@ export function buildAboard(scene, o) {
   // set down at a spot on the map, facing hd (a click on the ground)
   function place(x, z, hd) {
     if (av.on) despawn();
-    av.x = x; av.z = z; av.hd = hd; av.v = 0; av.vy = 0; av.pace = 0; av.dead = 0; av.next = ''; av.on = true; av.from = null; phase = swing = flat = back = roll = 0; vx = vz = 0;
+    av.x = x; av.z = z; av.hd = hd; av.v = 0; av.vy = 0; av.pace = 0; av.autoGo = false; av.dead = 0; av.next = ''; av.on = true; av.from = null; phase = swing = flat = back = roll = 0; vx = vz = 0;
     av.state = depth(x, z) > 1.2 ? 'swim' : 'walk'; av.y = av.state === 'swim' ? sea() - 1.36 : meshY(x, z); me.uni.uShirtC.value.set(...SHIRTS[0]);
     return av;
   }
@@ -100,7 +100,7 @@ export function buildAboard(scene, o) {
       av.dead += dt; roll += (0 - (roll % 6.2832)) * k(6); swing += (0 - swing) * k(4);
       if (av.wet) { flat += (1 - flat) * k(4); back += (0 - back) * k(4); av.y = sea() - 1.0 + Math.sin(t * 1.3) * 0.04; } else { flat += (0 - flat) * k(8); back += (1 - back) * k(8); }
     } else {
-      if (c) { av.hd -= c.turn * 1.9 * dt; av.pace = clamp(av.pace + c.climb * 2.2 * dt, 0, 3.1); /* a brisk walk at most; Shift makes it a run */ }
+      if (c) { av.hd -= c.turn * 1.9 * dt; const to = c.go || av.autoGo ? (c.speed || 1.7) : 0; av.pace += (to - av.pace) * k(to > av.pace ? 3.5 : 7); /* walking or not, at the speed chosen in the box (Shift goes faster still): it picks up and stops in a step or two */ }
       const d = depth(av.x, av.z), swim = av.state === 'swim';
       if (!swim && d > 1.25) av.state = 'swim'; else if (swim && d < 0.95) av.state = 'walk';
       const want = (c ? av.pace * (c.pace ?? 1) : 0) * (swim ? 0.42 : 1), nx = av.x + Math.cos(av.hd) * want * dt, nz = av.z - Math.sin(av.hd) * want * dt;
