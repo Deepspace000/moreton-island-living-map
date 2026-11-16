@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { U, VEX, clamp } from './common.js';
 import { meshY, T } from './terrain.js';
+import { probe, OPT } from './drive.js';
 import { waveAt } from './water.js';
 
 const EYE = 1.72 * VEX;
@@ -27,7 +28,7 @@ export function makeWalk(camera, canvas) {
     anchor = { id, x, y }; steer(0, 0);
     if (stick) stick.style.cssText = `display:block; left:${x}px; top:${y}px; --r:${stickR()}px`;
   };
-  const look = (dx, dy, k) => { W.yaw += dx * k; W.pitch = clamp(W.pitch - dy * k, -1.5, 1.5); };
+  const look = (dx, dy, k) => { W.yaw += dx * k * OPT.invX; W.pitch = clamp(W.pitch - dy * k * OPT.invY, -1.5, 1.5); };
   addEventListener('keydown', (e) => { if (!W.active) return; keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
   addEventListener('keyup', (e) => keys.delete(e.code));
   addEventListener('blur', () => keys.clear());
@@ -87,8 +88,12 @@ export function makeWalk(camera, canvas) {
       if (W.dive > 0.05) { f *= Math.cos(W.pitch); }
     } else W.dive = 0;
     const sn = Math.sin(W.yaw), cs = Math.cos(W.yaw);
-    W.pos.x = clamp(W.pos.x + (sn * f + cs * s) * sp * dt, -T.sx / 2 + 150, T.sx / 2 - 150);
-    W.pos.z = clamp(W.pos.z + (-cs * f + sn * s) * sp * dt, -T.sz / 2 + 150, T.sz / 2 - 150);
+    // a tree trunk, a big bush or a log stops you; you slide along it rather than sticking (grass and small bushes you walk through)
+    let mx = (sn * f + cs * s) * sp * dt, mz = (-cs * f + sn * s) * sp * dt;
+    if (!W.swim && (mx || mz)) { const l = Math.hypot(mx, mz), ax = mx / l * 0.45, az = mz / l * 0.45, blocked = (x, z) => probe.hit(W.pos.x + x, W.pos.z + z, 0.3, true);
+      if (blocked(mx + ax, mz + az)) { if (!blocked(mx + Math.sign(mx) * 0.45, 0)) mz = 0; else if (!blocked(0, mz + Math.sign(mz) * 0.45)) mx = 0; else mx = mz = 0; } }
+    W.pos.x = clamp(W.pos.x + mx, -T.sx / 2 + 150, T.sx / 2 - 150);
+    W.pos.z = clamp(W.pos.z + mz, -T.sz / 2 + 150, T.sz / 2 - 150);
     W.speed = Math.min(1, mag) * sp;
     const floor = W.swim ? sea + 0.35 - W.dive : Math.max(meshY(W.pos.x, W.pos.z), sea - 1.25 * VEX) + EYE;
     if (W.air) { W.vy -= 20 * dt; feet += W.vy * dt; if (feet <= 0) { feet = 0; W.air = false; W.vy = 0; } }

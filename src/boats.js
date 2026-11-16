@@ -501,13 +501,13 @@ export function buildBoats(scene, F) {
           if (shoal) want = b.hd + (ahead(200, 0.7) > ahead(200, -0.7) ? 1.2 : -1.2);
           const helm = b.helm;                        // someone aboard has taken the wheel: the boat goes where it is steered
           if (helm) want = b.hd;
-          let cruise = b.cruise * (helm ? helm.throttle : 1);
+          let cruise = b.cruise * (helm ? helm.throttle * (helm.pace ?? 1) : 1);
           if (!helm && (b.jet || b.small) && (wx.wind > 37 || wx.storm > 0.5)) cruise *= 0.25;          // in a blow (over about 20 knots) or a storm the jet skis and dinghies only idle about near where they lie
           if (b.sail) {
             let off = ((want - upwind + Math.PI * 3) % (Math.PI * 2)) - Math.PI;      // angle off the wind
             if (!helm && Math.abs(off) < 0.75) { if (Math.random() < dt / 45) b.tack *= -1; want = upwind + 0.78 * b.tack; off = 0.78 * b.tack; }
             const pt = clamp(Math.abs(off) / 1.6, helm ? 0.06 : 0.45, 1);         // steered too close to the wind, the sails empty and she stops
-            cruise = clamp(1.6 + wx.wind * 0.13, 1.6, 6.5) * pt * (helm ? Math.min(helm.throttle, 1.15) : 1);
+            cruise = clamp(1.6 + wx.wind * 0.13, 1.6, 6.5) * pt * (helm ? Math.min(helm.throttle, 1.15) * (helm.pace ?? 1) : 1);
             const side = Math.sin(((b.hd - upwind + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > 0 ? 1 : -1;
             roll = side * clamp(wx.wind * 0.011, 0.03, 0.42) * (1.25 - pt * 0.5);
             b.m.scale.z = S * (side > 0 ? 1 : -1);                                    // boom and sails set to leeward
@@ -541,8 +541,10 @@ export function buildBoats(scene, F) {
           if (rec) { b.hist.unshift({ x: b.x - cs * back, z: b.z + sn * back, nx: sn, nz: cs, t, sp: b.sp }); if (b.hist.length > NW) b.hist.length = NW; }
           const w0 = b.times ? 13 : b.big ? 6 : b.jet ? 0.75 : b.small ? 1.2 : b.len * 0.15, life = b.times ? 40 : b.big ? 26 : 11, spread = b.jet || b.small ? 0.2 : 0.3;
           for (let j = 0; j < NW; j++) {
-            const h = b.hist[Math.min(j, b.hist.length - 1)] || { x: b.x, z: b.z, nx: sn, nz: cs, t, sp: 0 };
-            const age = t - h.t, w = w0 + age * clamp(h.sp * spread, 0.5, 4.5), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp((h.sp / (b.jet ? 9 : 7)) ** 2, 0, 1);      // whiteness goes with the square of the speed: a yacht ghosting along leaves almost nothing
+            // the head of the wake is at the stern now, every frame; the rest is where the stern was. (Without that the wake began some metres
+            // behind a fast boat and jumped forward each time a point was recorded: it looked like a second, separate patch behind the spray.)
+            const h = j === 0 ? { x: b.x - cs * back, z: b.z + sn * back, nx: sn, nz: cs, t, sp: b.sp } : b.hist[Math.min(j - 1, b.hist.length - 1)] || { x: b.x, z: b.z, nx: sn, nz: cs, t, sp: 0 };
+            const age = t - h.t, w = w0 + age * clamp(h.sp * spread, 0.5, 4.5), o = (b.wk * NW + j) * 2, al = j > b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp((h.sp / (b.jet ? 9 : 7)) ** 2, 0, 1);      // whiteness goes with the square of the speed: a yacht ghosting along leaves almost nothing
             const y = sea + 0.45 + (j < 3 ? wy : 0);
             wp[o * 3] = h.x - h.nx * w; wp[o * 3 + 1] = y; wp[o * 3 + 2] = h.z - h.nz * w;
             wp[o * 3 + 3] = h.x + h.nx * w; wp[o * 3 + 4] = y; wp[o * 3 + 5] = h.z + h.nz * w;

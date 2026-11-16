@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
 import { T, meshY, groundH, heightAt, maskAt, albedoAt, tideLimit } from './terrain.js';
+import { probe } from './drive.js';
 import { GB, makeLights } from './geo.js';
 
 const seaY = () => U.uSeaM.value * VEX;
@@ -455,6 +456,9 @@ function buildOverlay(F) {
   for (const b of F.buildings) { c.beginPath(); b.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); c.stroke(); }
   c.filter = 'none'; c.fillStyle = '#0000ff';                    // blue: open fresh water, where no tree stands
   for (const l of F.lakes) { c.beginPath(); l.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); }
+  // the 4WDs' own ways (the beach runs, and the inland tracks they take round a beach the tide has shut): a wider lane in which no tree or big bush stands
+  c.strokeStyle = '#000070'; c.lineWidth = 2.3;
+  for (const r of F.drive || []) for (const p of [r.p, ...(r.tidal || []).map(q => q.path).filter(Boolean)]) { c.beginPath(); p.forEach((q, i) => i ? c.lineTo(X(q[0]), Z(q[1])) : c.moveTo(X(q[0]), Z(q[1]))); c.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
   U.uOver.value = t;
 }
@@ -645,6 +649,7 @@ function buildTrees(F, scene) {
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
           vec3 q = vec3(position.x * ca - position.z * sa, position.y, position.x * sa + position.z * ca);
+          if(uMode > 1.5 && uMode < 2.5) q.y *= 1.0 - 0.82 * flatK(xz);          // the low plants lie down where a wheel has just been
           vec3 nrm = normalize(vec3(normal.x * ca - normal.z * sa, normal.y, normal.x * sa + normal.z * ca));
           vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
           c = mix(c, vec3(lum * 1.35, lum * 1.65, lum * 0.7), 0.28) * (0.9 + 0.5 * h2);
@@ -846,6 +851,7 @@ function buildTrees(F, scene) {
     });
     mat.alphaToCoverage = !!leafy;
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
+    if (mode === 0 || mode === 3) probe.add(m, { trunkOnly: mode === 0, cs });          // trunks and the big bushes are in the way of cars and walkers (see drive.js)
   };
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 11, LOW ? 2 : 4), true);          // single trees close to the view, each its own kind
@@ -1083,7 +1089,9 @@ function buildWrecks(F, g) {
     if (!sunk && rs() < 0.8) { const x = (rs() - .5) * L * 0.5; g.at(m.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler((rs() - .5) * 0.5, 0, (rs() - .5) * 0.4)))); g.cyl(x, bed * VEX, 0, 0.3, 0.14, (H - bed + 3 + rs() * 4) * VEX, 7, [.2, .1, .06]); g.at(m); }      // what is left of a mast, leaning
     }
     g.at(null);
-    list.push({ x: cx, z: cz, sunk });
+    // hull(u, v, sd): a point on the plating (u along the ship 0..1, v up the side 0..1, sd -1 or 1) and the way the plating faces there: x, y, z, nx, nz
+    const hull = (u, v, sd) => { const fi = Math.min(0.999, Math.max(0, u)) * S, i = Math.floor(fi), b = prof(u), t = top(i) + (top(i + 1) - top(i)) * (fi - i) + heel * sd * b * VEX, k = v < 0.5 ? 0.7 + 0.6 * v : 1.0 + 0.24 * (v - 0.5), lx = (u - 0.5) * L, lz = b * sd * k, c = Math.cos(th), s = Math.sin(th); return [cx + lx * c - lz * s, yb + (t - yb) * v, cz + lx * s + lz * c, -sd * s, sd * c]; };
+    list.push({ x: cx, z: cz, sunk, hull });
   });
   return list;
 }

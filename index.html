@@ -11,9 +11,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=103">
+<link rel="stylesheet" href="style.css?v=119">
 <!-- every script file carries the release number, so a browser never mixes a new file with an old one it had kept -->
-<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/", "./src/boats.js": "./src/boats.js?v=103", "./src/bodies.js": "./src/bodies.js?v=103", "./src/clouds.js": "./src/clouds.js?v=103", "./src/common.js": "./src/common.js?v=103", "./src/creatures.js": "./src/creatures.js?v=103", "./src/detail.js": "./src/detail.js?v=103", "./src/dive.js": "./src/dive.js?v=103", "./src/features.js": "./src/features.js?v=103", "./src/folk.js": "./src/folk.js?v=103", "./src/geo.js": "./src/geo.js?v=103", "./src/life.js": "./src/life.js?v=103", "./src/pack.js": "./src/pack.js?v=103", "./src/plane.js": "./src/plane.js?v=103", "./src/ride.js": "./src/ride.js?v=103", "./src/sky.js": "./src/sky.js?v=103", "./src/sound.js": "./src/sound.js?v=103", "./src/terrain.js": "./src/terrain.js?v=103", "./src/traveller.js": "./src/traveller.js?v=103", "./src/walk.js": "./src/walk.js?v=103", "./src/water.js": "./src/water.js?v=103", "./src/weather.js": "./src/weather.js?v=103" } }</script>
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/", "./src/avatar.js": "./src/avatar.js?v=119", "./src/boats.js": "./src/boats.js?v=119", "./src/bodies.js": "./src/bodies.js?v=119", "./src/clouds.js": "./src/clouds.js?v=119", "./src/common.js": "./src/common.js?v=119", "./src/creatures.js": "./src/creatures.js?v=119", "./src/detail.js": "./src/detail.js?v=119", "./src/dive.js": "./src/dive.js?v=119", "./src/drive.js": "./src/drive.js?v=119", "./src/features.js": "./src/features.js?v=119", "./src/folk.js": "./src/folk.js?v=119", "./src/geo.js": "./src/geo.js?v=119", "./src/life.js": "./src/life.js?v=119", "./src/menu.js": "./src/menu.js?v=119", "./src/minimap.js": "./src/minimap.js?v=119", "./src/pack.js": "./src/pack.js?v=119", "./src/plane.js": "./src/plane.js?v=119", "./src/ride.js": "./src/ride.js?v=119", "./src/seabed.js": "./src/seabed.js?v=119", "./src/sky.js": "./src/sky.js?v=119", "./src/sound.js": "./src/sound.js?v=119", "./src/terrain.js": "./src/terrain.js?v=119", "./src/traveller.js": "./src/traveller.js?v=119", "./src/walk.js": "./src/walk.js?v=119", "./src/water.js": "./src/water.js?v=119", "./src/weather.js": "./src/weather.js?v=119" } }</script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -21,10 +21,12 @@
 
 <div id="loading"><div class="ld-box"><div class="ld-title">Moreton Island</div><div class="ld-sub">Mulgumpin · Queensland</div><div class="ld-bar"><i id="ldbar"></i></div><div class="ld-pct" id="ldpct">0%</div><div class="ld-msg" id="ldmsg">Loading the island</div></div></div>
 
+<script>if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'))) document.getElementById('ldmsg').textContent = 'This browser is too old for the map. It needs Safari 16.4 or later (iPadOS 16.4), or a current Chrome, Edge or Firefox.';</script>
+
 <header id="title" class="glass win" data-win="Moreton Island">
   <h1>Moreton Island</h1>
   <p>Mulgumpin · living map</p>
-  <button id="btSave" class="pill" title="Save the whole map as one HTML file (about 40 MB) that opens on its own, even offline">Download</button>
+  <button id="btSave" class="pill" title="Save the whole map as one HTML file (about 40 MB) that opens on its own, even offline">Download</button><small id="ver" title="The release of the map you are looking at"></small>
 </header>
 
 <aside id="wx" class="glass win" data-win="Weather">
@@ -81,12 +83,25 @@
   <div class="tv-row" data-kind="plane"><span>Plane</span><button data-ctl="0" title="Go along with the light aircraft as it tours the island and lands">Watch</button><button data-ctl="1" title="Fly it yourself">Fly</button></div>
   <div class="tv-row" data-kind="walker"><span>Traveller</span><button data-ctl="0" title="Walk along with the traveller, who is going round every place on the island">Watch</button><button data-ctl="1" title="Walk them yourself">Walk</button></div>
   <div class="tv-tour"><button id="tvTour" title="Go from one kind of travel to the next by itself: through the eyes, close behind, then far behind">Tour them all</button><label>each <select id="tvSecs"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option></select></label></div>
+  <label class="tv-speed" title="How fast the 4WDs go on a clear straight. They slow down by themselves for bends, slopes, rough or wet track and logs."><span>4WD speed</span><output id="tvKmhO">40 km/h</output><input type="range" id="tvKmh" min="10" max="100" step="5" value="40"></label>
   <button id="tvBack" class="tv-back">Back to the map</button>
 </nav>
+<aside id="settings" class="glass win" data-win="Settings" data-min="1">
+  <label title="How many picture points are drawn. Lower is faster, higher is sharper."><span>Resolution</span><output id="stScaleO"></output><input type="range" id="stScale" min="30" max="300" step="5"></label>
+  <div class="st-row"><button id="stAuto" class="pill" title="Set the resolution back to the screen's own sharpness">Automatic resolution</button><button id="stFull" class="pill" title="Fill the whole screen, or go back to the window">Full screen</button></div>
+  <label class="chk"><input type="checkbox" id="stInvY"><span>Invert vertical axis (up/down: looking, and climbing when flying)</span></label>
+  <label class="chk"><input type="checkbox" id="stInvX"><span>Invert horizontal axis (left/right: looking, and steering)</span></label>
+  <label class="chk"><input type="checkbox" id="stDot"><span>Show a dot in the middle of the view when walking</span></label>
+</aside>
 <nav id="places" class="glass win" data-win="Places"></nav>
 
+<aside id="mini" class="win" data-win="Mini map">
+  <canvas id="miniMap" title="Double-click a spot to move the view there (while riding: to head for it) · drag to move this map"></canvas>
+  <div class="mm-zoom"><button class="mm-in" title="Zoom the mini map in">+</button><button class="mm-out" title="Zoom the mini map out">&minus;</button></div>
+</aside>
+
 <div id="dock">
-<div id="walkHint" class="win" data-win="Walking help"><b>Walking</b> <span class="kb">W A S D or arrows to move · Shift to run · Space to jump · mouse to look (click the view first) · M for the map<br></span><small>Touch: put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around<br>Gamepad: sticks, A jump, RT run, B map</small></div>
+<div id="walkHint" class="win" data-win="How to control"><span id="helpTxt"></span></div>
 <footer id="bar" class="glass win" data-win="Controls">
   <button id="btLive" class="pill on" title="Follow the real time on the island">● Live</button>
   <button id="btPlay" class="pill" title="Run a day in a few minutes">▶ Day cycle</button>
@@ -103,11 +118,11 @@
 </footer>
 </div>
 
-<div id="hint">Drag to move · right-drag or twist two fingers to turn · scroll or pinch to zoom · double-click to walk there · tap a 4WD, a boat or a bird to go along, or use Travel</div>
+<div id="hint"></div>
 <div id="dot"></div>
 <div id="stick"><i></i></div>
 <div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=103"></script>
+<script type="module" src="src/main.js?v=119"></script>
 </body>
 </html>

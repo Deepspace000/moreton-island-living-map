@@ -24,6 +24,11 @@ import { makeRide } from './ride.js';
 import { buildPlanes } from './plane.js';
 import { buildTraveller } from './traveller.js';
 import { rideable, flyers } from './life.js';
+import { carPace, probe, OPT } from './drive.js';
+import { buildAboard } from './avatar.js';
+import { buildSeabed } from './seabed.js';
+import { buildMinimap } from './minimap.js';
+import { makeMenu } from './menu.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
@@ -31,11 +36,16 @@ let shownPct = 0;
 const pct = (p) => { shownPct = Math.max(shownPct, Math.min(100, p)); const b = $('ldbar'), t = $('ldpct'); if (b) b.style.width = shownPct.toFixed(1) + '%'; if (t) t.textContent = Math.round(shownPct) + '%'; };
 const paint = () => new Promise(r => setTimeout(r, 30));
 if (Q.get('ui') === '0') document.body.classList.add('ui-off');
+// the release number, shown under the title: it is the number this very file was loaded with (the one in index.html), so it cannot go stale
+{ const v = (import.meta.url.match(/[?&]v=(\d+)/) || [])[1]; if (v) $('ver').textContent = 'version ' + v; }
 
 // ---------- renderer ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, logarithmicDepthBuffer: true, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
+const OPTS = { scale: 0, invX: false, invY: false, dot: false };          // what the Settings window holds (remembered between visits)
+try { Object.assign(OPTS, JSON.parse(localStorage.getItem('opts') || '{}')); } catch (e) { /* storage can be blocked */ }
 const DPR = Math.min(window.devicePixelRatio || 1, +(Q.get('dpr') || (MOBILE ? 1.5 : 2)));
+const pixelRatio = () => (OPTS.scale > 0 && !Q.has('dpr') ? clamp(OPTS.scale, 0.3, 3) : DPR);          // the Settings window can set how many picture points are drawn for each point of the screen
 renderer.setPixelRatio(DPR);
 const TM = { aces: THREE.ACESFilmicToneMapping, neutral: THREE.NeutralToneMapping, agx: THREE.AgXToneMapping }[Q.get('tm') || 'neutral'];
 const EXPO = +(Q.get('expo') || 0.5);
@@ -70,10 +80,10 @@ const rideWhere = (x, z) => {
   let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
   return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
 };
-const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
+const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : []), ...(aboard && aboard.av.on ? [aboard.av] : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
-  renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
+  renderer.setPixelRatio(pixelRatio()); renderer.setSize(w, h, false); composer.setPixelRatio(pixelRatio()); composer.setSize(w, h);
   camera.aspect = w / h; camera.fov = ride.active ? (ride.car ? (w < h ? 82 : 66) : (w < h ? 84 : 70)) : walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
@@ -182,6 +192,7 @@ function enterRide(hit) {
   if (!hit.kind) hit = { kind: 'car', obj: hit };
   if (ride.active) exitRide();
   if (walk.active) exitWalk();
+  if (aboard && hit.obj !== aboard.av) aboard.despawn();          // back in a vehicle: nobody is left standing outside
   fly = null; controls.enabled = false; controls.autoRotate = false; $('btSpin').classList.remove('on');
   ride.enter(hit); document.body.classList.add('riding'); dip();
 }
@@ -196,6 +207,32 @@ function exitRide() {
   resize();
 }
 ride.onExit = exitRide;
+// A click on the mini map while you ride: whatever you are in heads for that spot. It takes the controls to do it, slows as it gets there and
+// stops (a plane or a bird just comes over the spot); steer by hand, or leave, and it lets go. A car goes straight there over the ground.
+let goal = null;
+function headFor(x, z) { goal = { x, z, best: 1e9, since: acc }; if (!ride.helm) ride.take(true); syncTravel(); }
+function stepGoal() {
+  const halt = ride.halt; ride.halt = false;          // (Stop in the walking box, or a finger held on the view)
+  if (!goal) return; if (!ride.active || !ride.helm || ride.steering || halt) { goal = null; ride.autoSteer = null; if (ride.bird) ride.bird.autoGo = false; return; }
+  const o = ride.car || ride.boat || ride.bird, px = o.m.position.x, pz = o.m.position.z, hd = ride.car ? o.m.rotation.y : o.hd, d = Math.hypot(goal.x - px, goal.z - pz), foot = o.kind === 'person' || o.kind === 'walker';
+  let e = Math.atan2(-(goal.z - pz), goal.x - px) - hd; e -= Math.PI * 2 * Math.round(e / (Math.PI * 2));
+  ride.autoSteer = clamp(-e * 1.6, -1, 1);
+  const near = ride.car ? 7 : ride.boat ? Math.max(14, (o.len || 10) * 0.8) : foot ? 2 : 70;
+  if (ride.car && o.drive) o.drive.throttle = d < near ? 0 : d < 40 || Math.abs(e) > 1 ? 0.3 : Math.max(o.drive.throttle, 0.8);
+  else if (ride.boat && o.helm) o.helm.throttle = d < near ? 0 : d < 60 ? 0.45 : 1;
+  else if (o.kind === 'person') o.autoGo = d >= near; else if (foot) o.pace = d < near ? 0 : 1.7;
+  if (d < goal.best - 4) { goal.best = d; goal.since = acc; }
+  if (d < near || acc - goal.since > 12) { if (d >= near) { if (ride.car && o.drive) o.drive.throttle = 0; if (foot) o.pace = 0; } if (foot) o.autoGo = false; goal = null; ride.autoSteer = null; }          // there, or it cannot get any nearer (land in a boat's way, the sea or a tree in a car's)
+}
+// Getting out of the vehicle you are in (the Get out button, or G): on foot beside a 4WD, in the water beside a boat, falling from a plane in flight
+const say = (txt) => { const h = $('hint'); h.textContent = txt; h.style.opacity = 1; clearTimeout(say.t); say.t = setTimeout(() => { h.style.opacity = 0; }, 6000); };
+function getOut() {
+  if (!ride.active || !aboard) return; const veh = ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane' ? ride.bird : null); if (!veh) return;
+  const kind = ride.car ? 'car' : ride.boat ? 'boat' : 'plane', view = ride.zoom; stopTour(); exitRide();
+  enterRide({ kind: 'bird', obj: aboard.leave(veh, kind), control: true }); ride.setView(1); syncTravel();
+}
+{ const b = document.createElement('button'); b.id = 'getOut'; b.className = 'pill'; b.textContent = 'Get out'; b.title = 'Get out of the vehicle (G)'; b.onclick = getOut; document.body.appendChild(b); }
+addEventListener('keydown', (e) => { if (e.code === 'KeyG' && ride.active) getOut(); });
 // ---------- the Travel menu: go along with the nearest 4WD, boat, yacht, jet ski, pelican or sea eagle, watching or in control ----------
 const TRAVEL = {
   car: () => rideable.map(o => ({ kind: 'car', obj: o })),
@@ -225,8 +262,32 @@ function travel(kind, control) {
   enterRide({ ...pick, control }); syncTravel();
   if (innerWidth < 640) { const tv = $('travel'); if (!tv.classList.contains('min')) tv.querySelector('.win-min')?.click(); }       // on a phone the list folds away once you have chosen, so you can see where you are
 }
+// How to control whatever you are doing just now: the map, walking, or the thing you ride, watching it or in control of it.
+// It stays on screen (in its own panel over the control bar, which can be minimised) and changes as you change what you do.
+let helpKey = '';
+function syncHelp() {
+  const touch = matchMedia('(pointer: coarse)').matches, o = ride.active ? ride.car || ride.boat || ride.bird : null;
+  const key = [touch, walk.active, ride.active, ride.helm, o && (o.kind || (o.jet ? 'jet' : o.sail ? 'sail' : '')), ride.car ? 1 : 0].join(); if (key === helpKey) return; helpKey = key;
+  let name = 'Map', t;
+  if (o) {
+    const k = ride.car ? 'car' : ride.boat ? 'boat' : o.kind, canOut = !!(ride.car || ride.boat || k === 'plane');
+    name = ride.car ? '4WD' : ride.boat ? (o.jet ? 'Jet ski' : o.sail ? 'Yacht' : o.ferry ? 'Ferry' : 'Boat') : ({ plane: 'Plane', pelican: 'Pelican', eagle: 'Sea eagle', walker: 'Traveller', person: 'On foot' }[k] || 'Bird');
+    const out = canOut ? ' · G to get out' : '';
+    if (touch && k === 'person') t = 'Hold a finger on the view to walk · hold it towards the left or the right to turn that way · the box at the bottom left has Forward, Left, Right, Stop and three speeds · pinch to see yourself from outside · double-tap a vehicle to get in';
+    else if (touch) t = ride.helm ? 'In control · steer and change speed with the buttons at the bottom left · drag to look around · pinch to see it from outside' : 'Watching · drag to look around · pinch to see it from outside · the button at the bottom left gives you control';
+    else if (!ride.helm) t = 'Watching · drag to look around · scroll to see it from outside · H to take control' + out + ' · M for the map';
+    else if (k === 'car') t = 'A D steer · W faster · down arrow slower, then reverse · hold Shift to go faster, S to go slower · H to let it drive itself' + out + ' · M for the map';
+    else if (k === 'boat') t = 'A D steer · W faster · down arrow slower · hold Shift to go faster, S to go slower · H to let it go on by itself' + out + ' · M for the map';
+    else if (k === 'walker') t = 'A D turn · W faster · down arrow slower · hold Shift to run, S to slow down · H to let them walk on · M for the map';
+    else if (k === 'person') t = 'Hold the mouse button on the view to walk, towards the left or the right to turn that way · or W to walk, A D to turn, down arrow to stop · the box at the bottom left has Forward, Stop and three speeds · hold Shift to go faster, S slower · scroll out to see yourself · double-click a vehicle to get in · M for the map';
+    else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
+    t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
+  } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
+  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu';
+  $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
+}
 function syncTravel() {
-  const k = travelKind();
+  const k = travelKind(); document.body.classList.toggle('canOut', !!(ride.active && (ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane'))));
   for (const row of document.querySelectorAll('#travel .tv-row')) { const on = row.dataset.kind === k; row.classList.toggle('on', on); for (const b of row.querySelectorAll('button')) b.classList.toggle('on', on && (b.dataset.ctl === '1') === ride.helm); }
 }
 for (const b of document.querySelectorAll('#travel .tv-row button')) b.onclick = () => { stopTour(); travel(b.parentElement.dataset.kind, b.dataset.ctl === '1'); };
@@ -252,21 +313,43 @@ function stopTour() { if (!tour.on) return; tour.on = false; syncTour(); }
 function syncTour() { const b = $('tvTour'); b.textContent = tour.on ? 'Stop the tour' : 'Tour them all'; b.classList.toggle('on', tour.on); }
 $('tvTour').onclick = () => (tour.on ? (stopTour(), exitRide(), syncTravel()) : startTour());
 $('tvSecs').onchange = () => { tour.secs = +$('tvSecs').value || 30; };
+// how fast the 4WDs go on a clear straight (they slow by themselves for bends, slopes, rough or wet track and logs); remembered between visits
+// (the same slider is shown again in the box at the bottom left while you are in a 4WD, where the Travel menu is usually folded away)
+{ const sl = $('tvKmh'), box = document.createElement('label'); box.className = 'hm-speed'; box.title = sl.parentElement.title;
+  box.innerHTML = '<span>4WD speed</span><output></output><input type="range" min="10" max="100" step="5">'; document.querySelector('#ride .helm').appendChild(box);
+  const s2 = box.querySelector('input'), show = () => { carPace.kmh = +sl.value; s2.value = sl.value; $('tvKmhO').textContent = box.querySelector('output').textContent = sl.value + ' km/h'; };
+  s2.oninput = () => { sl.value = s2.value; sl.oninput(); };
+  try { const v = +localStorage.getItem('carKmh'); if (v >= 10 && v <= 100) sl.value = v; } catch (e) { /* storage can be blocked */ }
+  sl.oninput = () => { show(); try { localStorage.setItem('carKmh', sl.value); } catch (e) { /* not remembered then */ } }; show(); }
 // the left-hand column stacks: title, then Travel, then Places, whatever size each is just now
 function layoutLeft() {
-  const t = $('title'), tv = $('travel'), pl = $('places'), tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
-  tv.style.top = top + 'px'; const b = tv.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px'; pl.style.maxHeight = `calc(100vh - ${Math.round(b + 86)}px)`;
+  const t = $('title'), tv = $('travel'), pl = $('places'); t.style.top = document.body.classList.contains('riding') ? '52px' : '';
+  const tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
+  tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
+  pl.style.maxHeight = Math.max(80, Math.round(innerHeight - b - (document.body.classList.contains('riding') ? (document.querySelector('#ride.person') ? 292 : 210) : 86))) + 'px';          // (while riding, the helm sits under the list)
+  // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
+  // and on a narrow screen it goes under the Travel chip
+  const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); if (mm.classList.contains('moved')) return;          // (dragged somewhere by hand: it stays there)
+  mm.style.top = small ? b + 'px' : '';
+  mm.style.left = !small && !document.body.classList.contains('riding') && pr.height > 0 && pr.bottom + 8 > innerHeight - 152 - mm.offsetHeight ? Math.round(pr.right + 8) + 'px' : '';
 }
-{ let down = null;                 // a tap (not a drag) on a 4WD, a boat or a pelican in flight
+{ let down = null, last = null;    // two clicks (or taps) on the same spot, not a drag: on a 4WD, a boat or a bird to go along with it, on the ground or the sea to stand there
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
-    if (!down || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
-    down = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit) enterRide(hit);
+    const onFoot = ride.active && ride.bird && ride.bird.kind === 'person';            // (on foot you can still pick a vehicle to get into)
+    const finger = e.pointerType !== 'mouse';            // (a finger is less exact than a mouse, and a little slower)
+    if (!down || e.button !== 0 || walk.active || (ride.active && !onFoot) || Math.hypot(e.clientX - down.x, e.clientY - down.y) > (finger ? 16 : 9) || performance.now() - down.t > 500) { down = null; return; }
+    down = null; const now = performance.now();
+    if (!(last && now - last.t < (finger ? 520 : 420) && Math.hypot(e.clientX - last.x, e.clientY - last.y) < (finger ? 46 : 30))) { last = { t: now, x: e.clientX, y: e.clientY }; return; }            // that was the first click: nothing happens until the second
+    last = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit && !(aboard && hit.obj === aboard.av)) return enterRide(hit);
+    if (onFoot || !aboard) return;
+    // the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
+    const p = pickGround(camera, e.clientX, e.clientY); if (!p) return;
+    camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel();
   });
 }
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
-canvas.addEventListener('dblclick', (e) => { if (walk.active || ride.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
-addEventListener('keydown', (e) => { if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && menu.open) return menu.hide(); if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
 $('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); freeTide(); syncButtons(); syncWeatherUI(); });
 $('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); freeTide(); syncButtons(); syncWeatherUI(); };
 $('btPlay').onclick = () => { st.play = !st.play; st.live = false; freeTide(); syncButtons(); syncWeatherUI(); };
@@ -281,8 +364,93 @@ $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.
 const btSound = $('btSound');
 const setSound = (v) => { if (sound.on !== v) sound.toggle(); btSound.classList.toggle('on', sound.on); try { localStorage.setItem('sound', sound.on ? '1' : '0'); } catch (e) { /* not remembered then */ } };
 btSound.onclick = () => setSound(!sound.on);
-try { if (localStorage.getItem('sound') === '1') addEventListener('pointerdown', (e) => { if (e.target !== btSound && !sound.on) setSound(true); }, { once: true }); } catch (e) { /* storage can be blocked */ }
+// (Safari, and so every iPad, lets sound start only from a finished tap, a click or a key: a finger going down is not enough)
+try { if (localStorage.getItem('sound') !== '0') { const evs = ['pointerup', 'touchend', 'click', 'keydown'], go = (e) => { for (const ev of evs) removeEventListener(ev, go, true); if (e.target !== btSound && !sound.on) setSound(true); }; for (const ev of evs) addEventListener(ev, go, true); } } catch (e) { /* storage can be blocked */ }
+for (const ev of ['pointerup', 'touchend', 'keydown']) addEventListener(ev, () => sound.wake(), true);          // (and after a phone call, or a drag that did not count as a tap, the next tap starts it again)
+// ---------- the right mouse button: the app's own menu, in place of the browser's ("Save image as...") ----------
+const menu = makeMenu();
+const latLon = (x, z) => { const F = window.MAP.F, n = 2 ** 15, fx = (x - F.tx0) / F.tsize + F.tile0[0], fy = (z - F.tz0) / F.tsize + F.tile0[1]; return [Math.atan(Math.sinh(Math.PI * (1 - 2 * fy / n))) * 180 / Math.PI, fx / n * 360 - 180]; };
+function openMenu(cx, cy, el) {
+  const items = [], mm = $('mini'), onMini = mm.contains(el), busy = walk.active || ride.active;
+  const p = !mini ? null : el === mini.canvas ? mini.at(cx, cy) : (el === canvas || $('labels').contains(el)) && !ride.active ? pickGround(camera, cx, cy) : null;
+  if (p) {
+    const ll = latLon(p.x, p.z), txt = ll[0].toFixed(5) + ', ' + ll[1].toFixed(5);
+    items.push({ label: txt, note: 'copy', run: () => { navigator.clipboard?.writeText(txt).catch(() => { /* no clipboard here */ }); } });
+    if (!ride.active) items.push({ label: 'Walk here', run: () => { if (walk.active) exitWalk(); enterWalk(p.x, p.z); } });
+    if (!busy) {
+      const d = camera.position.distanceTo(controls.target);
+      items.push({ label: 'Centre the view here', run: () => flyTo(p.x, p.z, d, null, null, 1.2) });
+      items.push({ label: 'Zoom in here', run: () => flyTo(p.x, p.z, Math.max(260, Math.min(d * 0.3, 2400)), null, null, 1.6) });
+    }
+    items.push(null);
+  }
+  if (p && onMini && ride.active) { items.push({ label: 'Head for this spot', run: () => headFor(p.x, p.z) }); items.push(null); }
+  if (walk.active) items.push({ label: 'Back to the map', run: exitWalk });
+  else if (ride.active) items.push({ label: 'Back to the map', run: () => { stopTour(); exitRide(); syncTravel(); } });
+  else {
+    items.push({ label: 'Face north', run: () => $('btNorth').click() });
+    items.push({ label: 'Show the whole island', run: () => goPlace(features.places[0]) });
+  }
+  items.push(null);
+  if (mini && onMini && !mm.classList.contains('min')) {
+    if (mini.zoom < mini.max) items.push({ label: 'Zoom the mini map in', run: () => mini.zoomBy(1) });
+    if (mini.zoom > 0) items.push({ label: 'Zoom the mini map out', run: () => mini.zoomBy(-1) });
+  }
+  if (mini && mm.classList.contains('moved')) items.push({ label: 'Put the mini map back in its corner', run: () => mini.reset() });
+  items.push({ label: mm.classList.contains('min') ? 'Show the mini map' : 'Hide the mini map', run: () => mm.querySelector('.win-min').click() });
+  menu.show(cx, cy, items);
+}
+{ let rdown = null;
+  addEventListener('pointerdown', (e) => { if (e.button === 2) rdown = { x: e.clientX, y: e.clientY }; }, true);
+  addEventListener('contextmenu', (e) => {
+    const el = e.target; if (el.closest && el.closest('a, textarea, input[type=text]')) return;          // a link keeps the browser's menu (copy its address)
+    e.preventDefault();
+    if (!features || e.pointerType === 'touch' || e.pointerType === 'pen' || document.pointerLockElement) return;      // a held finger is walking or panning, not asking for a menu
+    if (rdown && Math.hypot(e.clientX - rdown.x, e.clientY - rdown.y) > 6) return;                          // the right button was dragged: that turned the view
+    openMenu(e.clientX, e.clientY, el);
+  }, true);
+}
+// A touch screen has no right button, and Safari on an iPad sends no menu event for a held finger: a finger held still on the map or the mini map
+// for a little over half a second brings the menu up. (Not while you walk or steer: a held finger is doing that.)
+{ let lp = null; const stop = () => { if (lp) { clearTimeout(lp.t); lp = null; } };
+  addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return; if (lp) return stop();          // (a second finger: that is a pinch or a twist)
+    const el = e.target; if (!features || walk.active || (ride.active && ride.control) || (el !== canvas && !(el.closest && el.closest('#mini') && !el.closest('button')))) return;
+    lp = { id: e.pointerId, x: e.clientX, y: e.clientY, t: setTimeout(() => { const q = lp; lp = null; if (q && !menu.open) openMenu(q.x, q.y, el); }, 600) };
+  }, true);
+  addEventListener('pointermove', (e) => { if (lp && e.pointerId === lp.id && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 10) stop(); }, true);
+  for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, stop, true);
+}
+// Safari sends a pinch on a trackpad as its own gesture events and would zoom the whole page with it: the page stays as it is, and on a
+// Mac the pinch zooms whatever is under the pointer, as the scroll wheel does. (On an iPad two fingers on the map already zoom it.)
+{ let gs = 1; const GEST = 1900;
+  addEventListener('gesturestart', (e) => { e.preventDefault(); gs = e.scale || 1; }, { passive: false });
+  addEventListener('gesturechange', (e) => { e.preventDefault(); if (navigator.maxTouchPoints > 0) return; const s = e.scale || 1, el = document.elementFromPoint(e.clientX, e.clientY) || canvas;
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -Math.log(s / gs) * (el.closest && el.closest('#mini') ? 260 : GEST), clientX: e.clientX, clientY: e.clientY, bubbles: true, cancelable: true })); gs = s; }, { passive: false });
+  addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+}
+// ---------- settings: how sharp the picture is drawn, the whole screen or the window, and which way the controls work ----------
+function applyOpts(save) {
+  OPT.invX = OPTS.invX ? -1 : 1; OPT.invY = OPTS.invY ? -1 : 1; resize();
+  const w = +(Q.get('w') || innerWidth), h = +(Q.get('h') || innerHeight), r = pixelRatio();
+  $('stScale').value = Math.round(r * 100); $('stScaleO').textContent = Math.round(r * 100) + '% · ' + Math.round(w * r) + ' × ' + Math.round(h * r);
+  $('stInvX').checked = OPTS.invX; $('stInvY').checked = OPTS.invY; $('stDot').checked = OPTS.dot; document.body.classList.toggle('dot', !!OPTS.dot); $('stFull').textContent = fsEl() ? 'Back to a window' : 'Full screen'; $('stFull').classList.toggle('on', !!fsEl());
+  if (save) try { localStorage.setItem('opts', JSON.stringify(OPTS)); } catch (e) { /* not remembered then */ }
+}
+$('stScale').oninput = (e) => { OPTS.scale = +e.target.value / 100; applyOpts(true); };
+$('stAuto').onclick = () => { OPTS.scale = 0; applyOpts(true); };
+$('stInvX').onchange = (e) => { OPTS.invX = e.target.checked; applyOpts(true); }; $('stInvY').onchange = (e) => { OPTS.invY = e.target.checked; applyOpts(true); };
+$('stDot').onchange = (e) => { OPTS.dot = e.target.checked; applyOpts(true); };
+function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }          // (older Safari knows the whole screen under its own name)
+{ const d = document.documentElement, ask = d.requestFullscreen || d.webkitRequestFullscreen, leave = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!ask || navigator.standalone) $('stFull').hidden = true;          // an iPhone has no full screen, and the map opened from the home screen already fills it
+  $('stFull').onclick = () => { try { const r = fsEl() ? leave.call(document) : ask.call(d); if (r && r.catch) r.catch(() => { /* not allowed here */ }); } catch (e) { /* not allowed here */ } };
+  for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => applyOpts(false));
+}
+applyOpts(false);
 // ---------- windows: each one can be shrunk to a small named chip and opened again (remembered between visits) ----------
+if (innerWidth <= 820) $('mini').dataset.min = '1';
+{ const hm = document.querySelector('#ride .helm'); hm.id = 'helmBox'; hm.classList.add('win'); hm.dataset.win = 'Steering'; }          // the steering box of a ride can be shrunk to a chip too          // on a phone the mini map starts as a chip
 for (const w of document.querySelectorAll('.win')) {
   const b = document.createElement('button'), key = 'min:' + w.id, name = w.dataset.win;
   b.className = 'win-min'; b.innerHTML = `<span>${name}</span><i></i>`;
@@ -318,11 +486,20 @@ canvas.addEventListener('touchmove', (e) => {
   off.copy(camera.position).sub(controls.target).applyAxisAngle(camera.up, d); camera.position.copy(controls.target).add(off);
 }, { passive: true });
 canvas.addEventListener('touchend', (e) => { if (e.touches.length < 2) twist = null; }, { passive: true });
-const hideHint = () => { $('hint').style.opacity = 0; };
+const hideHint = () => { };          // (the opening hint is the How to control panel now, and stays)
 canvas.addEventListener('pointerdown', () => { hideHint(); fly = null; }, { passive: true });
 canvas.addEventListener('wheel', () => { hideHint(); fly = null; }, { passive: true });
 setTimeout(hideHint, 9000);
 
+// A place picked from the Places list. From the map the view flies there. On foot you are put down at the place, still on foot (in the water where it is the sea);
+// walking in Walk mode likewise. From a vehicle, a boat or a bird you leave it and the map flies to the place. (Whole island always shows the map.)
+function goPlace(p) {
+  const whole = /Whole island/.test(p.n), me = ride.active && ride.bird && ride.bird.kind === 'person' ? ride.bird : null;
+  if (me && !whole && aboard && me.state !== 'dead' && me.state !== 'fall') { const hd = me.hd; enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, hd), control: true }); ride.setView(0); syncTravel(); return; }
+  if (walk.active && !whole) { exitWalk(); enterWalk(p.x, p.z); return; }
+  if (walk.active) exitWalk(); if (ride.active) { stopTour(); exitRide(); syncTravel(); }
+  flyTo(p.x, p.z, p.d, p.az, p.pol);
+}
 // ---------- camera flights ----------
 let fly = null;
 const sph = new THREE.Spherical(), off = new THREE.Vector3();
@@ -344,7 +521,8 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water, detail, life, folk, air, trek;
+let features, boats, clouds, water, detail, life, folk, air, trek, mini, aboard, seabed;
+const lookDir = new THREE.Vector3();
 const sound = makeSound();
 const dive = makeDive();
 const clock = new THREE.Clock();
@@ -365,18 +543,26 @@ async function boot() {
   folk = buildFolk(scene, F);
   air = buildPlanes(scene, F);
   trek = buildTraveller(scene, F);
+  aboard = buildAboard(scene, { cars: rideable, boats: () => boats.boats, planes: () => air.planes, ride });
+  seabed = buildSeabed(scene, F, { wrecks: features.wrecks, reefs: folk.reefs });
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
+  mini = buildMinimap(F, {
+    root: $('mini'), canvas: $('miniMap'),
+    where: () => { const p = ride.active ? ride.pos : walk.active ? walk.pos : controls.target; camera.getWorldDirection(lookDir); return { x: p.x, z: p.z, hdg: Math.atan2(lookDir.x, -lookDir.z), near: ride.active || walk.active }; },
+    go: (x, z) => { if (ride.active) headFor(x, z); else if (!walk.active) flyTo(x, z, camera.position.distanceTo(controls.target), null, null, 1.2); },
+    goal: () => goal,
+  });
   pct(98); msg('Checking the weather'); await paint();
   // quick-jump list
   const P = features.places;
-  for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => flyTo(p.x, p.z, p.d, p.az, p.pol); $('places').appendChild(b); }
+  for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => goPlace(p); $('places').appendChild(b); }
   if (Q.has('cam')) { const c = Q.get('cam').split(',').map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); }
   if (Q.has('go')) { const p = P.find(p => p.n.toLowerCase().startsWith(Q.get('go').toLowerCase())); if (p) flyTo(p.x, p.z, p.d, p.az, p.pol, 0.01); }
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour, mini, menu, openMenu, seabed, aboard };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -407,6 +593,7 @@ function frame() {
   U.uFlash.value *= Math.exp(-dt * 9); if (U.uFlash.value < 0.003) U.uFlash.value = 0;
 
   const t = ride.active ? ride.pos : walk.active ? walk.pos : controls.target;
+  stepGoal();
   if (ride.active) ride.control(dt); else if (walk.active) walk.update(dt); else {
   stepFly(dt);
   if (!fly) controls.update();
@@ -429,8 +616,12 @@ function frame() {
   clouds.update(dt, acc, camera, showClouds && !U.uUnder.value);
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
-  life.update(dt, acc, t, camDist);
-  air.update(dt, acc); trek.update(dt, acc);
+  life.update(dt, acc, t, camDist, renderer);
+  seabed.update(camDist);
+  // (only for what goes on the ground: someone walking, a 4WD being driven, the traveller; never for a boat, a bird or a plane)
+  if (camDist < 200 && !ride.boat && !(ride.bird && ride.bird.kind !== 'walker' && ride.bird.kind !== 'person') && !(ride.car && !ride.car.drive)) probe.look(renderer, t.x, t.z);          // where the trees, big bushes and logs stand round the view, for whatever walks or drives there
+  air.update(dt, acc); trek.update(dt, acc); aboard.update(dt, acc, t);
+  if (aboard.av.dead > 6 && ride.bird === aboard.av) { exitRide(); aboard.despawn(); say('They fell to their death.'); }
   if (tour.on) tourTick(dt);
   if (ride.active) ride.update(dt, acc);       // the eye is placed last, once the thing you ride has moved
   sound.update({ x: t.x, z: t.z, dist: camDist, wind: wx.wind, wave: wx.wave, rain: wx.rain, dt });
@@ -438,7 +629,8 @@ function frame() {
   { const k = clamp((e + 10) / 16, 0, 1); renderer.toneMappingExposure = lerp(1.7, EXPO, k * k * (3 - 2 * k)); }
   bloom.strength = lerp(0.5, 0.2, sky.day);
   composer.render();
+  mini.update(dt);
 
-  uiT -= dt; if (uiT < 0) { uiT = 0.25; layoutLeft(); syncTravel(); refreshClock(); $('wxTide').textContent = (wx.tide >= 0 ? '+' : '') + wx.tide.toFixed(1); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
+  uiT -= dt; if (uiT < 0) { uiT = 0.25; layoutLeft(); syncTravel(); syncHelp(); refreshClock(); $('wxTide').textContent = (wx.tide >= 0 ? '+' : '') + wx.tide.toFixed(1); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
 }
 boot().catch((e) => { console.error(e); msg('Could not load the map: ' + e.message); });

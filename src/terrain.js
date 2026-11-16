@@ -145,6 +145,12 @@ export function maskAt(x, z) {              // {land, sand, shore(m), expo}
   const i = (zi * T.W + xi) * 4, m = T.mask;
   return { land: m[i] / 255, sand: m[i + 1] / 255, shore: (m[i + 2] - 127.5) / 127.5 * 1500, expo: T.expo[zi * T.W + xi] / 255 };
 }
+export function maskBi(x, z) {              // land and sand read the way the shaders read them (between the grid points, not the nearest one)
+  let fx = px(x), fz = pz(z); fx = Math.min(T.W - 1.001, Math.max(0, fx)); fz = Math.min(T.H - 1.001, Math.max(0, fz));
+  const x0 = fx | 0, z0 = fz | 0, tx = fx - x0, tz = fz - z0, i = (z0 * T.W + x0) * 4, m = T.mask, w = T.W * 4;
+  const f = (o) => ((m[i + o] * (1 - tx) + m[i + 4 + o] * tx) * (1 - tz) + (m[i + w + o] * (1 - tx) + m[i + w + 4 + o] * tx) * tz) / 255;
+  return { land: f(0), sand: f(1) };
+}
 export function albedoAt(x, z, out) {
   const xi = Math.min(T.albW - 1, Math.max(0, ((x / T.sx + 0.5) * T.albW) | 0)), zi = Math.min(T.albH - 1, Math.max(0, ((z / T.sz + 0.5) * T.albH) | 0));
   const i = (zi * T.albW + xi) * 4; out[0] = T.alb[i] / 255; out[1] = T.alb[i + 1] / 255; out[2] = T.alb[i + 2] / 255; return out;
