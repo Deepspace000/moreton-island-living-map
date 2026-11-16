@@ -139,7 +139,12 @@ export function buildMinimap(F, o) {
   canvas.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; const r = root.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, on: false }; dragged = false; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* no capture: the drag still works over the map */ } });
   canvas.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.on && Math.hypot(dx, dy) < 6) return; drag.on = true; root.classList.add('dragging'); put(drag.l + dx, drag.t + dy); });
   for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, () => { if (drag && drag.on) { dragged = true; keep(); } drag = null; root.classList.remove('dragging'); });
-  canvas.addEventListener('click', (e) => { if (dragged) { dragged = false; return; } if (mpp) { const p = at(e.clientX, e.clientY); o.go(p.x, p.z); } });
+  let first = null;            // (it takes two clicks on the same spot: one alone, or the end of a drag, does nothing)
+  canvas.addEventListener('click', (e) => {
+    if (dragged) { dragged = false; first = null; return; } const now = performance.now();
+    if (!(first && now - first.t < 420 && Math.hypot(e.clientX - first.x, e.clientY - first.y) < 20)) { first = { t: now, x: e.clientX, y: e.clientY }; return; }
+    first = null; if (mpp) { const p = at(e.clientX, e.clientY); o.go(p.x, p.z); }
+  });
   let wheel = 0;
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); wheel += e.deltaY; if (Math.abs(wheel) >= 60) { zoomBy(wheel < 0 ? 1 : -1); wheel = 0; } }, { passive: false });
   bIn.onclick = () => zoomBy(1); bOut.onclick = () => zoomBy(-1);

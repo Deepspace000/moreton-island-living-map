@@ -277,11 +277,11 @@ function syncHelp() {
     else if (k === 'car') t = 'A D steer · W faster · down arrow slower, then reverse · hold Shift to go faster, S to go slower · H to let it drive itself' + out + ' · M for the map';
     else if (k === 'boat') t = 'A D steer · W faster · down arrow slower · hold Shift to go faster, S to go slower · H to let it go on by itself' + out + ' · M for the map';
     else if (k === 'walker') t = 'A D turn · W faster · down arrow slower · hold Shift to run, S to slow down · H to let them walk on · M for the map';
-    else if (k === 'person') t = 'A D turn · W to walk, and faster · down arrow slower · hold Shift to run, S to slow down · scroll out to see yourself · click a vehicle to get in · M for the map';
+    else if (k === 'person') t = 'A D turn · W to walk, and faster · down arrow slower · hold Shift to run, S to slow down · scroll out to see yourself · double-click a vehicle to get in · M for the map';
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
-    t += touch ? ' · tap the mini map to head for that spot' : ' · click the mini map to head for that spot';
+    t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
   } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
-  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · tap a 4WD, a boat or a bird to go along, or use Travel' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu';
+  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu';
   $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
 }
 function syncTravel() {
@@ -331,19 +331,21 @@ function layoutLeft() {
   mm.style.top = small ? b + 'px' : '';
   mm.style.left = !small && !document.body.classList.contains('riding') && pr.height > 0 && pr.bottom + 8 > innerHeight - 152 - mm.offsetHeight ? Math.round(pr.right + 8) + 'px' : '';
 }
-{ let down = null;                 // a tap (not a drag) on a 4WD, a boat or a pelican in flight
+{ let down = null, last = null;    // two clicks (or taps) on the same spot, not a drag: on a 4WD, a boat or a bird to go along with it, on the ground or the sea to stand there
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
-    if (!down || e.button !== 0 || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
-    down = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit) enterRide(hit);
+    const onFoot = ride.active && ride.bird && ride.bird.kind === 'person';            // (on foot you can still pick a vehicle to get into)
+    if (!down || e.button !== 0 || walk.active || (ride.active && !onFoot) || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
+    down = null; const now = performance.now();
+    if (!(last && now - last.t < 420 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30)) { last = { t: now, x: e.clientX, y: e.clientY }; return; }            // that was the first click: nothing happens until the second
+    last = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit && !(aboard && hit.obj === aboard.av)) return enterRide(hit);
+    if (onFoot || !aboard) return;
+    // the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
+    const p = pickGround(camera, e.clientX, e.clientY); if (!p) return;
+    camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel();
   });
 }
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
-// a double click on the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
-canvas.addEventListener('dblclick', (e) => {
-  if (walk.active || ride.active || !aboard) return; const p = pickGround(camera, e.clientX, e.clientY); if (!p) return;
-  camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel();
-});
 addEventListener('keydown', (e) => { if (e.code === 'Escape' && menu.open) return menu.hide(); if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
 $('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); freeTide(); syncButtons(); syncWeatherUI(); });
 $('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); freeTide(); syncButtons(); syncWeatherUI(); };
@@ -377,6 +379,7 @@ function openMenu(cx, cy, el) {
     }
     items.push(null);
   }
+  if (p && onMini && ride.active) { items.push({ label: 'Head for this spot', run: () => headFor(p.x, p.z) }); items.push(null); }
   if (walk.active) items.push({ label: 'Back to the map', run: exitWalk });
   else if (ride.active) items.push({ label: 'Back to the map', run: () => { stopTour(); exitRide(); syncTravel(); } });
   else {
