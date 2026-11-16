@@ -36,6 +36,8 @@ let shownPct = 0;
 const pct = (p) => { shownPct = Math.max(shownPct, Math.min(100, p)); const b = $('ldbar'), t = $('ldpct'); if (b) b.style.width = shownPct.toFixed(1) + '%'; if (t) t.textContent = Math.round(shownPct) + '%'; };
 const paint = () => new Promise(r => setTimeout(r, 30));
 if (Q.get('ui') === '0') document.body.classList.add('ui-off');
+// the release number, shown under the title: it is the number this very file was loaded with (the one in index.html), so it cannot go stale
+{ const v = (import.meta.url.match(/[?&]v=(\d+)/) || [])[1]; if (v) $('ver').textContent = 'version ' + v; }
 
 // ---------- renderer ----------
 const canvas = $('c');
