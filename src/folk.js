@@ -360,6 +360,7 @@ export function buildFolk(scene, F) {
   }
   { // people at home in the townships: someone hanging out the washing, someone by the car or the boat, a few just standing in the yard (see the yards in features.js)
     const H = rng(8088), yg = new GB(), at = (q, d, p) => { if (H() > p) return; const a = H() * 6.283, x = q[0] + Math.cos(a) * d, z = q[1] + Math.sin(a) * d; if (maskAt(x, z).land < 0.9) return; const sit = H() < 0.3, size = 1.25 + H() * 0.15; people.push(x, z, q[0], q[1], H(), 0, sit ? 3 : 2, size, ...shirt()); if (sit) campChair(yg, x, z, q[0], q[1], size, [[.12, .2, .32], [.14, .28, .18], [.42, .14, .12], [.3, .3, .32]][(H() * 4) | 0]);
+      if (sit && H() < 0.55) { const l = Math.hypot(q[0] - x, q[1] - z) || 1, px = x - (q[1] - z) / l * 1.15, pz = z + (q[0] - x) / l * 1.15, sz2 = 1.25 + H() * 0.15; if (maskAt(px, pz).land > 0.9) { people.push(px, pz, q[0], q[1], H(), 0, 3, sz2, ...shirt()); campChair(yg, px, pz, q[0], q[1], sz2, [[.12, .2, .32], [.14, .28, .18], [.42, .14, .12], [.3, .3, .32]][(H() * 4) | 0]); } return; }      // often two chairs side by side
       if (H() < 0.35) { const b = a + 1.6, x2 = x + Math.cos(b) * 1.3, z2 = z + Math.sin(b) * 1.3; people.push(x2, z2, x, z, H(), 0, 2, 1.25 + H() * 0.15, ...shirt()); } };      // often two together, talking
     for (const q of F.hoists || []) at(q, 1.5, 0.3);
     for (const q of F.parked || []) at(q, 3.4, 0.16);

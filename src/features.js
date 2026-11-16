@@ -569,7 +569,7 @@ function buildTrees(F, scene) {
           vec2 duv = (xz - uDetRect.xy) * uDetRect.z; vec4 dtx = texture2D(uDetail, clamp(duv, 0.0, 1.0));
           float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn);
-          float treeK = smoothstep(0.40, 0.20, lumP);
+          float treeK = smoothstep(0.46, 0.26, lumP);          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * treeK;
           #ifdef SPECIES
@@ -601,7 +601,7 @@ function buildTrees(F, scene) {
           if(yard < 0.5) dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, xz / 60.0 + 0.17).b));      // trees stand in groves with open ground between, not evenly like an orchard
           #endif
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
-          if(uInner > 1.0) s *= smoothstep(0.34, 0.18, lum);
+          if(uInner > 1.0) s *= smoothstep(0.42, 0.24, lum);
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
@@ -629,7 +629,7 @@ function buildTrees(F, scene) {
                 H = 14.0; tr = 0.012; vPor = 0.68; rbK = 0.085; sc = vec3(0.9, 1.3, 0.9); twig = 0.12; hang = -0.45;      // from near the ground, an open see-through crown, a tuft of long drooping needles at every twig end
                 top0 = 0.26; top1 = 1.0; arch = 0.07; fork = 0.09 + 0.12 * form; spread = 0.2; lean = 0.1;
               } else {                                                                 // the low one at the back of the beach: limbs that reach out and droop over the sand, hung with plumes of needles
-                H = 8.5; tr = 0.017; vPor = 0.5; rbK = 0.125; sc = vec3(0.85, 1.6, 0.85); twig = 0.14; hang = -0.8;
+                H = 8.5; tr = 0.017; vPor = 0.42; rbK = 0.13; sc = vec3(0.85, 1.6, 0.85); twig = 0.14; hang = -0.8;
                 top0 = 0.12; top1 = 0.8; arch = 0.24; fork = 0.16 + 0.1 * form; spread = 0.42; lean = form > 0.8 ? 0.42 : 0.12;
               } }
             else if(sp < 2.5){ H = 6.0; tr = 0.029; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark

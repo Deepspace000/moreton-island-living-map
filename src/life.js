@@ -158,7 +158,7 @@ function buildBeachLife(scene) {
             vec2 c2 = tc + vec2(float(i), float(j)); float a1 = hash12(c2), a2 = hash12(c2 + 17.3), a3 = hash12(c2 * 1.7 + 5.1), a4 = hash12(c2 * 0.37 + 91.0), hsT = hash12(c2 * 2.3 + 40.0);
             vec2 t = (c2 + vec2(a1, a2)) * 11.0, tuv = worldUV(t); vec3 mkT = texture2D(uMask, tuv).rgb; float hT = texture2D(uHeight, tuv).r, shoreT = (mkT.b - 0.5) * 3000.0;
             float isOak = (shoreT < 170.0 && hT < 22.0) ? step(hsT, 0.45) : step(0.82, hsT), tall = step(0.5, smoothstep(45.0, 110.0, shoreT) + (hash12(c2 * 0.71 + 7.7) - 0.5) * 0.4);
-            float densT = (1.0 - smoothstep(0.1, 0.5, mkT.g + (a4 - 0.5) * 0.45)) * step(0.92, mkT.r) * step(1.4, hT) * smoothstep(0.40, 0.20, dot(texture2D(uAlbedo, tuv).rgb, vec3(0.3, 0.55, 0.15))) * mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, t / 60.0 + 0.17).b));
+            float densT = (1.0 - smoothstep(0.1, 0.5, mkT.g + (a4 - 0.5) * 0.45)) * step(0.92, mkT.r) * step(1.4, hT) * smoothstep(0.46, 0.26, dot(texture2D(uAlbedo, tuv).rgb, vec3(0.3, 0.55, 0.15))) * mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, t / 60.0 + 0.17).b));
             oakG = max(oakG, isOak * tall * step(a3, densT * 1.15) * (1.0 - smoothstep(2.0, 5.5, length(xz - t))));
           }
           float sOak = (0.85 + 0.75 * h1) * step(h3, 1.1 * oakG) * step(0.92, mk.r) * step(1.2, hgt) * (1.0 - smoothstep(0.03, 0.1, ov.g));
