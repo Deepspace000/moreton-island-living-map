@@ -222,14 +222,14 @@ export function buildTerrain(scene) {
           float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
           float rkT = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(t - uResort.xy))) * step(2.6, hgt) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0);      // (the resort's trees: see features.js)
-          { float ck = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, hgt) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2DLodEXT(uHeight, uv, 0.0).g)) * (1.0 - smoothstep(0.52, 0.64, lumP)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(t - uCape.xy));
+          { float ck = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, hgt) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2DLodEXT(uHeight, uv, 0.0).g)) * (1.0 - smoothstep(0.52, 0.64, lumP)) * (1.0 - smoothstep(0.55, 0.85, mk.g)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(t - uCape.xy));
             if(ck > 0.01) ck *= smoothstep(0.05, 0.14, length(vec2(texture2DLodEXT(uHeight, worldUV(t + vec2(22.0, 0.0)), 0.0).r - hgt, texture2DLodEXT(uHeight, worldUV(t + vec2(0.0, 22.0)), 0.0).r - hgt)) / 22.0);
             rkT = max(rkT, ck); }      // (and the forest wall of the island's sides)
           float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45) * (1.0 - rkT)) * step(0.92, mk.r) * step(1.5, hgt) * clr * max(smoothstep(0.46, 0.26, lumP), rkT);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
           if(yard > 0.5) dens = mix(0.5, 0.82, 1.0 - smoothstep(uResort.z * 0.85, uResort.z, length(t - uResort.xy))) * step(0.92, mk.r) * step(1.5, hgt) * smoothstep(40.0, 70.0, (mk.b - 0.5) * 3000.0);
           else dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2DLodEXT(uNoise, t / 60.0 + 0.17, 0.0).b));      // groves and gaps, as the trees themselves stand
-          if(h3 > dens * 1.15) continue;
+          if(h3 > dens * 1.15 || sandBlow(t) > 0.5) continue;
           float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), hc = 6.5 * (0.9 + 0.2 * h4), r = 4.0 * big;
           vec3 d = vec3(t.x, hgt * uVex + hc, t.y) - P; float along = dot(d, L);
           if(along < 0.0) continue;
@@ -290,6 +290,7 @@ export function buildTerrain(scene) {
         vec3 nD = texture2D(uNoise, vW.xz / 71.0 + nB.rg * 0.6).rgb;
 
         float sand = smoothstep(0.2, 0.7, mk.g + (nB.r - 0.5) * 0.5 + (nC.r - 0.5) * 0.35 * near);
+        float blowK = sandBlow(vW.xz); sand = max(sand, blowK);          // the two great sand blows are open sand, whatever the photograph shows
         float slope = 1.0 - N.y;
 
         // ---- vegetation: lift the satellite colour, add canopy clumps ----
@@ -382,8 +383,9 @@ export function buildTerrain(scene) {
         float resK = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(vW.xz - uResort.xy))) * smoothstep(2.3, 3.0, h) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.3, 0.8, ov.g));
         // and the island's sides are a wall of forest down to the beach (see the trees in features.js): the ground there is forest floor, not open sand
         float coastK = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, h) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2D(uHeight, cuv).g))
-                     * (1.0 - smoothstep(0.52, 0.64, lum)) * (1.0 - headland) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r))
+                     * (1.0 - smoothstep(0.52, 0.64, lum)) * (1.0 - headland) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)) * (1.0 - smoothstep(0.55, 0.85, mk.g))
                      * smoothstep(0.05, 0.14, length(vec2(hl - hr, hu - hd)) / (2.0 * uMpp));          // (slopes, not the low flats behind the beaches)
+        coastK *= 1.0 - blowK;
         float forced = max(resK * (1.0 - resLawn), coastK);
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
@@ -408,6 +410,7 @@ export function buildTerrain(scene) {
           // (scrub country: wherever the map is not open sand and the photograph is not bright with it, trees and bushes grow and their leaves lie under them,
           //  even where the sand shows pale between the crowns from the air)
           float leafK = max(max(floorK, forced), (1.0 - smoothstep(0.12, 0.5, mk.g)) * (1.0 - smoothstep(0.40, 0.56, lum)) * step(0.92, mk.r) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+          leafK *= 1.0 - blowK;
           if(leafK * close > 0.0){
             float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, vW.xz / 900.0).b);          // the same burnt country the trees know
             // (two samples at odd scales and angles, each pushed about by a third, so the pattern never lines up in rows)
@@ -456,7 +459,8 @@ export function buildTerrain(scene) {
         // seen from a distance, forest is its canopy: dark green, mottled with crowns
         // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
         float woodFar = max(max(1.0 - sand, forced), smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
-        col = mix(col, vec3(0.036, 0.050, 0.021) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * max(smoothstep(0.52, 0.27, lum), forced) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+        woodFar *= 1.0 - blowK;
+        col = mix(col, vec3(0.022, 0.032, 0.016) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * max(smoothstep(0.52, 0.27, lum), forced) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
         { // round the houses: low grass in patches, drifts of fallen leaves, and worn sand between (the grass blades and the leaves themselves are drawn on top, see life.js)
           float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h) * (1.0 - smoothstep(0.6, 0.8, mk.g)) * smoothstep(40.0, 80.0, (mk.b - 0.5) * 3000.0);
           float grassP = smoothstep(0.30, 0.46, texture2D(uNoise, vW.xz / 13.0 + 0.3).g), driftP = smoothstep(0.36, 0.6, texture2D(uNoise, vW.xz / 9.0).r * 0.7 + texture2D(uNoise, vW.xz / 2.3 + 0.4).g * 0.3);
@@ -466,7 +470,9 @@ export function buildTerrain(scene) {
         col = mix(col, vec3(0.105, 0.15, 0.055) * (0.78 + 0.4 * nC.g) * (0.9 + 0.2 * nB.r), resK * resLawn * 0.9);          // the resort's lawns, close round its buildings
         col *= 1.0 - 0.5 * coastK * (1.0 - close);          // under the forest wall the ground lies in deep shade
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
-        col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
+        // (seen low across the forest from the sea, the canopy hides the tracks: they show from above, as on a map, and close to)
+        float trackSee = mix(1.0 - 0.9 * smoothstep(500.0, 2200.0, dist), 1.0, smoothstep(0.1, 0.4, normalize(cameraPosition - vW).y));
+        col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand) * trackSee);
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
         float ao = clamp(1.0 + lap * 0.045, 0.55, 1.15) * mix(0.75 + 0.35 * canopy, 1.0, sand) * clamp(relief, 0.4, 1.35) * (1.0 - 0.5 * smoothstep(0.05, 0.9, ov.r));
 

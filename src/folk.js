@@ -52,8 +52,9 @@ function buildPeople(scene, list) {
         vec3 q0 = position;
         q0.z *= mix(1.0, mix(1.07, 0.88, smoothstep(1.0, 1.3, q0.y)), woman * step(q0.y, 1.5));
         if(part > 8.5 && part < 9.5 && q0.y < 1.7) q0.y = 1.7 - (1.7 - q0.y) * mix(1.0, 2.9, woman * step(0.3, fract(iB.x * 3.9)));          // long hair, to the shoulders
-        if(q0.y > 1.5 && part < 4.5 || part > 8.5 && part < 9.5) q0 = vec3(0.0, 1.5, 0.0) + (q0 - vec3(0.0, 1.5, 0.0)) * mix(1.1, 1.25, child);      // (heads a little larger: at a distance a true-size head looks pinched)
-        vec3 lp = personPose(q0, aPS, uTime * 4.6 * iB.y / build + iB.x * 40.0, moving, step(2.5, iB.z));
+        if(q0.y > 1.5 && part < 4.5 || part > 8.5 && part < 9.5) q0 = vec3(0.0, 1.5, 0.0) + (q0 - vec3(0.0, 1.5, 0.0)) * mix(1.0, 1.22, child);
+        float seated = step(2.5, iB.z), idle = (1.0 - seated) * step(1.5, iB.z) * fract(iB.x * 29.3);
+        vec3 lp = personPose(q0, aPS, uTime * 4.6 * iB.y / build + iB.x * 40.0, moving, seated - idle);
         if(part > 3.5 && part < 4.5 && (iB.z < 0.5 || iB.z > 1.5)) lp = vec3(0.0, 1.0, 0.0);              // only those fishing hold a rod
         if(part > 3.5 && part < 4.5) lp.y += sin(uTime * 0.7 + iB.x * 9.0) * 0.06 * lp.x;
         if(part > 2.5 && part < 3.5 && fract(iB.x * 11.3) > 0.55) lp = vec3(0.0, 1.7, 0.0);               // not everyone wears a hat

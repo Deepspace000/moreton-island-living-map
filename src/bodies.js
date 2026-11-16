@@ -54,7 +54,7 @@ export function human() {
     m.limb([[0, 1.45, 0.13 * sg, 0.045, 0.05], [0, 1.42, 0.168 * sg, 0.052, 0.058], [0, 1.3, 0.195 * sg, 0.046, 0.052], [0.012, 1.15, 0.205 * sg, 0.039, 0.043], [0.04, 1.0, 0.205 * sg, 0.034, 0.038], [0.068, 0.885, 0.2 * sg, 0.027, 0.03]], 2, { sw: armSw, S: 10 });   // upper arm, elbow, forearm, wrist
     m.limb([[0.074, 0.86, 0.2 * sg, 0.02, 0.036], [0.086, 0.79, 0.196 * sg, 0.019, 0.042], [0.094, 0.735, 0.192 * sg, 0.012, 0.026]], 2, { sw: armSw, S: 8, sub: 3 });                                                       // hand
   }
-  m.limb([[0.1, 0.95, 0.195, 0.012, 0.012], [1.2, 1.9, 0.195, 0.009, 0.009], [2.4, 3.0, 0.195, 0.004, 0.004]], 4, { S: 6, sub: 3 });                                                        // rod, held by those who fish
+  m.limb([[0.1, 0.95, 0.195, 0.008, 0.008], [1.0, 1.75, 0.195, 0.005, 0.005], [1.9, 2.5, 0.195, 0.002, 0.002]], 4, { S: 6, sub: 3 });                                                        // rod, held by those who fish
   return m;
 }
 // How a person moves when they walk: the thigh swings from the hip, the shin folds back at the knee as the leg comes forward, the arms swing
@@ -62,17 +62,23 @@ export function human() {
 export const PERSON_POSE = /* glsl */`
 // sit = 1 seats the figure: thighs level, shins down, forearms resting forward, the whole body lowered to chair height
 vec3 personPose(vec3 p, vec2 ps, float ph, float w, float sit){
+  float idle = max(-sit, 0.0); sit = max(sit, 0.0);            // (a negative value marks someone standing about, and says which way they hold themselves)
   float part = ps.x, sw = ps.y, st = sin(ph) * w; vec3 lp = p;
   if((part > 0.5 && part < 1.5) || (part > 9.5 && part < 10.5)){
     float sg = sign(sw), a = mix(st * sg * 0.48, 1.42 + 0.1 * sg, sit), bend = mix((max(0.0, cos(ph) * sg) * 0.95 + 0.06) * w, 1.45 - 0.2 * sg, sit);
+    if(idle > 0.02){ float lg = fract(idle * 7.0) > 0.5 ? 1.0 : -1.0; if(sg * lg > 0.0){ a += 0.13; bend += 0.3; } }      // standing, the weight is on one leg and the other knee is eased
     vec2 q = vec2(p.x, p.y - 0.93);
     if(p.y < 0.52){ vec2 k = q - vec2(0.01, -0.42); float cb = cos(bend), sb = sin(bend); q = vec2(k.x * cb + k.y * sb, -k.x * sb + k.y * cb) + vec2(0.01, -0.42); }
     float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c);
     lp.x = q.x; lp.y = q.y + 0.93;
   } else if(abs(sw) > 0.001){
-    float a = mix(st * sign(sw) * 0.42, 0.3, sit); vec2 q = vec2(p.x, p.y - 1.42);
+    float a = mix(st * sign(sw) * 0.42, 0.3, sit), ebI = 0.0; vec2 q = vec2(p.x, p.y - 1.42);
+    // people standing about do not all stand alike: arms hanging; one hand up at the belt, holding a drink or a phone; arms folded; a hand raised to shade the eyes
+    if(idle > 0.3 && idle <= 0.55){ if(sw > 0.0){ a = 0.12; ebI = 1.45; } }
+    else if(idle > 0.55 && idle <= 0.8){ a = 0.2; ebI = 1.7; }
+    else if(idle > 0.8){ if(sw < 0.0){ a = 1.15; ebI = 2.15; } }
     if(p.y < 1.13 && part < 2.5){        // nobody's arms hang ruler-straight: the elbow is always a little bent, more as the arm swings forward
-      float eb = mix(0.2 + 0.3 * w + 0.35 * max(0.0, st * sign(sw)), 1.05, sit), ce = cos(eb), se = sin(eb); vec2 k = q - vec2(0.0, -0.29);
+      float eb = max(mix(0.2 + 0.3 * w + 0.35 * max(0.0, st * sign(sw)), 1.05, sit), ebI), ce = cos(eb), se = sin(eb); vec2 k = q - vec2(0.0, -0.29);
       q = vec2(k.x * ce - k.y * se, k.x * se + k.y * ce) + vec2(0.0, -0.29); }
     float c = cos(a), s = sin(a); q = vec2(q.x * c - q.y * s, q.x * s + q.y * c); lp.x = q.x; lp.y = q.y + 1.42;
   }

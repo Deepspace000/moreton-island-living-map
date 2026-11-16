@@ -24,7 +24,7 @@ export const U = {
   uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
   uHeight: { value: null }, uOver: { value: null }, uYard: { value: null }, uYardO: { value: new THREE.Vector4(0, 0, 1, 1) }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
-  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) }, uResort: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
+  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) }, uResort: { value: new THREE.Vector4(0, 0, 1, 0) }, uBlow: { value: [new THREE.Vector4(0, 0, 1, 1), new THREE.Vector4(0, 0, 1, 1)] },        // Cape Moreton headland: x, z, radius
   uCloudTex: { value: null }, uCloudRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCloudAlt: f(2000), uCloudStr: f(0.7),
   uWindDir: { value: new THREE.Vector2(1, 0) }, uChop: f(0.5), uSurf: f(1.2), uWhitecap: f(0), uRain: f(0), uSwell: f(1),
   uWaves: { value: Array.from({ length: 6 }, () => new THREE.Vector4(1, 0, 0, 100)) },
@@ -54,6 +54,19 @@ float groundH(vec2 xz){
 // world y of the drawn ground (dips slightly at the waterline so the per-pixel shoreline decides where water shows)
 float groundY(vec2 xz){ float h = groundH(xz); return (h - 0.75 * max(0.0, 1.0 - abs(h) / 1.7)) * uVex; }
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+// The two great sand blows north of the Micat's landing (the owner's photographs from the ferry): bare faces of sand that run from the beach
+// up through the forest wall nearly to the ridge. Each is x, z of its middle, half its length along the shore, half its depth inland.
+// They lean: higher up the slope they lie further south. Returns 1 on the open sand, 0 outside, with a ragged edge.
+uniform vec4 uBlow[2];
+float sandBlow(vec2 xz){
+  float k = 0.0;
+  for(int i = 0; i < 2; i++){
+    vec4 b = uBlow[i]; vec2 d = xz - b.xy; d.y -= d.x * 0.55;
+    float e = length(d / vec2(b.w, b.z)) + (texture2D(uNoise, xz / 140.0 + float(i) * 0.37).r - 0.5) * 0.35;
+    k = max(k, 1.0 - smoothstep(0.86, 1.02, e));
+  }
+  return k;
+}
 float cloudAt(vec2 p){
   vec2 uv = (p - uCloudRect.xy) * uCloudRect.zw + 0.5;
   vec2 e = smoothstep(vec2(0.0), vec2(0.04), uv) * smoothstep(vec2(0.0), vec2(0.04), 1.0 - uv);

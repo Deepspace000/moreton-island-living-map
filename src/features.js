@@ -193,6 +193,12 @@ function buildBuildings(F, g, occ, casters, lights) {
   const within = (x, z, p) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const a = p[i], b = p[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
   const reach = (x, z, p) => { let d = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length], dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); d = Math.min(d, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return d; };
   const freeOf = (self) => (x, z, r) => plans.every(q => q.b === self || Math.hypot(x - q.x, z - q.z) > q.r + r || (!within(x, z, q.p) && reach(x, z, q.p) > r));
+  { // the two sand blows stand just north of where the Micat lands (the end of her charted route); each is set against the beach as it lies there
+    const fr = (F.ferries || []).find(f => /MICAT/i.test(f.n || ''));
+    if (fr) { const E = [fr.p[0], fr.p[fr.p.length - 1]].sort((a, b) => Math.hypot(a[0], a[1] / 2) - Math.hypot(b[0], b[1] / 2))[0];
+      const shoreX = (z) => { let x = E[0] - 400; for (let k = 0; k < 400 && groundH(x, z) < 1.2; k++) x += 3; return x; };
+      const put = (i, dz, half, depth) => { const z = E[1] + dz; U.uBlow.value[i].set(shoreX(z) + depth * 0.82, z, half, depth); };
+      put(0, -390, 125, 78); put(1, -150, 62, 92); } }
   const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
   const resort = F.places.find(o => /^Tangalooma Resort/.test(o.n || ''))?.p || F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p;
   if (resort) U.uResort.value.set(resort[0] + 100, resort[1] - 20, 850, 0);            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
@@ -252,9 +258,10 @@ function buildBuildings(F, g, occ, casters, lights) {
     casters.push({ pts, y: hi, h: h + Math.min(Math.sqrt(area) * 0.12, 2) * VEX });
     if (area > 55 && nl < 230 && R() < 0.7) { nl++; const q = pts[(R() * n) | 0]; lights.add([q[0] + (q[0] - cx) * 0.15, hi + 2.4 * VEX, q[1] + (q[1] - cz) * 0.15], [1, .74, .42], 0, 1, 0, 0.75); }
     if (st) {
+      if (inResort) { st.wall = [[.95, .93, .86], [.93, .89, .78], [.96, .95, .92]][(R() * 3) | 0]; st.roof = [[.46, .50, .47], [.84, .84, .82], [.52, .54, .55]][(R() * 3) | 0]; st.tank = false; if (st.clad > 4.5) st.clad = 2; }      // the resort's own villas and units: cream and white, all of a kind, on town water
       buildHouse(g, pts, base, hi, st, R, freeOf(b), toStreet(cx, cz));
       // what stands in the yard: the 4WD, a clothes hoist with the washing out, the tinny on its trailer
-      if (area >= 45 && !isCape) {
+      if (area >= 45 && !isCape && !inResort) {
         const rr = Math.sqrt(area) * 0.75, e0 = [pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]], e1 = [pts[2][0] - pts[1][0], pts[2][1] - pts[1][1]], ax = Math.hypot(...e0) >= Math.hypot(...e1) ? e0 : e1, ang = Math.atan2(-ax[1], ax[0]);
         const spot = (rad) => { for (let t = 0; t < 14; t++) { const a = Y() * 6.283, d = rr + rad + 1.5 + Y() * 5, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d, c = cells.get(Math.floor(x / CS) + ',' + Math.floor(z / CS));
           if (!anyFree(x, z, rad + 1.0) || onStreet(x, z) || maskAt(x, z).land < 0.9 || Math.abs(meshY(x + 2.5, z) - meshY(x - 2.5, z)) > 0.9 || Math.abs(meshY(x, z + 2.5) - meshY(x, z - 2.5)) > 0.9) continue;      // on ground that is close to level
@@ -286,7 +293,10 @@ function buildBuildings(F, g, occ, casters, lights) {
         g.quad(P(a0, D, yk - 0.22), P(a1, D, yk - 0.22), P(a1, D, yk + 1.05 * HK), P(a0, D, yk + 1.05 * HK), BAL);                                        // the balustrade along the front
         for (const e of [a0, a1]) g.quad(P(e, 0, yk - 0.22), P(e, D, yk - 0.22), P(e, D, yk + 1.05 * HK), P(e, 0, yk + 1.05 * HK), BAL);
         for (let d = 7.2; d < len - 4; d += 7.2) { const e = [p[0] + ex * d, p[1] + ez * d]; g.quad(P(e, 0, yk), P(e, D, yk), P(e, D, yk + 2.4 * HK), P(e, 0, yk + 2.4 * HK), wall); }      // a screen wall between one apartment's balcony and the next
+        const dk = [wall[0] * 0.5, wall[1] * 0.5, wall[2] * 0.54]; g.quad(P(a0, 0.05, yk - 0.22 - 1.1 * HK), P(a1, 0.05, yk - 0.22 - 1.1 * HK), P(a1, 0.05, yk - 0.22), P(a0, 0.05, yk - 0.22), dk);      // the wall under each balcony lies in its shadow
+        if (k === 1) for (let d = 0.4; d <= len - 0.3; d += 3.6) { const e = P([p[0] + ex * d, p[1] + ez * d], D - 0.15, 0); g.box(e[0], hi - 0.6, e[2], 0.24, yk - 0.22 - hi + 0.6, 0.24, [.92, .91, .88]); }      // the first balcony stands on posts: a verandah along the ground floor
       }
+      if (sea) { const dk = [wall[0] * 0.5, wall[1] * 0.5, wall[2] * 0.54], Pw = (e, y) => [e[0] + ox * 0.05, y, e[1] + oz * 0.05]; g.quad(Pw(p, y1 - 1.0 * HK), Pw(q, y1 - 1.0 * HK), Pw(q, y1), Pw(p, y1), dk); }
       if (sea) { const yk = y1 + 0.05, a0 = [p[0], p[1]], a1 = [q[0], q[1]]; g.quad([a0[0], yk, a0[1]], [a1[0], yk, a1[1]], [a1[0] + ox * 1.9, yk - 0.1, a1[1] + oz * 1.9], [a0[0] + ox * 1.9, yk - 0.1, a0[1] + oz * 1.9], [.82, .82, .80]); }      // the roof carries out over the top balconies
       along += len + 1.3;
     }
@@ -388,6 +398,7 @@ function buildRoads(F, scene, occ) {
         } else {                  // village street
           col = vec3(0.66, 0.62, 0.53) * (0.9 + 0.15 * n); a = 0.9 * edge;
         }
+        if(cls < 2.5) a *= mix(1.0 - 0.9 * smoothstep(500.0, 2200.0, vD), 1.0, smoothstep(0.1, 0.4, normalize(cameraPosition - vW).y));          // seen low across the forest, the canopy hides the tracks
         a *= on * mix(1.0, 0.38, smoothstep(6000.0, 35000.0, vD)) * (cls > 2.5 ? 1.0 - smoothstep(1500.0, 4000.0, vD) : mix(1.0, smoothstep(50.0, 450.0, vD), uDetRect.w));   // up close the photo itself shows the track
         float cs = cloudShadow(vW);
         col *= uLightCol * max(uLightDir.y, 0.0) * 0.85 * cs + uAmbSky * 1.1;
@@ -595,6 +606,7 @@ function buildTrees(F, scene) {
             // closed wall of tall forest right down to the sand, broken only by real sand blows (bright in the photograph), tracks and buildings.
             float coastK = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, hgt) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2D(uHeight, uv).g))
                          * (1.0 - smoothstep(0.52, 0.64, lumP)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));
+            coastK *= 1.0 - smoothstep(0.55, 0.85, mk.g);          // (a sand blow is open sand on the map as well as bright in the photograph)
             if(coastK > 0.01){ float hx = texture2D(uHeight, worldUV(xz + vec2(22.0, 0.0))).r, hz = texture2D(uHeight, worldUV(xz + vec2(0.0, 22.0))).r; coastK *= smoothstep(0.05, 0.14, length(vec2(hx - hgt, hz - hgt)) / 22.0); }      // (slopes, not the low flats behind the beaches)
             sandm *= 1.0 - coastK; treeK = max(treeK, coastK); rkR = max(rkR, coastK); }          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
@@ -621,7 +633,7 @@ function buildTrees(F, scene) {
           #endif
           if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           if(uMode > 1.5){ float th = texture2D(uNoise, xz / 85.0 + 0.37).g * 0.7 + texture2D(uNoise, xz / 23.0 + 0.11).r * 0.3; dens *= mix(0.07, 1.7, smoothstep(0.43, 0.57, th)); }      // low growth stands in thickets some metres across, with open sand between them
-          dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
+          dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997) * (1.0 - sandBlow(xz));
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
           #ifdef SPECIES
@@ -726,7 +738,7 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.080, 0.094, 0.040), vec3(lum * 0.58, lum * 0.68, lum * 0.28), 0.25) * (0.8 + 0.45 * h1);          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
+            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.048, 0.060, 0.029), vec3(lum * 0.38, lum * 0.46, lum * 0.2), 0.25) * (0.8 + 0.45 * h1);          // (from the sea the island's forest is very dark: the owner's photographs)          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.28, h2 + (lum - 0.1) * 2.0); c = mix(mix(vec3(0.30, 0.25, 0.20), alb * 1.3, 0.55), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);
@@ -738,7 +750,7 @@ function buildTrees(F, scene) {
           float wrap = aPart > 0.5 ? 0.12 : uMode > 0.5 && uMode < 1.5 ? 1.0 : 0.5, nl = max((dot(nrm, uLightDir) + wrap) / (1.0 + wrap), 0.0);      // light wraps round a crown of leaves
           // no leaf is greener than nature allows; and the green varies by the patch of bush, not by the single plant
           if(aPart < 0.5){ c.g = min(c.g, 1.4 * c.r + 0.015); c = mix(vec3(dot(c, vec3(0.3, 0.5, 0.2))), c, 0.82) * (0.8 + 0.42 * texture2D(uNoise, base.xz / 130.0).g); }
-          if(uMode > 0.5 && uMode < 1.5){ ao = mix(0.62, 1.3, smoothstep(-0.25, 0.85, nrm.y)); lp.y += step(0.8, h3) * (2.5 + 3.5 * h1) * s; }      // sunlit tops over dark skirts; one crown in five stands above its neighbours, so the skyline is ragged        // a distant crown is lit from the top down: bright cap, dim skirt
+          if(uMode > 0.5 && uMode < 1.5){ ao = mix(0.62, 1.15, smoothstep(-0.25, 0.85, nrm.y)); lp.y += step(0.8, h3) * (2.5 + 3.5 * h1) * s; }      // sunlit tops over dark skirts; one crown in five stands above its neighbours, so the skyline is ragged        // a distant crown is lit from the top down: bright cap, dim skirt
           vCol = c * (uLightCol * (nl * 0.85 + 0.08) * cs * ao + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) * ao);
           vFog = fogAmount(wp); vDir = normalize(wp - cameraPosition); vN = nrm; vWp = wp; vTrunk = aPart;
           gl_Position = s <= 0.002 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
@@ -887,9 +899,12 @@ function buildPalms(F, scene, occ) {
   const find = (re) => F.places.find(o => re.test(o.n || ''))?.p;
   for (const [re, n, rad] of [[/^Tangalooma/, 150, 560], [/Bulwer/, 36, 380], [/Cowan/, 22, 320], [/Kooringal/, 40, 420]]) {
     const c = find(re); if (!c) continue;
+    const bigs = /Tangalooma/.test(re.source) ? F.buildings.filter(b => b.k !== 'ship' && b.p.length >= 4 && Math.hypot(b.p[0][0] - c[0], b.p[0][1] - c[1]) < 800 && Math.abs(b.p.reduce((a, q, i) => { const r = b.p[(i + 1) % b.p.length]; return a + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2 > 340).map(b => b.p[0]) : null;
     for (let t = 0, k = 0; t < n * 60 && k < n; t++) {
       const a = R() * 6.283, r = Math.sqrt(R()) * rad, x = c[0] + Math.cos(a) * r, z = c[1] + Math.sin(a) * r * 1.6, m = maskAt(x, z), y = meshY(x, z) / VEX;
-      if (m.land < 0.9 || y < 1.5 || y > 16 || m.shore < 10 || m.shore > 240 || !free(x, z, 7)) continue;
+      if (m.land < 0.9 || y < 1.7 || y > 16 || m.shore < 10 || m.shore > 240) continue;
+      if (bigs && !bigs.some(q => Math.hypot(q[0] - x, q[1] - z) < 75) && R() > 0.22) continue;            // at the resort the palms stand in clumps round the main buildings
+      if (!free(x, z, bigs ? 5 : 7)) continue;
       palms.push(x, meshY(x, z) - 0.15, z, R() * 6.283, 0.8 + R() * 0.55, R()); k++;
     }
   }

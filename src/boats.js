@@ -353,6 +353,8 @@ export function buildBoats(scene, F) {
       const cm = [0]; for (let i = 1; i < pts.length; i++) cm.push(cm[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
       F.micat = { land: [bx, bz], dir: [dx, dz], bow: [bx - dx * 39, bz - dz * 39], S, beached: false };
       for (const [o, a] of [[38, 0.5], [46, 2.3]]) { const px = bx + dx * 30 + dz * o, pz = bz + dz * 30 - dx * o; (F.parked ||= []).push([px, pz, a]); (F.micat.camp ||= []).push([px, pz]); }      // people who have come down to meet her, parked up at the back of the beach
+      for (let k = 0; k < 2; k++) { const jx = bx - dx * (420 + k * 160) + dz * (k ? 180 : -140), jz = bz - dz * (420 + k * 160) - dx * (k ? 180 : -140), h = [bx - dx * 700, bz - dz * 700, 650];      // two jet skis keep to the water off her landing, and fall in astern to play in her wake whenever she is under way
+        mk(geo.jet[(k * 2 + 1) % geo.jet.length], jx, jz, { move: 1, sail: false, jet: 1, home: h, tx: jx, tz: jz, tt: 0, tack: 1, mast: 1.4, small: 1, cruise: 14, chase: 1 }); }
       const b = mk(geo.micat, pts[0][0], pts[0][1], { ferry: 1, move: 1, big: 1, pts, cum: cm, s: 0, dir: 1, wait: 0, scale: 1, cruise: 9, mast: 16, times: [[600, 660], [870, 930]], hdLand: Math.atan2(-dz, dx) });
       // her name on each bow
       const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const c2 = cv.getContext('2d'); c2.font = 'italic 900 130px Arial, Helvetica, sans-serif'; c2.fillStyle = '#14265c'; c2.textBaseline = 'middle'; c2.textAlign = 'center'; c2.fillText('Micat', 256, 86);
@@ -383,7 +385,7 @@ export function buildBoats(scene, F) {
         float n = (texture2D(uNoise, vW.xz / 4.3).b * 0.55 + texture2D(uNoise, vW.xz / 13.0 + uTime * 0.02).g * 0.5 + texture2D(uNoise, vW.xz / 37.0).r * 0.3) / 1.35;
         // foam is not a film: it lies in webs and clots with clear water between
         float lace = 1.0 - smoothstep(0.015, 0.11, abs(texture2D(uNoise, vW.xz / 2.4 + uTime * 0.03).g - 0.5)), clot = smoothstep(0.5, 0.66, n), foam = max(clot, lace * 0.85);
-        float e = abs(vA.y), w = vA.z, d = (1.0 - e) * w, fresh = vA.x;                       // d: metres in from the edge of the V
+        float churn = step(1.5, vA.x), e = abs(vA.y), w = vA.z, d = (1.0 - e) * w, fresh = vA.x - 2.0 * churn;                       // d: metres in from the edge of the V
         // the bow wave: a line of broken water along each edge of the V, crisp near the boat and softening as it ages, with a few ripples trailing in behind it
         float arm = smoothstep(0.0, 0.2, d) * (1.0 - smoothstep(0.35, 1.1 + (1.0 - fresh) * 2.2, d));
         float ripple = (1.0 - smoothstep(1.2, 5.0, d)) * smoothstep(0.6, 1.4, d) * smoothstep(0.55, 0.95, sin(d * 2.6 - fresh * 26.0)) * 0.35;
@@ -392,6 +394,12 @@ export function buildBoats(scene, F) {
         float a = arm * (0.3 + 0.7 * foam) * fresh
                 + ripple * lace * fresh
                 + wash * mix(foam * 0.8, 1.0, fresh * fresh * fresh) * fresh;
+        if(churn > 0.5){        // a big twin-hulled ferry (the owner's photographs from the Micat's stern): each hull leaves a broad band of boiling white water, the two
+          // spreading and running together astern into one wide carpet of foam that breaks up into webs and streaks and lasts a long way back
+          float x = vA.y * w, lobe = max(1.0 - smoothstep(2.0, 7.5 + (1.0 - fresh) * 9.0, abs(abs(x) - 6.5 - (1.0 - fresh) * 4.0)), (1.0 - smoothstep(w * 0.45, w * 0.8, abs(x))) * (1.0 - fresh) * 0.8);
+          float boil = mix(max(foam, lace), 1.0, pow(fresh, 5.0));
+          a = max(a, lobe * boil * pow(fresh, 0.6) * 1.1);
+        }
         vec3 c = vec3(0.93, 0.96, 0.97) * (uLightCol * 0.3 * cloudShadow(vW) + uAmbSky * 0.9);
         gl_FragColor = vec4(applyFog(c, vW), clamp(a, 0.0, 1.0) * 0.85); }`,
   });
@@ -465,7 +473,7 @@ export function buildBoats(scene, F) {
             }
             const s1 = fr * end; b.sp = dt > 0 ? Math.min(Math.abs(s1 - b.s) / dt, 16) : 0; b.s = s1; b.dir = dir;
             if (beached) { b.sp = 0; b.hd = b.hdLand; }
-            F.micat.beached = beached; F.micat.y = b.m.position.y;
+            F.micat.beached = beached; F.micat.y = b.m.position.y; F.micat.b = b;
           } else if (b.wait > 0) { b.wait -= dt; b.sp += (0 - b.sp) * Math.min(1, dt); }
           else {
             const toEnd = b.dir > 0 ? end - b.s : b.s;
@@ -479,11 +487,13 @@ export function buildBoats(scene, F) {
           if (b.sp > 0.5) turn(b, Math.atan2(-(c[1] - a[1]) * b.dir, (c[0] - a[0]) * b.dir), 0.25, dt);
         } else {
           // free-roaming yacht or cruiser: wander inside its home water, keep off the banks
-          b.tt -= dt;
+          b.tt -= dt; b.chasing = false;
+          if (b.chase && F.micat && F.micat.b) { const m = F.micat.b;
+            if (m.sp > 2 && Math.hypot(m.x - b.home[0], m.z - b.home[1]) < 2800) { const ph = t * 0.33 + b.ph, back = 60 + 28 * Math.sin(ph * 0.7), side = 36 * Math.sin(ph); b.tx = m.x - Math.cos(m.hd) * back + Math.sin(m.hd) * side; b.tz = m.z + Math.sin(m.hd) * back + Math.cos(m.hd) * side; b.tt = 5; b.chasing = true; } }
           const dx = b.tx - b.x, dz = b.tz - b.z, dd = Math.hypot(dx, dz);
           const ahead = (d, off) => depth(b.x + Math.cos(b.hd + off) * d, b.z - Math.sin(b.hd + off) * d);
           const shoal = ahead(120, 0) < 3.2 || ahead(260, 0) < 2.6 || !inRect(b.x + Math.cos(b.hd) * 400, b.z - Math.sin(b.hd) * 400, 500);
-          if (dd < 150 || b.tt < 0 || shoal) {
+          if ((dd < 150 || b.tt < 0 || shoal) && !b.chasing) {
             for (let k = 0; k < 20; k++) { const px = b.home[0] + (Math.random() - .5) * b.home[2] * 2, pz = b.home[1] + (Math.random() - .5) * b.home[2] * 2; if (depth(px, pz) > 5 && inRect(px, pz, 600)) { b.tx = px; b.tz = pz; break; } }
             b.tt = b.jet ? 8 + Math.random() * 14 : 60 + Math.random() * 80;
           }
@@ -528,14 +538,14 @@ export function buildBoats(scene, F) {
           // displacement hull, narrower for a planing one): its width grows with the speed the boat had when it passed that spot.
           const back = b.len * 0.12;
           if (rec) { b.hist.unshift({ x: b.x - cs * back, z: b.z + sn * back, nx: sn, nz: cs, t, sp: b.sp }); if (b.hist.length > NW) b.hist.length = NW; }
-          const w0 = b.big ? 6 : b.jet ? 0.75 : b.small ? 1.2 : b.len * 0.15, life = b.big ? 26 : 11, spread = b.jet || b.small ? 0.2 : 0.3;
+          const w0 = b.times ? 13 : b.big ? 6 : b.jet ? 0.75 : b.small ? 1.2 : b.len * 0.15, life = b.times ? 40 : b.big ? 26 : 11, spread = b.jet || b.small ? 0.2 : 0.3;
           for (let j = 0; j < NW; j++) {
             const h = b.hist[Math.min(j, b.hist.length - 1)] || { x: b.x, z: b.z, nx: sn, nz: cs, t, sp: 0 };
             const age = t - h.t, w = w0 + age * clamp(h.sp * spread, 0.5, 4.5), o = (b.wk * NW + j) * 2, al = j >= b.hist.length ? 0 : clamp(1 - age / life, 0, 1) * clamp((h.sp / (b.jet ? 9 : 7)) ** 2, 0, 1);      // whiteness goes with the square of the speed: a yacht ghosting along leaves almost nothing
             const y = sea + 0.45 + (j < 3 ? wy : 0);
             wp[o * 3] = h.x - h.nx * w; wp[o * 3 + 1] = y; wp[o * 3 + 2] = h.z - h.nz * w;
             wp[o * 3 + 3] = h.x + h.nx * w; wp[o * 3 + 4] = y; wp[o * 3 + 5] = h.z + h.nz * w;
-            wa[o * 3] = al; wa[o * 3 + 1] = -1; wa[o * 3 + 2] = w; wa[o * 3 + 3] = al; wa[o * 3 + 4] = 1; wa[o * 3 + 5] = w;
+            const al2 = al + (b.times ? 2 : 0); wa[o * 3] = al2; wa[o * 3 + 1] = -1; wa[o * 3 + 2] = w; wa[o * 3 + 3] = al2; wa[o * 3 + 4] = 1; wa[o * 3 + 5] = w;
           }
           // spray: nothing below a walking pace, in full flight at planing speed; a yacht only lifts a small bow wave
           const go = clamp((b.sp - (b.sail ? 1.2 : 2.5)) / (b.jet ? 7 : b.sail ? 6 : 9), 0, 1) * (b.py - sea < 1.5 ? 1 : 0), sy = sea + 0.1 + wy * 0.6;

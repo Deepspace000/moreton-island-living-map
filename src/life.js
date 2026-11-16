@@ -48,6 +48,7 @@ function scatter(scene, n, cs, build, body, range, paint) {
         float ca = cos(h4 * 6.2832), sa = sin(h4 * 6.2832);
         vec3 lp, nrm, c; float s = 0.0;
         ${body}
+        s *= 1.0 - sandBlow(xz);                      // nothing grows or lies on the open faces of the great sand blows
         vec3 wp = vec3(xz.x + (lp.x * ca - lp.z * sa) * s, 0.0, xz.y + (lp.x * sa + lp.z * ca) * s);
         wp.y = groundY(wp.xz) + lp.y * s;
         nrm = normalize(vec3(nrm.x * ca - nrm.z * sa, nrm.y, nrm.x * sa + nrm.z * ca));
@@ -651,8 +652,12 @@ function buildBirds(scene, F) {
 
   // shorebirds on the sand: pied oystercatchers in pairs and silver gulls, pacing along the tide line
   const sg = new GB(), ob = [.06, .06, .07], RED = [.85, .2, .08];
-  sg.box(0, 0.16, 0, 0.3, 0.14, 0.14, WHITE); sg.box(-0.02, 0.2, 0, 0.3, 0.12, 0.15, [0, 0, 0]); sg.box(0.16, 0.28, 0, 0.1, 0.1, 0.1, [0, 0, 0]);     // black marks the part that takes the bird's own colour
-  sg.box(0.26, 0.3, 0, 0.14, 0.025, 0.025, RED); sg.box(0.02, 0, 0.03, 0.015, 0.16, 0.015, RED); sg.box(0.02, 0, -0.03, 0.015, 0.16, 0.015, RED);
+  // (a rounded body, back and head, not boxes; black marks the parts that take the bird's own colour)
+  const ell = (cx, cy, cz, rx, ry, rz, col, N = 6, Mm = 8) => { const P = (i, j) => { const th = i / N * Math.PI, ph = j / Mm * 2 * Math.PI; return [cx + Math.cos(th) * rx, cy + Math.sin(th) * Math.cos(ph) * ry, cz + Math.sin(th) * Math.sin(ph) * rz]; };
+    for (let i = 0; i < N; i++) for (let j = 0; j < Mm; j++) sg.quad(P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1), col); };
+  ell(0.01, 0.225, 0, 0.15, 0.062, 0.066, WHITE); ell(-0.035, 0.252, 0, 0.165, 0.05, 0.072, [0, 0, 0]); ell(-0.2, 0.25, 0, 0.07, 0.016, 0.036, [0, 0, 0], 4, 6);      // breast and belly, back and folded wings, tail
+  ell(0.115, 0.285, 0, 0.05, 0.045, 0.04, WHITE, 4, 6); ell(0.15, 0.33, 0, 0.046, 0.042, 0.04, [0, 0, 0]);                                                      // neck and head
+  ell(0.215, 0.322, 0, 0.05, 0.011, 0.011, RED, 4, 5); sg.box(0.02, 0, 0.03, 0.013, 0.17, 0.013, RED); sg.box(0.02, 0, -0.03, 0.013, 0.17, 0.013, RED);        // bill and legs
   const geo = sg.build(), ig = new THREE.InstancedBufferGeometry(); ig.index = geo.index; ig.setAttribute('position', geo.attributes.position); ig.setAttribute('normal', geo.attributes.normal); ig.setAttribute('color', geo.attributes.color);
   const sp = [], sc = [];
   for (const r of F.beach || []) for (let i = 8; i < r.p.length - 8; i += MOBILE ? 9 : 5) {
