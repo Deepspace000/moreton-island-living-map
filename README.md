@@ -83,6 +83,8 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - Someone sits in every 4WD, on every jet ski and in the plane, and stands at the helm of every boat. Get out (the button, or G): on foot beside a 4WD, treading water or swimming beside a boat, falling from a plane in flight
 - In control of anything: hold Shift to go faster, S to go slower (down to half). Walkers and the traveller go round tree trunks, big bushes and logs; grass and small bushes can be walked through
 - How the ground knowledge works (`src/drive.js`): the forest is grown in the shaders, so the trees, big bushes and logs near the view are drawn again from straight above into a small picture that is read back, and whatever walks or drives asks that picture what is in its way; the big driftwood logs are dealt from a table that the log shader and the 4WDs both read
+- The sea bed (`src/seabed.js`): round every wreck, at the reef patches and at many spots in the shallows there are rocks and pebbles with barnacles and tufts of weed, small pieces of coral, sea stars, shells and sea snails, crabs that scuttle sideways, small octopuses that crawl and change colour, tight schools of very small fish, and stingrays on the sand. The plating of the wrecks carries barnacles and weed up to the high-water mark
+- While you ride (watching or in control) every panel stays: weather, tides, places, settings, the mini map, the control bar and the names. Minimise the ones you do not want
 - Download: the Download button (or `?download` added to the address) saves the whole map as one HTML file of about 37 MB that opens on its own, even offline
 
 Run locally: serve this folder with any static web server (for example `python -m http.server`) and open it in a browser.

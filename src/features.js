@@ -1088,7 +1088,9 @@ function buildWrecks(F, g) {
     if (!sunk && rs() < 0.8) { const x = (rs() - .5) * L * 0.5; g.at(m.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler((rs() - .5) * 0.5, 0, (rs() - .5) * 0.4)))); g.cyl(x, bed * VEX, 0, 0.3, 0.14, (H - bed + 3 + rs() * 4) * VEX, 7, [.2, .1, .06]); g.at(m); }      // what is left of a mast, leaning
     }
     g.at(null);
-    list.push({ x: cx, z: cz, sunk });
+    // hull(u, v, sd): a point on the plating (u along the ship 0..1, v up the side 0..1, sd -1 or 1) and the way the plating faces there: x, y, z, nx, nz
+    const hull = (u, v, sd) => { const fi = Math.min(0.999, Math.max(0, u)) * S, i = Math.floor(fi), b = prof(u), t = top(i) + (top(i + 1) - top(i)) * (fi - i) + heel * sd * b * VEX, k = v < 0.5 ? 0.7 + 0.6 * v : 1.0 + 0.24 * (v - 0.5), lx = (u - 0.5) * L, lz = b * sd * k, c = Math.cos(th), s = Math.sin(th); return [cx + lx * c - lz * s, yb + (t - yb) * v, cz + lx * s + lz * c, -sd * s, sd * c]; };
+    list.push({ x: cx, z: cz, sunk, hull });
   });
   return list;
 }

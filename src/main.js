@@ -26,6 +26,7 @@ import { buildTraveller } from './traveller.js';
 import { rideable, flyers } from './life.js';
 import { carPace, probe, OPT } from './drive.js';
 import { buildAboard } from './avatar.js';
+import { buildSeabed } from './seabed.js';
 import { buildMinimap } from './minimap.js';
 import { makeMenu } from './menu.js';
 
@@ -275,9 +276,10 @@ $('tvSecs').onchange = () => { tour.secs = +$('tvSecs').value || 30; };
   sl.oninput = () => { show(); try { localStorage.setItem('carKmh', sl.value); } catch (e) { /* not remembered then */ } }; show(); }
 // the left-hand column stacks: title, then Travel, then Places, whatever size each is just now
 function layoutLeft() {
-  const t = $('title'), tv = $('travel'), pl = $('places'), tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
+  const t = $('title'), tv = $('travel'), pl = $('places'); t.style.top = document.body.classList.contains('riding') ? '52px' : '';
+  const tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
   tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
-  pl.style.maxHeight = `calc(100vh - ${Math.round(b + 86)}px)`;
+  pl.style.maxHeight = `calc(100vh - ${Math.round(b + (document.body.classList.contains('riding') ? 156 : 86))}px)`;          // (while riding, the helm sits under the list)
   // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
   // and on a narrow screen it goes under the Travel chip
   const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); mm.style.top = small ? b + 'px' : '';
@@ -430,7 +432,7 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water, detail, life, folk, air, trek, mini, aboard;
+let features, boats, clouds, water, detail, life, folk, air, trek, mini, aboard, seabed;
 const lookDir = new THREE.Vector3();
 const sound = makeSound();
 const dive = makeDive();
@@ -453,6 +455,7 @@ async function boot() {
   air = buildPlanes(scene, F);
   trek = buildTraveller(scene, F);
   aboard = buildAboard(scene, { cars: rideable, boats: () => boats.boats, planes: () => air.planes, ride });
+  seabed = buildSeabed(scene, F, { wrecks: features.wrecks, reefs: folk.reefs });
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   mini = buildMinimap(F, {
@@ -469,7 +472,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour, mini, menu, openMenu };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour, mini, menu, openMenu, seabed, aboard };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -523,6 +526,7 @@ function frame() {
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
   life.update(dt, acc, t, camDist, renderer);
+  seabed.update(camDist);
   if (camDist < 260) probe.look(renderer, t.x, t.z);          // where the trees, big bushes and logs stand round the view, for whatever walks or drives there
   air.update(dt, acc); trek.update(dt, acc); aboard.update(dt, acc, t);
   if (aboard.av.dead > 6 && ride.bird === aboard.av) { exitRide(); aboard.despawn(); say('They fell to their death.'); }

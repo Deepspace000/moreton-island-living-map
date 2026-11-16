@@ -164,7 +164,7 @@ body.ui-off #walkHint, body.ui-off #dot, body.ui-off #stick { display: none !imp
 #ride .zoom { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; pointer-events: auto; }
 #ride .zoom .pill { background: rgba(8, 28, 40, .7); color: #fff; touch-action: manipulation; }
 #ride .tip { position: absolute; left: 0; right: 0; top: 14px; text-align: center; color: rgba(255,255,255,.75); font-size: 12px; text-shadow: 0 1px 3px #000; }
-body.riding #title, body.riding #places, body.riding #hint, body.riding #labels { display: none !important; }
+body.riding #hint { display: none !important; }          /* (every panel stays with you while you ride: minimise the ones you do not want) */
 
 /* aboard a boat: instruments and the helm */
 #ride .helm { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 8px; pointer-events: auto; background: rgba(8, 28, 40, .45); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 7px 12px; color: #e6f2f5; font: 500 12.5px system-ui, sans-serif; max-width: 94vw; }
@@ -209,8 +209,10 @@ body.riding #travel .tv-back { display: block; }
 body.ui-off #travel { display: none !important; }
 
 /* in any ride the weather panel and the control bar get out of the way, so the view is clear; they come back when you leave */
-body.riding #wx, body.riding #bar, body.riding #walkHint, body.riding #credit { display: none !important; }
-body.riding #ride .helm { bottom: 14px; }
+body.riding #walkHint, body.riding #credit { display: none !important; }
+body.riding #ride .helm { bottom: 96px; }          /* above the control bar */
+body.riding #wx { top: 56px; }                    /* under the Further and Closer buttons */
+.glass, #dock { z-index: 3; }                     /* over the drawing of a car's cabin */
 
 /* Tides & travel: the tide, the wind, and what they mean for the beaches, the 4WDs and the boats */
 #cond { right: 14px; bottom: 96px; width: 252px; padding: 12px 14px 10px; font-size: 12px; color: var(--ink); }
@@ -244,7 +246,7 @@ body.riding #ride .helm { bottom: 14px; }
 .mm-zoom button:disabled { background: #fff; color: #cdd0d4; cursor: default; }
 #mini.min { height: auto; border: 0; }
 #mini.min > .win-min { width: auto; height: auto; padding: 7px 13px; background: none; color: #3c4043; font-weight: 500; box-shadow: none; }
-body.riding #mini { left: auto; right: 14px; bottom: auto; top: 56px; }      /* the helm has the bottom left corner while you ride */
+body.riding #mini { left: auto; right: 276px; bottom: 96px; top: auto; }      /* the helm has the bottom left corner while you ride: the mini map stands beside the tide panel */
 body.ui-off #mini, body.ui-off #ctx { display: none !important; }
 @media (max-width: 820px) { #mini, body.riding #mini { left: 8px; right: auto; bottom: auto; top: 96px; width: 150px; height: 190px; } #mini.min { width: auto; height: auto; } }
 
