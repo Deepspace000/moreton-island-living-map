@@ -243,7 +243,7 @@ function buildBeachLife(scene) {
         lp = position * vec3(1.0, 0.85, 1.0) + vec3(walk.x * ca + walk.y * sa, 0.0, -walk.x * sa + walk.y * ca) / max(s, 0.0005);
         nrm = normalize(vec3(position.x, 0.7, position.z));
         c = aK > 0.5 ? vec3(0.85, 0.78, 0.65) * (0.55 + 0.6 * position.y) : mix(vec3(0.35, 0.25, 0.45), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
-  probe.add(wood.m, { wp: 'vW', lo: 0.1, log: 1 }); probe.add(sticks.m, { wp: 'vW', lo: 0.12, log: 1 });          // logs on the beach and in the forest: walkers go round them (see drive.js)
+  probe.add(wood.m, { wp: 'vW', lo: 0.1, log: 1, cs: 3.4 }); probe.add(sticks.m, { wp: 'vW', lo: 0.12, log: 1, cs: 2.1 });          // logs on the beach and in the forest: walkers go round them (see drive.js)
   return [shells, wood, sticks, litter, tufts, belt, ferns, crabs];
 }
 

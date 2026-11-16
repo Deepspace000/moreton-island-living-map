@@ -129,7 +129,17 @@ export function buildMinimap(F, o) {
   function zoomBy(n) { zoom[mode] = clamp(zoom[mode] + n, 0, MAXZ); buttons(); acc = 1; try { localStorage.setItem('mini:zoom', JSON.stringify(zoom)); } catch (e) { /* not remembered then */ } }
   const at = (clientX, clientY) => { const r = canvas.getBoundingClientRect(); return { x: cx + (clientX - r.left - cw / 2) * mpp, z: cz + (clientY - r.top - ch / 2) * mpp }; };
 
-  canvas.addEventListener('click', (e) => { if (mpp) { const p = at(e.clientX, e.clientY); o.go(p.x, p.z); } });
+  // Dragging the map moves the whole thing about the screen (it stays where you leave it, also next time); a click without a drag moves the view.
+  let drag = null, dragged = false;
+  const put = (l, t) => { const w = root.offsetWidth, h = root.offsetHeight; root.style.left = clamp(l, 4, Math.max(4, innerWidth - w - 4)) + 'px'; root.style.top = clamp(t, 4, Math.max(4, innerHeight - h - 4)) + 'px'; root.style.right = root.style.bottom = 'auto'; root.classList.add('moved'); };
+  const keep = () => { try { localStorage.setItem('mini:pos', JSON.stringify([parseFloat(root.style.left), parseFloat(root.style.top)])); } catch (e) { /* not remembered then */ } };
+  function reset() { root.classList.remove('moved'); root.style.left = root.style.top = root.style.right = root.style.bottom = ''; try { localStorage.removeItem('mini:pos'); } catch (e) { /* nothing kept */ } }
+  try { const s = JSON.parse(localStorage.getItem('mini:pos') || 'null'); if (s && isFinite(s[0]) && isFinite(s[1])) put(s[0], s[1]); } catch (e) { /* storage can be blocked */ }
+  addEventListener('resize', () => { if (root.classList.contains('moved')) put(parseFloat(root.style.left), parseFloat(root.style.top)); });
+  canvas.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; const r = root.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, on: false }; dragged = false; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* no capture: the drag still works over the map */ } });
+  canvas.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.on && Math.hypot(dx, dy) < 6) return; drag.on = true; root.classList.add('dragging'); put(drag.l + dx, drag.t + dy); });
+  for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, () => { if (drag && drag.on) { dragged = true; keep(); } drag = null; root.classList.remove('dragging'); });
+  canvas.addEventListener('click', (e) => { if (dragged) { dragged = false; return; } if (mpp) { const p = at(e.clientX, e.clientY); o.go(p.x, p.z); } });
   let wheel = 0;
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); wheel += e.deltaY; if (Math.abs(wheel) >= 60) { zoomBy(wheel < 0 ? 1 : -1); wheel = 0; } }, { passive: false });
   bIn.onclick = () => zoomBy(1); bOut.onclick = () => zoomBy(-1);
@@ -152,7 +162,12 @@ export function buildMinimap(F, o) {
     ctx.beginPath(); ctx.arc(mx, my, 7, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     ctx.beginPath(); ctx.arc(mx, my, 5, 0, 7); ctx.fillStyle = '#4285f4'; ctx.fill();
+    // where you are heading (a spot you clicked while riding): a red pin, and a dotted line to it
+    const gl = o.goal && o.goal(); if (gl) { const gx = clamp(X(gl.x), 6, cw - 6), gy = clamp(Z(gl.z), 16, ch - 4);
+      ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(60, 64, 67, .75)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.bezierCurveTo(gx - 9, gy - 10, gx - 7, gy - 20, gx, gy - 20); ctx.bezierCurveTo(gx + 7, gy - 20, gx + 9, gy - 10, gx, gy); ctx.fillStyle = '#ea4335'; ctx.fill(); ctx.strokeStyle = '#b31412'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(gx, gy - 13, 2.6, 0, 7); ctx.fillStyle = '#7a0e0b'; ctx.fill(); }
   }
   buttons();
-  return { update, zoomBy, at, root, canvas, get zoom() { return zoom[mode]; }, max: MAXZ };
+  return { update, zoomBy, at, reset, root, canvas, get zoom() { return zoom[mode]; }, max: MAXZ };
 }

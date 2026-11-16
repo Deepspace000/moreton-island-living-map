@@ -186,7 +186,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     sync();
   };
   R.exit = () => {
-    if (!R.active) return; if (R.helm) take(false); R.active = false; if (R.car) R.car.m.visible = true; if (R.boat) R.boat.helm = null; if (R.bird) { R.bird.ctl = null; R.bird.m.visible = true; if (env.showWalker) env.showWalker(true); } R.helm = false;
+    if (!R.active) return; if (R.helm) take(false); R.active = false; R.autoSteer = null; if (R.car) R.car.m.visible = true; if (R.boat) R.boat.helm = null; if (R.bird) { R.bird.ctl = null; R.bird.m.visible = true; if (env.showWalker) env.showWalker(true); } R.helm = false;
     el.style.display = 'none'; camera.near = near0; camera.fov = fov0; camera.up.set(0, 1, 0); camera.updateProjectionMatrix(); drag = null;
   };
   // Watching from outside. Zoom out (wheel, pinch, the Further button or the - key) and the eye leaves the seat and follows from behind and above,
@@ -209,7 +209,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     // held keys change the pace of whatever you are in control of: Shift up to nearly twice as fast, S down to half; let go and it eases back
     pace += ((!R.helm ? 1 : fast ? 1.8 : slow ? 0.5 : 1) - pace) * (1 - Math.exp(-dt * 2.2));
     { const h = R.car ? R.car.drive : R.bird ? R.bird.ctl : R.boat ? R.boat.helm : null; if (h) h.pace = pace; }
-    const steer0 = steer, gas0 = gas; steer *= OPT.invX; if (R.bird && R.bird.kind !== 'walker' && R.bird.kind !== 'person') gas *= OPT.invY;          // (up and down turned round is for flying: push forward to dive)
+    const steer0 = steer, gas0 = gas; R.steering = steer0 !== 0; steer = R.autoSteer != null && !R.steering ? R.autoSteer : steer * OPT.invX;          // (autoSteer: heading for a spot picked on the mini map; a hand on the keys overrules it) if (R.bird && R.bird.kind !== 'walker' && R.bird.kind !== 'person') gas *= OPT.invY;          // (up and down turned round is for flying: push forward to dive)
     if (R.car && R.car.drive) { const c = R.car; c.drive.turn += (steer - c.drive.turn) * (1 - Math.exp(-dt * 3.5)); c.drive.throttle = clamp(c.drive.throttle + gas * dt * 0.7, -0.4, 1.6); }
     if (R.bird && R.bird.ctl) { const p = R.bird; p.ctl.turn += (steer - p.ctl.turn) * (1 - Math.exp(-dt * 3)); p.ctl.climb += (gas - p.ctl.climb) * (1 - Math.exp(-dt * 3)); }
     if (R.boat && R.boat.helm) { const b = R.boat; b.helm.turn += (steer - b.helm.turn) * (1 - Math.exp(-dt * 3)); b.helm.throttle = clamp(b.helm.throttle + gas * dt * 0.6, 0, 1.5); }

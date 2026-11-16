@@ -147,21 +147,28 @@ export function buildPuddles(scene, F) {
 // way. (Grass, ferns, small bushes and the smallest trees are not drawn into it: those can be walked and driven through.)
 const PN = 192, PSPAN = 48;
 export const probe = {
-  scene: new THREE.Scene(), cam: new THREE.OrthographicCamera(-PSPAN / 2, PSPAN / 2, PSPAN / 2, -PSPAN / 2, 1, 2000), rt: null, buf: new Uint8Array(PN * PN * 4), data: null, cx: 0, cz: 0, busy: false, tick: 0, n: 0,
+  scene: new THREE.Scene(), cam: new THREE.OrthographicCamera(-PSPAN / 2, PSPAN / 2, PSPAN / 2, -PSPAN / 2, 1, 2000), rt: null, buf: new Uint8Array(PN * PN * 4), data: null, cx: 0, cz: 0, busy: false, tick: 0, last: 0, n: 0,
   // m: a mesh whose shader hands on its world position in the varying named wp. trunkOnly: only the parts marked vTrunk count (a tree: you can
   // pass under its crown); lo: how far above the ground a part must stand to count, in metres; log: 1 for the green picture
-  add(m, { wp = 'vWp', trunkOnly = false, lo = 0.9, log = 0 } = {}) {
+  add(m, { wp = 'vWp', trunkOnly = false, lo = 0.9, log = 0, cs = 11 } = {}) {
     const src = m.material, mat = new THREE.ShaderMaterial({
       uniforms: src.uniforms, defines: src.defines, side: THREE.DoubleSide, depthTest: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending,
       vertexShader: src.vertexShader.replace(LOGV, '\ngl_Position.z = 0.0;\n'),
       fragmentShader: LOGF_PARS + GLSL_COMMON + /* glsl */`varying vec3 ${wp}; ${trunkOnly ? 'varying float vTrunk;' : ''}
         void main(){ float up = (${wp}.y - groundY(${wp}.xz)) / uVex; if (up < ${lo.toFixed(2)} || up > 1.9${trunkOnly ? ' || vTrunk < 0.5' : ''}) discard; gl_FragColor = vec4(${log ? '0.0, 1.0' : '1.0, 0.0'}, 0.0, 1.0); }`,
     });
-    const p = new THREE.Mesh(m.geometry, mat); p.frustumCulled = false; this.scene.add(p); this.n++;
+    // Only the few cells round the middle are drawn here (cs: the size of one cell of the thing's grid), not the whole forest: the picture is
+    // 48 m across, and drawing every tree again for it made every third frame slow.
+    const g = new THREE.InstancedBufferGeometry(), k = Math.ceil(30 / cs) + 1, cells = [];
+    for (const [name, a] of Object.entries(m.geometry.attributes)) if (name !== 'iCell') g.setAttribute(name, a);
+    g.setIndex(m.geometry.index); for (let j = -k; j <= k; j++) for (let i = -k; i <= k; i++) cells.push(i, j);
+    g.setAttribute('iCell', new THREE.InstancedBufferAttribute(new Float32Array(cells), 2)); g.instanceCount = cells.length / 2; g.boundingSphere = FARS;
+    const p = new THREE.Mesh(g, mat); p.frustumCulled = false; this.scene.add(p); this.n++;
   },
   // draw and read the picture round x, z (called every frame while the view is close to the ground; it works every third frame)
   look(renderer, x, z) {
-    if (!this.n || this.busy || (this.tick++ % 3)) return;
+    if (!this.n || this.busy || (this.tick++ % 4)) return;
+    if (this.data && Math.hypot(x - this.cx, z - this.cz) < 1.2 && this.tick - this.last < 60) return; this.last = this.tick;          // nothing has moved: the last picture still holds
     if (!this.rt) { this.rt = new THREE.WebGLRenderTarget(PN, PN, { depthBuffer: false }); this.cam.up.set(0, 0, -1); }
     const y = meshY(x, z); this.cam.position.set(x, y + 300, z); this.cam.lookAt(x, y, z); this.cam.updateMatrixWorld();
     const old = renderer.getRenderTarget(); renderer.setRenderTarget(this.rt); renderer.clear(); renderer.render(this.scene, this.cam); renderer.setRenderTarget(old);

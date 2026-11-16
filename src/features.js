@@ -850,7 +850,7 @@ function buildTrees(F, scene) {
     });
     mat.alphaToCoverage = !!leafy;
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
-    if (mode === 0 || mode === 3) probe.add(m, { trunkOnly: mode === 0 });          // trunks and the big bushes are in the way of cars and walkers (see drive.js)
+    if (mode === 0 || mode === 3) probe.add(m, { trunkOnly: mode === 0, cs });          // trunks and the big bushes are in the way of cars and walkers (see drive.js)
   };
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 11, LOW ? 2 : 4), true);          // single trees close to the view, each its own kind

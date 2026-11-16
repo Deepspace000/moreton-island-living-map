@@ -121,7 +121,7 @@ export function buildSeabed(scene, F, o) {
     for (let i = n(4, 7); i > 0; i--) { const p = spot(); if (p) { at(p[0], p[1]); tuft(p[0], meshY(p[0], p[1]) - 0.02, p[1], (0.12 + R() * 0.2) * VEX); } }
     for (let i = n(2, 4); i > 0; i--) { const p = spot(); if (p) crabs.push(p[0], p[1], R() * 6.283, 0.09 + R() * 0.11, R() * 6.283, 0.5 + R() * 1.6, 0.25 + R() * 0.35, R()); }
     if (R() < 0.45 * k) { const rk = rocks.length ? pick(rocks) : null, p = rk ? [rk.x + rk.r * 1.5 + 0.6, rk.z + rk.r * 0.5] : spot(); if (p && depth(p[0], p[1]) > 0.7) octos.push(p[0], p[1], R() * 6.283, 0.3 + R() * 0.2, R() * 6.283, 0.25 + R() * 0.35, 0.6 + R() * 0.8, R()); }          // beside its rock, never far from it
-    for (let i = rich ? 3 : R() < 0.6 * k ? 1 : 0; i > 0; i--) { const p = spot(0, rad * 0.8); if (!p) continue; const d = depth(p[0], p[1]); if (d < 0.7) continue; school(R() < 0.6 ? fry : chromis, p[0], p[1], d, Math.round((18 + R() * 22) * K), 0.8 + R() * 1.6, 0.09 + R() * 0.06); }
+    for (let i = rich ? 2 : R() < 0.3 * k ? 1 : 0; i > 0; i--) { const p = spot(0, rad * 0.8); if (!p) continue; const d = depth(p[0], p[1]); if (d < 0.7) continue; school(R() < 0.6 ? fry : chromis, p[0], p[1], d, Math.round((10 + R() * 10) * K), 0.8 + R() * 1.6, 0.09 + R() * 0.06); }
     if (rich || R() < 0.2) for (let i = rich ? 2 : 1; i > 0; i--) { const p = spot(rad * 0.5, rad * 1.6); if (p && depth(p[0], p[1]) > 0.6) rays.push(p[0], p[1], 4 + R() * 9, 0, R() * 6.283, 0.25 + R() * 0.3, 0.7 + R() * 0.7, R()); }
   };
   // ---- the wrecks: barnacles and weed on the plating between the sea bed and the high-water mark, and a rich patch of bed round each ----
