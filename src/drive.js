@@ -115,6 +115,57 @@ export function buildLogBits(scene) {
   };
 }
 
+// ---------------------------------------------------------------- ruts on the inland tracks
+// Every inland track carries the two deep wheel ruts the 4WDs have worn into it: dark grooves with a pale crumbled lip, a wheel's width,
+// one car's track apart. They are also kept as short pieces in a grid, so a car can ask where the nearest rut line runs: a car in the
+// ruts is steered along them and rides more smoothly than one beside them.
+export function buildRuts(scene, F) {
+  const pos = [], ad = [], idx = [], grid = new Map(), G = 12, HALF = 1.25, W = 0.3, STEP = 3;
+  const inland = (x, z) => { const m = maskAt(x, z); return m.land > 0.9 && m.sand < 0.3; };
+  for (const r of F.roads) {
+    if (r.c !== 1 || r.p.length < 2) continue;
+    const a0 = r.p[0], a1 = r.p[r.p.length >> 1], a2 = r.p[r.p.length - 1]; if (!inland(a0[0], a0[1]) && !inland(a1[0], a1[1]) && !inland(a2[0], a2[1])) continue;      // (a run along the beach: no ruts kept there, the tide takes them)
+    let last = null, run = 0;
+    for (let i = 1; i < r.p.length; i++) {
+      const a = r.p[i - 1], b = r.p[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.2) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, n = Math.max(1, Math.round(L / STEP));
+      for (let k = (i === 1 ? 0 : 1); k <= n; k++) {
+        const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; run += L / n;
+        if (!inland(x, z) || pos.length > 900000) { last = null; continue; }
+        const base = pos.length / 3;
+        for (const sd of [-1, 1]) for (const e of [-1, 1]) { const px = x + tz * (sd * HALF + e * W), pz = z - tx * (sd * HALF + e * W); pos.push(px, meshY(px, pz) + 0.05, pz); ad.push(run, e); }
+        if (last !== null) { for (const o of [0, 2]) idx.push(last + o, last + o + 1, base + o, base + o, last + o + 1, base + o + 1);
+          const key = Math.floor((x + last.x) / 2 / G) + ',' + Math.floor((z + last.z) / 2 / G); let l = grid.get(key); if (!l) grid.set(key, l = []); l.push(last.x, last.z, x, z); }
+        last = Object.assign(new Number(base), { x, z });
+      }
+    }
+  }
+  if (idx.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aD', new THREE.Float32BufferAttribute(ad, 2)); g.setIndex(idx); g.boundingSphere = FARS;
+    const m = new THREE.Mesh(g, makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+      vs: /* glsl */`attribute vec2 aD; varying vec2 vD; varying vec3 vW; void main(){ vD = aD; vW = position; gl_Position = length(position - cameraPosition) > 520.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+      fs: /* glsl */`varying vec2 vD; varying vec3 vW;
+        void main(){ ${LOGF}
+          float e = abs(vD.y), n = texture2D(uNoise, vW.xz * 0.37).r, groove = 1.0 - smoothstep(0.5, 0.8, e + (n - 0.5) * 0.25), lip = smoothstep(0.55, 0.82, e) * (1.0 - smoothstep(0.86, 1.0, e));
+          float tread = 0.8 + 0.2 * step(0.45, fract(vD.x * 2.4 + e * 0.8));            // the last tyre's pattern in the floor of the groove
+          vec3 lit = uLightCol * (0.18 + 0.5 * max(uLightDir.y, 0.0)) * cloudShadow(vW) + uAmbSky * 0.65;
+          vec3 c = mix(vec3(0.62, 0.53, 0.37), vec3(0.17, 0.135, 0.095) * tread, groove) * lit;
+          float a = max(groove * 0.72, lip * 0.5) * (1.0 - smoothstep(330.0, 500.0, length(vW - cameraPosition)));
+          gl_FragColor = vec4(applyFog(c, vW), a); }` }));
+    m.name = 'ruts'; m.frustumCulled = false; m.renderOrder = 4.5; scene.add(m);
+  }
+  return scene.userData.ruts = {
+    count: idx.length / 12,
+    // the rut line nearest a place, if one runs within 3 m: d how far the place is to its left (below 0: to its right), tx, tz the way it runs
+    near(x, z) {
+      const gx = Math.floor(x / G), gz = Math.floor(z / G); let best = null, bd = 9;
+      for (let i = gx - 1; i <= gx + 1; i++) for (let j = gz - 1; j <= gz + 1; j++) { const l = grid.get(i + ',' + j); if (!l) continue;
+        for (let q = 0; q < l.length; q += 4) { const dx = l[q + 2] - l[q], dz = l[q + 3] - l[q + 1], ll = dx * dx + dz * dz || 1, t = clamp(((x - l[q]) * dx + (z - l[q + 1]) * dz) / ll, 0, 1), ex = x - l[q] - dx * t, ez = z - l[q + 1] - dz * t, d2 = ex * ex + ez * ez;
+          if (d2 < bd) { bd = d2; const len = Math.sqrt(ll), tx = dx / len, tz = dz / len; best = { d: ex * tz - ez * tx, tx, tz }; } } }
+      return best;
+    },
+  };
+}
+
 // ---------------------------------------------------------------- pools on the tracks, and potholes
 // Water lies on the inland tracks where the ground is level and low, more of it in the rough stretches; the same stretches are pitted
 // with potholes. Each is a patch laid on the ground. list holds the pools: x, z, cos and sin of the way it lies, half-length, half-width, depth.

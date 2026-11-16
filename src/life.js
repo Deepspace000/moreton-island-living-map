@@ -8,7 +8,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, FEATHER_GLSL, L
 const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
 import { T, meshY, groundH, heightAt, maskAt, narrowK } from './terrain.js';
 import { trackGraph } from './folk.js';
-import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, logGone, breakLog, buildLogBits, buildPuddles, pressGround, probe } from './drive.js';
+import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, logGone, breakLog, buildLogBits, buildPuddles, buildRuts, pressGround, probe } from './drive.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
@@ -396,7 +396,7 @@ function buildCars(scene, F, lights) {
   });
   rideable.push(...cars);
   for (const c of cars) { c.k0 = c.sp / 11; c.v = c.sp; }          // each driver's own pace, as a share of the speed set in the Travel menu
-  const pools = buildPuddles(scene, F), bits = buildLogBits(scene), hitBuf = [];
+  const pools = buildPuddles(scene, F), bits = buildLogBits(scene), ruts = buildRuts(scene, F), hitBuf = [];
   // taking the wheel and giving it back: a car left close to its beach run picks the run up again; one left elsewhere stays parked there
   for (const c of cars) c.setDrive = (on) => {
     if (on) { c.drive = { turn: 0, throttle: clamp(c.sp / 15, 0.2, 1), v: c.sp }; c.parked = false; return; }
@@ -466,6 +466,10 @@ function buildCars(scene, F, lights) {
         const dr = c.drive || { turn: 0, throttle: 0, v: 0 }; let hd = c.m.rotation.y;
         dr.v = (dr.v || 0) + (dr.throttle * 15 * clamp(carPace.kmh / 40, 0.5, 2.5) * (dr.pace ?? 1) - (dr.v || 0)) * Math.min(1, dt * 1.3);
         hd -= dr.turn * 0.75 * dt * clamp(Math.abs(dr.v) / 4, 0, 1) * (dr.v < 0 ? -1 : 1);
+        c.inRut = false;
+        { const rt = Math.abs(dr.v) > 1 ? ruts.near(c.m.position.x, c.m.position.z) : null;            // the ruts of an inland track take the wheels: they carry the car along the track, and to its middle, unless you steer out of them
+          if (rt && Math.abs(rt.d) < 1.4) { const al = Math.cos(hd) * rt.tx - Math.sin(hd) * rt.tz; if (Math.abs(al) > 0.9) { const sg = al > 0 ? 1 : -1, hand = Math.min(1, Math.abs(dr.turn) * 1.6); let e = Math.atan2(-rt.tz * sg, rt.tx * sg) - hd; e -= Math.PI * 2 * Math.round(e / (Math.PI * 2));
+            hd += clamp(e + clamp(-rt.d * sg * 0.16, -0.25, 0.25), -0.6, 0.6) * Math.min(1, dt * 2.2) * (1 - hand); c.inRut = hand < 0.6; } } }
         tx = Math.cos(hd); tz = -Math.sin(hd); x = c.m.position.x; z = c.m.position.z;
         const nx = x + tx * dr.v * dt, nz = z + tz * dr.v * dt;
         // it will not climb a dune face head on, and off the sand, in the bush, it can only crawl
@@ -524,9 +528,9 @@ function buildCars(scene, F, lights) {
         // driftwood ahead (only near the view, where it is drawn): it picks the nearest clear line past it and is on that line before it gets there
         const cx0 = a[0] + (b[0] - a[0]) * f, cz0 = a[1] + (b[1] - a[1]) * f;
         if (target && Math.hypot(cx0 - target.x, cz0 - target.z) < 230) { c.look = (c.look ?? c.k * 0.037) - dt; if (c.look <= 0) { c.look = 0.2; c.goal = dodge(c, cx0, cz0, tx, tz); c.wetAhead = pools.at(cx0 + tx * 9, cz0 + tz * 9) > 0 || pools.at(cx0 + tx * 3, cz0 + tz * 3) > 0; } } else { c.goal = undefined; c.wetAhead = false; }
-        // On an inland track it stays on the track: near the middle, and no further over than the track's edge even to let another car by.
+        // On an inland track it stays on the track: in the two ruts down its middle, and no further over than the track's edge even to let another car by.
         // (Only on the open beach does it have room to swing wide.) Off the road is for a driver, not for a car driving itself.
-        const lim = maskAt(cx0, cz0).sand < 0.3 ? (c.carGoal !== undefined ? 1.5 : 0.6) : 11;
+        const inl = maskAt(cx0, cz0).sand < 0.3, lim = inl ? (c.carGoal !== undefined ? 1.5 : 0) : 11; c.inRut = inl && c.carGoal === undefined && Math.abs(c.laneS) < 0.5;          // (inland its wheels are in the track's two ruts)
         const goal = clamp(c.carGoal ?? c.goal ?? c.lane, -lim, lim), l0 = c.laneS; c.dodge = c.goal !== undefined || c.carGoal !== undefined;
         c.laneS += (goal - c.laneS) * (1 - Math.exp(-dt * (c.dodge ? 1.7 : 0.9)));
         if (c.sp > 1.5 && dt > 0) { const ld = clamp((c.laneS - l0) / dt, -2.5, 2.5), ux = tx * c.sp + tz * ld, uz = tz * c.sp - tx * ld, ul = Math.hypot(ux, uz); tx = ux / ul; tz = uz / ul; }
@@ -541,7 +545,7 @@ function buildCars(scene, F, lights) {
       const ptT = Math.atan2(yf - yb, 6 * S); c.pt = (c.pt ?? ptT) + (ptT - (c.pt ?? ptT)) * (1 - Math.exp(-dt * 5));
       // Rough ground: each wheel rides its own bumps, so the body heaves, pitches and rolls on its springs (hardest on the inland tracks and in
       // soft sand, hardly at all on sand the tide has packed). Water on the track drags at it and is thrown up in spray.
-      const sus = c.sus || (c.sus = [0, 0, 0, 0, 0, 0]), A = roughAt(x, z) * 0.55, wl = 1.9 * S, ww = 0.95 * S, zx = -tz, zz = tx;
+      const sus = c.sus || (c.sus = [0, 0, 0, 0, 0, 0]), A = roughAt(x, z) * 0.55 * (c.inRut ? 0.55 : 1), wl = 1.9 * S, ww = 0.95 * S, zx = -tz, zz = tx;
       const bF = bumpAt(x + tx * wl, z + tz * wl), bB = bumpAt(x - tx * wl, z - tz * wl), bL = bumpAt(x + zx * ww, z + zz * ww), bR = bumpAt(x - zx * ww, z - zz * ww);
       if (target && c.sp > 1.2 && Math.abs(x - target.x) < 170 && Math.abs(z - target.z) < 170) {            // a log under the bumper: it breaks up and is knocked aside
         const bx = x + tx * 3.0, bz = z + tz * 3.0; logsNear(bx, bz, 4.6, hitBuf);
