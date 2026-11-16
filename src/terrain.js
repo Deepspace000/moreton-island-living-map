@@ -251,7 +251,7 @@ export function buildTerrain(scene) {
         float flatK = 1.0 - smoothstep(-0.15, 0.4, h);
         sand = max(sand, flatK * (1.0 - step(0.0, h) * smoothstep(0.2, 0.08, lum)));
         vec3 veg = alb * 1.45 + vec3(0.003, 0.009, 0.0);
-        veg = mix(veg, vec3(lum * 1.2, lum * 2.0, lum * 0.75), mix(0.4, 0.22, dW));
+        veg = mix(veg, vec3(lum * 1.42, lum * 1.72, lum * 0.7), mix(0.4, 0.22, dW));      // the bush is olive (yellow ochre with a little blue), not a lawn green
         veg *= 0.72 + 0.5 * nA.r;
         veg = mix(veg, veg * vec3(1.22, 1.08, 0.66), smoothstep(1.02, 1.32, relief) * 0.55);      // drier, paler ridge tops
         veg = mix(veg, veg * vec3(0.72, 0.92, 0.86), smoothstep(0.95, 0.62, relief) * 0.6);       // lush, dark gullies
@@ -272,8 +272,8 @@ export function buildTerrain(scene) {
         // the beaches of the bay side (west and south) are white, as the owner's photographs from Kooringal and the south-west show; the ocean beaches and
         // the high dunes keep their pale yellow. A beach is a bay beach when there is no open ocean within a few hundred metres of it.
         float ocean = max(max(texture2D(uHeight, cuv + vec2(uHTex.x * 18.0, 0.0)).g, texture2D(uHeight, cuv - vec2(uHTex.x * 18.0, 0.0)).g), max(texture2D(uHeight, cuv + vec2(0.0, uHTex.y * 18.0)).g, texture2D(uHeight, cuv - vec2(0.0, uHTex.y * 18.0)).g));
-        float bayBeach = (1.0 - smoothstep(0.34, 0.55, ocean)) * (1.0 - smoothstep(5.0, 11.0, h));      // the bay-side beaches (Tangalooma, Bulwer, Kooringal) are a pale warm beige, as the owner photographed them; the ocean side and the sandhills are more golden
-        vec3 sd = mix(vec3(0.99, 0.875, 0.575), vec3(0.965, 0.885, 0.725), bayBeach) * mix(0.97, 1.03, smoothstep(0.2, 0.8, sLum));
+        float bayBeach = (1.0 - smoothstep(0.34, 0.55, ocean)) * (1.0 - smoothstep(5.0, 11.0, h));      // the owner's \"warm sand\": yellow ochre let down with white and a touch of burnt sienna; a shade paler on the bay-side beaches, as photographed at Tangalooma
+        vec3 sd = mix(vec3(0.965, 0.80, 0.515), vec3(0.955, 0.82, 0.585), bayBeach) * mix(0.97, 1.03, smoothstep(0.2, 0.8, sLum));
         sd *= 0.97 + 0.06 * nA.r;
         float rip = sin((vW.x * 0.8 + vW.z * 0.5) * 0.9 + nC.r * 9.0) * 0.5 + 0.5;
         sd *= 1.0 - 0.035 * rip * near - 0.015 * nD.b * near;
@@ -393,7 +393,7 @@ export function buildTerrain(scene) {
         // seen from a distance, forest is its canopy: dark green, mottled with crowns
         // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
         float woodFar = max(1.0 - sand, smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
-        col = mix(col, vec3(0.030, 0.052, 0.023) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+        col = mix(col, vec3(0.036, 0.050, 0.021) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
         { // round the houses: low grass in patches, drifts of fallen leaves, and worn sand between (the grass blades and the leaves themselves are drawn on top, see life.js)
           float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h) * (1.0 - smoothstep(0.72, 0.9, mk.g));
           float grassP = smoothstep(0.30, 0.46, texture2D(uNoise, vW.xz / 13.0 + 0.3).g), driftP = smoothstep(0.36, 0.6, texture2D(uNoise, vW.xz / 9.0).r * 0.7 + texture2D(uNoise, vW.xz / 2.3 + 0.4).g * 0.3);

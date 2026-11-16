@@ -607,9 +607,9 @@ function buildTrees(F, scene) {
           vec3 q = vec3(position.x * ca - position.z * sa, position.y, position.x * sa + position.z * ca);
           vec3 nrm = normalize(vec3(normal.x * ca - normal.z * sa, normal.y, normal.x * sa + normal.z * ca));
           vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
-          c = mix(c, vec3(lum * 1.15, lum * 1.8, lum * 0.75), 0.28) * (0.9 + 0.5 * h2);
+          c = mix(c, vec3(lum * 1.35, lum * 1.65, lum * 0.7), 0.28) * (0.9 + 0.5 * h2);
           c = mix(c, c * vec3(1.25, 1.1, 0.7), step(0.8, h3) * 0.5);
-          if(uMode < 0.5) c = mix(c, vec3(0.15, 0.21, 0.085) * (0.85 + 0.4 * h2) * (1.0 - 0.22 * yard), max(smoothstep(0.2, 0.36, lum), yard));      // a tree standing on pale sand or in a yard is as green as one in the forest: its leaves do not take the colour of the ground
+          if(uMode < 0.5) c = mix(c, vec3(0.168, 0.20, 0.08) * (0.85 + 0.4 * h2) * (1.0 - 0.22 * yard), max(smoothstep(0.2, 0.36, lum), yard));      // a tree standing on pale sand or in a yard is as green as one in the forest: its leaves do not take the colour of the ground
           float ao; vec3 lp; vPor = uPorous; vBark = vec2(0.0); vSp = 0.0; vLs = 2.53;
           #ifdef SPECIES
             // Each kind of tree has its own build, and each tree its own form: where the trunk forks, how far the limbs
@@ -696,7 +696,7 @@ function buildTrees(F, scene) {
             vec3 qq = q * vec3(0.8 + 0.5 * h2, sq, 0.8 + 0.5 * h3) * (1.0 + 0.75 * (texture2D(uNoise, xz * 0.21 + q.xz * 0.37 + q.y * 0.19).r - 0.5));
             lp = aPart > 0.5 ? vec3(q.x * r, position.y * (stem + r * sq * 0.45), q.z * r) * s : qq * r * s + vec3(0.0, (stem + r * sq * 0.6) * s, 0.0);
             c = mix(c, c * vec3(0.78, 0.9, 0.85), tall * 0.6);
-            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.068, 0.098, 0.044), vec3(lum * 0.5, lum * 0.72, lum * 0.3), 0.25) * (0.8 + 0.45 * h1);          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
+            if(uMode > 0.5 && uMode < 1.5) c = mix(vec3(0.080, 0.094, 0.040), vec3(lum * 0.58, lum * 0.68, lum * 0.28), 0.25) * (0.8 + 0.45 * h1);          // distant crowns are forest green, a little lighter than the canopy floor they stand on, never the colour of one dark spot in the photograph
             if(uMode > 1.5) c = mix(alb * 1.1, vec3(lum * 1.2, lum * 1.5, lum * 0.7), 0.3) * (1.25 + 0.6 * h2) * mix(vec3(1.0), vec3(0.62, 0.66, 0.42), sandm);
             if(uMode > 2.5){ float inLeaf = step(0.28, h2 + (lum - 0.1) * 2.0); c = mix(mix(vec3(0.30, 0.25, 0.20), alb * 1.3, 0.55), c * vec3(0.8, 0.95, 0.75), inLeaf) * (0.8 + 0.5 * h3); vPor = mix(0.76, 0.62, inLeaf) + 0.08 * h1; }     // half of it bare brown twigs, half in leaf
             if(aPart > 0.5) c = mix(vec3(0.17, 0.11, 0.065), vec3(0.36, 0.28, 0.19), step(0.55, h3)) * (0.7 + 0.6 * h2);

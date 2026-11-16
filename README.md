@@ -93,7 +93,7 @@ Run locally: serve this folder with any static web server (for example `python -
 - People sit as well as stand: in camp chairs by the campfires and in the town yards
 - Under the scrub the ground is all but covered with fallen leaves: a brown carpet, old leaves dark and matted beneath, single leaves on top in every shade from red-brown to pale tan, with only chinks of sand showing; the open beach and dunes stay clean
 - Long green grass grows thick round the foot of every tall she-oak
-- Bay-side beach sand (Tangalooma, Bulwer, Kooringal) is the pale warm beige of the owner's photograph; the ocean side and the sandhills stay more golden; wheel tracks on the beaches show a little more
+- The owner's palette: sand is "warm sand" (yellow ochre let down with white and a touch of burnt sienna), a shade paler on the bay-side beaches as photographed at Tangalooma; the bush is olive rather than lawn green, in the ground cover, the tree crowns and the far hills; wheel tracks on the beaches show a little more
 - Wallabies are few
 - Fourth round with the critic: leaves are drawn at their true size (a hand long) whatever the size of the clump, and lie every way round on the top of a crown, so crowns seen from the air are dappled, not striped; trees stand in groves with open ground between; limbs bow less and trunk feet no longer swell; far crowns sit closer in tone to the canopy; wheel-track driveways run from the street to each parked car; gas bottles stand at the back wall; washing is in smaller pieces; fallen logs are shorter; a wading person's shadow no longer lies on the water
 - Map data: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, ODbL
