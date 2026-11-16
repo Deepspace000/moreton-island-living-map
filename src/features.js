@@ -359,7 +359,7 @@ function buildRoads(F, scene, occ) {
           col = vec3(0.80, 0.72, 0.52) * (0.9 + 0.2 * n); a = 0.7 * rut * (0.6 + 0.4 * texture2D(uNoise, vec2(vP.y / 23.0, 0.7)).g) * (1.0 - smoothstep(600.0, 1500.0, vD));
         } else if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
-          col = vec3(0.55, 0.45, 0.28); a = 0.16 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
+          col = vec3(0.52, 0.45, 0.33); a = 0.23 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
           col = vec3(0.92, 0.84, 0.66); a = 0.75 * dash * edge;
@@ -589,6 +589,7 @@ function buildTrees(F, scene) {
             if(hgt > -0.5 && hgt < 0.9 && shoreD > -70.0 && shoreD < 40.0 && xz.y > 9000.0 && bay * stand > 0.5){ sp = 4.0; dens = 0.55 * clr; } }
           if(yard > 0.5){ dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt); sp = hs < 0.58 ? 0.0 : hs < 0.8 ? 1.0 : hs < 0.9 ? 2.0 : 3.0; }      // in the yards: a gum, a she-oak, a banksia or a paperbark by the house
           if(uForceSp > -0.5) sp = uForceSp;          // (for looking at one kind of tree on its own)
+          if(uForceSp < -1.5 && !(sp > 0.5 && sp < 1.5)) dens = 0.0;      // (or at the she-oaks alone, where they really stand)
           #endif
           if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           if(uMode > 1.5){ float th = texture2D(uNoise, xz / 85.0 + 0.37).g * 0.7 + texture2D(uNoise, xz / 23.0 + 0.11).r * 0.3; dens *= mix(0.07, 1.7, smoothstep(0.43, 0.57, th)); }      // low growth stands in thickets some metres across, with open sand between them
@@ -778,7 +779,7 @@ function buildTrees(F, scene) {
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
             col *= (0.7 + 0.45 * smoothstep(-0.3, 0.75, normalize(vN).y)) * (0.78 + 0.34 * smoothstep(vPor, vPor + 0.22, n));      // lit on top, dark underneath; the heart of each clump fuller than its ragged edge
             if(!gl_FrontFacing) col *= 0.72;                                 // the shaded inside of the crown seen through the gaps
-            col += vCol * 0.5 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim;   // leaves glow when the sun is behind them
+            col += vCol * 0.5 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim * (vSp > 0.5 && vSp < 1.5 ? 0.3 : 1.0);      // (she-oak needles are too fine to glow much)   // leaves glow when the sun is behind them
             col = max(col, vec3(0.035, 0.06, 0.022) * (uLightCol * 0.12 + uAmbSky));        // a leaf in the shade is dark green, never black
           }
           #endif
