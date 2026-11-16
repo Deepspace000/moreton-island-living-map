@@ -291,14 +291,15 @@ function layoutLeft() {
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
     if (!down || e.button !== 0 || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
-    down = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit) return enterRide(hit);
-    // a click on the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
-    const p = aboard ? pickGround(camera, e.clientX, e.clientY) : null;
-    if (p) { camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel(); }
+    down = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit) enterRide(hit);
   });
 }
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
-canvas.addEventListener('dblclick', (e) => { if (walk.active || ride.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
+// a double click on the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
+canvas.addEventListener('dblclick', (e) => {
+  if (walk.active || ride.active || !aboard) return; const p = pickGround(camera, e.clientX, e.clientY); if (!p) return;
+  camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel();
+});
 addEventListener('keydown', (e) => { if (e.code === 'Escape' && menu.open) return menu.hide(); if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
 $('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); freeTide(); syncButtons(); syncWeatherUI(); });
 $('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); freeTide(); syncButtons(); syncWeatherUI(); };

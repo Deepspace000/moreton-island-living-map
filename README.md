@@ -76,7 +76,7 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - Every panel can be minimised to a small named chip with its – button, and opened again with +
 - Mini map: a small flat map in the corner, drawn like a street map (pale land, blue water, white tracks, names), with a blue dot and a beam for where you are and which way you look. Click it to move the view there; + and – or the wheel zoom it; it can be minimised like every other panel (`src/minimap.js`)
 - Right mouse button: the app's own menu (the place's latitude and longitude to copy, Walk here, Centre the view here, Zoom in here, Face north, Show the whole island, mini map on or off) in place of the browser's (`src/menu.js`)
-- Click a spot on the map and you stand (or swim) there, seeing through your own eyes; scroll or pinch out to see yourself from behind
+- Double-click a spot on the map and you stand (or swim) there, seeing through your own eyes; scroll or pinch out to see yourself from behind
 - Settings: how sharp the picture is drawn (resolution), full screen, turning the up-down and left-right controls round, and the dot in the middle of the walking view (off unless asked for)
 - 4WDs: a speed slider in the Travel menu sets what they do on a clear straight; by themselves they slow for bends, slopes, soft and rough track, water on the track, logs, and the turn at the end of a beach. They steer round the big driftwood logs, keep a lane clear of trees and big bushes, and some cross the island by the inland tracks. The body heaves, pitches and rolls on rough ground. Driven by hand, a 4WD stops dead at a tree trunk or a big bush
 - The inland tracks have rough stretches with potholes, and pools of water that throw spray and spread rings when a car goes through
