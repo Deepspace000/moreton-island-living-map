@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
 import { T, meshY, groundH, heightAt, maskAt, albedoAt, tideLimit } from './terrain.js';
+import { probe } from './drive.js';
 import { GB, makeLights } from './geo.js';
 
 const seaY = () => U.uSeaM.value * VEX;
@@ -455,6 +456,9 @@ function buildOverlay(F) {
   for (const b of F.buildings) { c.beginPath(); b.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); c.stroke(); }
   c.filter = 'none'; c.fillStyle = '#0000ff';                    // blue: open fresh water, where no tree stands
   for (const l of F.lakes) { c.beginPath(); l.p.forEach((p, i) => i ? c.lineTo(X(p[0]), Z(p[1])) : c.moveTo(X(p[0]), Z(p[1]))); c.closePath(); c.fill(); }
+  // the 4WDs' own ways (the beach runs, and the inland tracks they take round a beach the tide has shut): a wider lane in which no tree or big bush stands
+  c.strokeStyle = '#000070'; c.lineWidth = 2.3;
+  for (const r of F.drive || []) for (const p of [r.p, ...(r.tidal || []).map(q => q.path).filter(Boolean)]) { c.beginPath(); p.forEach((q, i) => i ? c.lineTo(X(q[0]), Z(q[1])) : c.moveTo(X(q[0]), Z(q[1]))); c.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
   U.uOver.value = t;
 }
@@ -846,6 +850,7 @@ function buildTrees(F, scene) {
     });
     mat.alphaToCoverage = !!leafy;
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
+    if (mode === 0 || mode === 3) probe.add(m, { trunkOnly: mode === 0 });          // trunks and the big bushes are in the way of cars and walkers (see drive.js)
   };
   const n = +(Q.get('trees') || (LOW ? 108 : 164));
   ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 11, LOW ? 2 : 4), true);          // single trees close to the view, each its own kind

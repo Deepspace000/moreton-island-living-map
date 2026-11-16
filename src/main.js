@@ -24,6 +24,10 @@ import { makeRide } from './ride.js';
 import { buildPlanes } from './plane.js';
 import { buildTraveller } from './traveller.js';
 import { rideable, flyers } from './life.js';
+import { carPace, probe, OPT } from './drive.js';
+import { buildAboard } from './avatar.js';
+import { buildMinimap } from './minimap.js';
+import { makeMenu } from './menu.js';
 
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { const e = $('ldmsg'); if (e) e.textContent = t; };
@@ -35,7 +39,10 @@ if (Q.get('ui') === '0') document.body.classList.add('ui-off');
 // ---------- renderer ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, logarithmicDepthBuffer: true, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
+const OPTS = { scale: 0, invX: false, invY: false, dot: false };          // what the Settings window holds (remembered between visits)
+try { Object.assign(OPTS, JSON.parse(localStorage.getItem('opts') || '{}')); } catch (e) { /* storage can be blocked */ }
 const DPR = Math.min(window.devicePixelRatio || 1, +(Q.get('dpr') || (MOBILE ? 1.5 : 2)));
+const pixelRatio = () => (OPTS.scale > 0 && !Q.has('dpr') ? clamp(OPTS.scale, 0.3, 3) : DPR);          // the Settings window can set how many picture points are drawn for each point of the screen
 renderer.setPixelRatio(DPR);
 const TM = { aces: THREE.ACESFilmicToneMapping, neutral: THREE.NeutralToneMapping, agx: THREE.AgXToneMapping }[Q.get('tm') || 'neutral'];
 const EXPO = +(Q.get('expo') || 0.5);
@@ -70,10 +77,10 @@ const rideWhere = (x, z) => {
   let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
   return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
 };
-const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
+const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : []), ...(aboard && aboard.av.on ? [aboard.av] : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
-  renderer.setSize(w, h, false); composer.setPixelRatio(DPR); composer.setSize(w, h);
+  renderer.setPixelRatio(pixelRatio()); renderer.setSize(w, h, false); composer.setPixelRatio(pixelRatio()); composer.setSize(w, h);
   camera.aspect = w / h; camera.fov = ride.active ? (ride.car ? (w < h ? 82 : 66) : (w < h ? 84 : 70)) : walk.active ? (w < h ? 80 : 70) : (w < h ? 50 : 38); camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
@@ -182,6 +189,7 @@ function enterRide(hit) {
   if (!hit.kind) hit = { kind: 'car', obj: hit };
   if (ride.active) exitRide();
   if (walk.active) exitWalk();
+  if (aboard && hit.obj !== aboard.av) aboard.despawn();          // back in a vehicle: nobody is left standing outside
   fly = null; controls.enabled = false; controls.autoRotate = false; $('btSpin').classList.remove('on');
   ride.enter(hit); document.body.classList.add('riding'); dip();
 }
@@ -196,6 +204,15 @@ function exitRide() {
   resize();
 }
 ride.onExit = exitRide;
+// Getting out of the vehicle you are in (the Get out button, or G): on foot beside a 4WD, in the water beside a boat, falling from a plane in flight
+const say = (txt) => { const h = $('hint'); h.textContent = txt; h.style.opacity = 1; clearTimeout(say.t); say.t = setTimeout(() => { h.style.opacity = 0; }, 6000); };
+function getOut() {
+  if (!ride.active || !aboard) return; const veh = ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane' ? ride.bird : null); if (!veh) return;
+  const kind = ride.car ? 'car' : ride.boat ? 'boat' : 'plane', view = ride.zoom; stopTour(); exitRide();
+  enterRide({ kind: 'bird', obj: aboard.leave(veh, kind), control: true }); ride.setView(1); syncTravel();
+}
+{ const b = document.createElement('button'); b.id = 'getOut'; b.className = 'pill'; b.textContent = 'Get out'; b.title = 'Get out of the vehicle (G)'; b.onclick = getOut; document.body.appendChild(b); }
+addEventListener('keydown', (e) => { if (e.code === 'KeyG' && ride.active) getOut(); });
 // ---------- the Travel menu: go along with the nearest 4WD, boat, yacht, jet ski, pelican or sea eagle, watching or in control ----------
 const TRAVEL = {
   car: () => rideable.map(o => ({ kind: 'car', obj: o })),
@@ -226,7 +243,7 @@ function travel(kind, control) {
   if (innerWidth < 640) { const tv = $('travel'); if (!tv.classList.contains('min')) tv.querySelector('.win-min')?.click(); }       // on a phone the list folds away once you have chosen, so you can see where you are
 }
 function syncTravel() {
-  const k = travelKind();
+  const k = travelKind(); document.body.classList.toggle('canOut', !!(ride.active && (ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane'))));
   for (const row of document.querySelectorAll('#travel .tv-row')) { const on = row.dataset.kind === k; row.classList.toggle('on', on); for (const b of row.querySelectorAll('button')) b.classList.toggle('on', on && (b.dataset.ctl === '1') === ride.helm); }
 }
 for (const b of document.querySelectorAll('#travel .tv-row button')) b.onclick = () => { stopTour(); travel(b.parentElement.dataset.kind, b.dataset.ctl === '1'); };
@@ -252,21 +269,33 @@ function stopTour() { if (!tour.on) return; tour.on = false; syncTour(); }
 function syncTour() { const b = $('tvTour'); b.textContent = tour.on ? 'Stop the tour' : 'Tour them all'; b.classList.toggle('on', tour.on); }
 $('tvTour').onclick = () => (tour.on ? (stopTour(), exitRide(), syncTravel()) : startTour());
 $('tvSecs').onchange = () => { tour.secs = +$('tvSecs').value || 30; };
+// how fast the 4WDs go on a clear straight (they slow by themselves for bends, slopes, rough or wet track and logs); remembered between visits
+{ const sl = $('tvKmh'), show = () => { carPace.kmh = +sl.value; $('tvKmhO').textContent = sl.value + ' km/h'; };
+  try { const v = +localStorage.getItem('carKmh'); if (v >= 10 && v <= 100) sl.value = v; } catch (e) { /* storage can be blocked */ }
+  sl.oninput = () => { show(); try { localStorage.setItem('carKmh', sl.value); } catch (e) { /* not remembered then */ } }; show(); }
 // the left-hand column stacks: title, then Travel, then Places, whatever size each is just now
 function layoutLeft() {
   const t = $('title'), tv = $('travel'), pl = $('places'), tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
-  tv.style.top = top + 'px'; const b = tv.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px'; pl.style.maxHeight = `calc(100vh - ${Math.round(b + 86)}px)`;
+  tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
+  pl.style.maxHeight = `calc(100vh - ${Math.round(b + 86)}px)`;
+  // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
+  // and on a narrow screen it goes under the Travel chip
+  const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); mm.style.top = small ? b + 'px' : '';
+  mm.style.left = !small && !document.body.classList.contains('riding') && pr.height > 0 && pr.bottom + 8 > innerHeight - 96 - mm.offsetHeight ? Math.round(pr.right + 8) + 'px' : '';
 }
 { let down = null;                 // a tap (not a drag) on a 4WD, a boat or a pelican in flight
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
-    if (!down || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
-    down = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit) enterRide(hit);
+    if (!down || e.button !== 0 || walk.active || ride.active || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
+    down = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit) return enterRide(hit);
+    // a click on the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
+    const p = aboard ? pickGround(camera, e.clientX, e.clientY) : null;
+    if (p) { camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel(); }
   });
 }
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
 canvas.addEventListener('dblclick', (e) => { if (walk.active || ride.active) return; const p = pickGround(camera, e.clientX, e.clientY); if (p) enterWalk(p.x, p.z); });
-addEventListener('keydown', (e) => { if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && menu.open) return menu.hide(); if (ride.active && (e.code === 'Escape' || e.code === 'KeyM')) return exitRide(); if (walk.active && (e.code === 'KeyM' || (e.code === 'Escape' && document.pointerLockElement !== canvas))) exitWalk(); });
 $('time').addEventListener('input', (e) => { st.live = false; st.play = false; setMinutes(+e.target.value); freeTide(); syncButtons(); syncWeatherUI(); });
 $('btLive').onclick = () => { st.live = true; st.play = false; st.date = Date.now(); freeTide(); syncButtons(); syncWeatherUI(); };
 $('btPlay').onclick = () => { st.play = !st.play; st.live = false; freeTide(); syncButtons(); syncWeatherUI(); };
@@ -281,8 +310,65 @@ $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.
 const btSound = $('btSound');
 const setSound = (v) => { if (sound.on !== v) sound.toggle(); btSound.classList.toggle('on', sound.on); try { localStorage.setItem('sound', sound.on ? '1' : '0'); } catch (e) { /* not remembered then */ } };
 btSound.onclick = () => setSound(!sound.on);
-try { if (localStorage.getItem('sound') === '1') addEventListener('pointerdown', (e) => { if (e.target !== btSound && !sound.on) setSound(true); }, { once: true }); } catch (e) { /* storage can be blocked */ }
+try { if (localStorage.getItem('sound') !== '0') addEventListener('pointerdown', (e) => { if (e.target !== btSound && !sound.on) setSound(true); }, { once: true }); } catch (e) { /* storage can be blocked */ }
+// ---------- the right mouse button: the app's own menu, in place of the browser's ("Save image as...") ----------
+const menu = makeMenu();
+const latLon = (x, z) => { const F = window.MAP.F, n = 2 ** 15, fx = (x - F.tx0) / F.tsize + F.tile0[0], fy = (z - F.tz0) / F.tsize + F.tile0[1]; return [Math.atan(Math.sinh(Math.PI * (1 - 2 * fy / n))) * 180 / Math.PI, fx / n * 360 - 180]; };
+function openMenu(cx, cy, el) {
+  const items = [], mm = $('mini'), onMini = mm.contains(el), busy = walk.active || ride.active;
+  const p = !mini ? null : el === mini.canvas ? mini.at(cx, cy) : (el === canvas || $('labels').contains(el)) && !ride.active ? pickGround(camera, cx, cy) : null;
+  if (p) {
+    const ll = latLon(p.x, p.z), txt = ll[0].toFixed(5) + ', ' + ll[1].toFixed(5);
+    items.push({ label: txt, note: 'copy', run: () => { navigator.clipboard?.writeText(txt).catch(() => { /* no clipboard here */ }); } });
+    if (!ride.active) items.push({ label: 'Walk here', run: () => { if (walk.active) exitWalk(); enterWalk(p.x, p.z); } });
+    if (!busy) {
+      const d = camera.position.distanceTo(controls.target);
+      items.push({ label: 'Centre the view here', run: () => flyTo(p.x, p.z, d, null, null, 1.2) });
+      items.push({ label: 'Zoom in here', run: () => flyTo(p.x, p.z, Math.max(260, Math.min(d * 0.3, 2400)), null, null, 1.6) });
+    }
+    items.push(null);
+  }
+  if (walk.active) items.push({ label: 'Back to the map', run: exitWalk });
+  else if (ride.active) items.push({ label: 'Back to the map', run: () => { stopTour(); exitRide(); syncTravel(); } });
+  else {
+    items.push({ label: 'Face north', run: () => $('btNorth').click() });
+    items.push({ label: 'Show the whole island', run: () => { const w = features.places[0]; flyTo(w.x, w.z, w.d, w.az, w.pol); } });
+  }
+  items.push(null);
+  if (mini && onMini && !mm.classList.contains('min')) {
+    if (mini.zoom < mini.max) items.push({ label: 'Zoom the mini map in', run: () => mini.zoomBy(1) });
+    if (mini.zoom > 0) items.push({ label: 'Zoom the mini map out', run: () => mini.zoomBy(-1) });
+  }
+  items.push({ label: mm.classList.contains('min') ? 'Show the mini map' : 'Hide the mini map', run: () => mm.querySelector('.win-min').click() });
+  menu.show(cx, cy, items);
+}
+{ let rdown = null;
+  addEventListener('pointerdown', (e) => { if (e.button === 2) rdown = { x: e.clientX, y: e.clientY }; }, true);
+  addEventListener('contextmenu', (e) => {
+    const el = e.target; if (el.closest && el.closest('a, textarea, input[type=text]')) return;          // a link keeps the browser's menu (copy its address)
+    e.preventDefault();
+    if (!features || e.pointerType === 'touch' || e.pointerType === 'pen' || document.pointerLockElement) return;      // a held finger is walking or panning, not asking for a menu
+    if (rdown && Math.hypot(e.clientX - rdown.x, e.clientY - rdown.y) > 6) return;                          // the right button was dragged: that turned the view
+    openMenu(e.clientX, e.clientY, el);
+  }, true);
+}
+// ---------- settings: how sharp the picture is drawn, the whole screen or the window, and which way the controls work ----------
+function applyOpts(save) {
+  OPT.invX = OPTS.invX ? -1 : 1; OPT.invY = OPTS.invY ? -1 : 1; resize();
+  const w = +(Q.get('w') || innerWidth), h = +(Q.get('h') || innerHeight), r = pixelRatio();
+  $('stScale').value = Math.round(r * 100); $('stScaleO').textContent = Math.round(r * 100) + '% · ' + Math.round(w * r) + ' × ' + Math.round(h * r);
+  $('stInvX').checked = OPTS.invX; $('stInvY').checked = OPTS.invY; $('stDot').checked = OPTS.dot; document.body.classList.toggle('dot', !!OPTS.dot); $('stFull').textContent = document.fullscreenElement ? 'Back to a window' : 'Full screen'; $('stFull').classList.toggle('on', !!document.fullscreenElement);
+  if (save) try { localStorage.setItem('opts', JSON.stringify(OPTS)); } catch (e) { /* not remembered then */ }
+}
+$('stScale').oninput = (e) => { OPTS.scale = +e.target.value / 100; applyOpts(true); };
+$('stAuto').onclick = () => { OPTS.scale = 0; applyOpts(true); };
+$('stInvX').onchange = (e) => { OPTS.invX = e.target.checked; applyOpts(true); }; $('stInvY').onchange = (e) => { OPTS.invY = e.target.checked; applyOpts(true); };
+$('stDot').onchange = (e) => { OPTS.dot = e.target.checked; applyOpts(true); };
+$('stFull').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => { /* not allowed here */ }); };
+document.addEventListener('fullscreenchange', () => applyOpts(false));
+applyOpts(false);
 // ---------- windows: each one can be shrunk to a small named chip and opened again (remembered between visits) ----------
+if (innerWidth <= 820) $('mini').dataset.min = '1';          // on a phone the mini map starts as a chip
 for (const w of document.querySelectorAll('.win')) {
   const b = document.createElement('button'), key = 'min:' + w.id, name = w.dataset.win;
   b.className = 'win-min'; b.innerHTML = `<span>${name}</span><i></i>`;
@@ -344,7 +430,8 @@ function stepFly(dt) {
 }
 
 // ---------- boot ----------
-let features, boats, clouds, water, detail, life, folk, air, trek;
+let features, boats, clouds, water, detail, life, folk, air, trek, mini, aboard;
+const lookDir = new THREE.Vector3();
 const sound = makeSound();
 const dive = makeDive();
 const clock = new THREE.Clock();
@@ -365,8 +452,14 @@ async function boot() {
   folk = buildFolk(scene, F);
   air = buildPlanes(scene, F);
   trek = buildTraveller(scene, F);
+  aboard = buildAboard(scene, { cars: rideable, boats: () => boats.boats, planes: () => air.planes, ride });
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
+  mini = buildMinimap(F, {
+    root: $('mini'), canvas: $('miniMap'),
+    where: () => { const p = ride.active ? ride.pos : walk.active ? walk.pos : controls.target; camera.getWorldDirection(lookDir); return { x: p.x, z: p.z, hdg: Math.atan2(lookDir.x, -lookDir.z), near: ride.active || walk.active }; },
+    go: (x, z) => { if (!ride.active && !walk.active) flyTo(x, z, camera.position.distanceTo(controls.target), null, null, 1.2); },
+  });
   pct(98); msg('Checking the weather'); await paint();
   // quick-jump list
   const P = features.places;
@@ -376,7 +469,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour, mini, menu, openMenu };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -429,8 +522,10 @@ function frame() {
   clouds.update(dt, acc, camera, showClouds && !U.uUnder.value);
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
-  life.update(dt, acc, t, camDist);
-  air.update(dt, acc); trek.update(dt, acc);
+  life.update(dt, acc, t, camDist, renderer);
+  if (camDist < 260) probe.look(renderer, t.x, t.z);          // where the trees, big bushes and logs stand round the view, for whatever walks or drives there
+  air.update(dt, acc); trek.update(dt, acc); aboard.update(dt, acc, t);
+  if (aboard.av.dead > 6 && ride.bird === aboard.av) { exitRide(); aboard.despawn(); say('They fell to their death.'); }
   if (tour.on) tourTick(dt);
   if (ride.active) ride.update(dt, acc);       // the eye is placed last, once the thing you ride has moved
   sound.update({ x: t.x, z: t.z, dist: camDist, wind: wx.wind, wave: wx.wave, rain: wx.rain, dt });
@@ -438,6 +533,7 @@ function frame() {
   { const k = clamp((e + 10) / 16, 0, 1); renderer.toneMappingExposure = lerp(1.7, EXPO, k * k * (3 - 2 * k)); }
   bloom.strength = lerp(0.5, 0.2, sky.day);
   composer.render();
+  mini.update(dt);
 
   uiT -= dt; if (uiT < 0) { uiT = 0.25; layoutLeft(); syncTravel(); refreshClock(); $('wxTide').textContent = (wx.tide >= 0 ? '+' : '') + wx.tide.toFixed(1); const az = walk.active ? -walk.yaw : Math.atan2(camera.position.x - t.x, camera.position.z - t.z); $('compass').style.transform = `rotate(${az}rad)`; }
 }

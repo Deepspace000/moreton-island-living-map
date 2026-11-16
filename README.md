@@ -74,6 +74,15 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - Sound (the Sound button): wind and leaves, ocean surf and bay ripples, rain and thunder, cicadas by day, crickets by night, and the calls of local birds, all made in the browser and following where you are, the weather and the hour
 - The ground is one smooth surface: a coarse mesh covers the island and finer grids follow the view, so dunes stay rounded up close and trees stand on the ground
 - Every panel can be minimised to a small named chip with its – button, and opened again with +
+- Mini map: a small flat map in the corner, drawn like a street map (pale land, blue water, white tracks, names), with a blue dot and a beam for where you are and which way you look. Click it to move the view there; + and – or the wheel zoom it; it can be minimised like every other panel (`src/minimap.js`)
+- Right mouse button: the app's own menu (the place's latitude and longitude to copy, Walk here, Centre the view here, Zoom in here, Face north, Show the whole island, mini map on or off) in place of the browser's (`src/menu.js`)
+- Click a spot on the map and you stand (or swim) there, seeing through your own eyes; scroll or pinch out to see yourself from behind
+- Settings: how sharp the picture is drawn (resolution), full screen, turning the up-down and left-right controls round, and the dot in the middle of the walking view (off unless asked for)
+- 4WDs: a speed slider in the Travel menu sets what they do on a clear straight; by themselves they slow for bends, slopes, soft and rough track, water on the track, logs, and the turn at the end of a beach. They steer round the big driftwood logs, keep a lane clear of trees and big bushes, and some cross the island by the inland tracks. The body heaves, pitches and rolls on rough ground. Driven by hand, a 4WD stops dead at a tree trunk or a big bush
+- The inland tracks have rough stretches with potholes, and pools of water that throw spray and spread rings when a car goes through
+- Someone sits in every 4WD, on every jet ski and in the plane, and stands at the helm of every boat. Get out (the button, or G): on foot beside a 4WD, treading water or swimming beside a boat, falling from a plane in flight
+- In control of anything: hold Shift to go faster, S to go slower (down to half). Walkers and the traveller go round tree trunks, big bushes and logs; grass and small bushes can be walked through
+- How the ground knowledge works (`src/drive.js`): the forest is grown in the shaders, so the trees, big bushes and logs near the view are drawn again from straight above into a small picture that is read back, and whatever walks or drives asks that picture what is in its way; the big driftwood logs are dealt from a table that the log shader and the 4WDs both read
 - Download: the Download button (or `?download` added to the address) saves the whole map as one HTML file of about 37 MB that opens on its own, even offline
 
 Run locally: serve this folder with any static web server (for example `python -m http.server`) and open it in a browser.

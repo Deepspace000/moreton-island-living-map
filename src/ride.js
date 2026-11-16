@@ -4,6 +4,7 @@
 // heading, the wheel on the right); drag to look about, and the cabin slides the other way as your head turns.
 import * as THREE from 'three';
 import { clamp } from './common.js';
+import { OPT } from './drive.js';
 
 const CABIN = /* html */`
 <div class="cab">
@@ -141,7 +142,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   const rears = [...el.querySelectorAll('.rear')]; let rearW = 0;
   const cab = el.querySelector('.cab'), helmEl = el.querySelector('.helm'), wheelEl = el.querySelector('.wheel'), $ = (id) => el.querySelector('#' + id), v = new THREE.Vector3(), d = new THREE.Vector3(), q = new THREE.Vector3();
   const R = { active: false, kind: '', car: null, boat: null, bird: null, pos: new THREE.Vector3(), look: 0, tilt: 0, zoom: 0, helm: false, onExit: null }, S = 1.45, COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  let tipT = 0, fov0 = 38, near0 = 3, uiT = 0, shake = 0, drag = null, steer = 0, gas = 0, sm = {};
+  let tipT = 0, fov0 = 38, near0 = 3, uiT = 0, shake = 0, drag = null, steer = 0, gas = 0, fast = false, slow = false, pace = 1, sm = {};
   // Smooth following. A value eases toward its target at a rate that does not depend on the frame time, so nothing the eye rides on
   // (height, pitch, roll, heading) can jump from one frame to the next; angles go the short way round.
   const ease = (key, to, rate, dt, ang) => { let v0 = sm[key]; if (v0 === undefined || !(dt >= 0)) return (sm[key] = to); let d0 = to - v0; if (ang) d0 -= Math.PI * 2 * Math.round(d0 / (Math.PI * 2)); return (sm[key] = v0 + d0 * (1 - Math.exp(-dt * rate))); };
@@ -168,10 +169,10 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     else camera.fov = innerWidth < innerHeight ? 84 : 70;
     camera.updateProjectionMatrix();
     cab.style.display = R.car ? 'block' : 'none'; helmEl.style.display = 'flex'; el.classList.toggle('incar', !!R.car);
-    $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? (R.boat.jet ? 'Leave the jet ski' : R.boat.sail ? 'Leave the yacht' : 'Leave the boat') : 'Leave the ' + ({ walker: 'traveller', eagle: 'sea eagle' }[R.bird.kind] || R.bird.kind || 'bird');
+    $('rideExit').textContent = R.car ? 'Leave the car' : R.boat ? (R.boat.jet ? 'Leave the jet ski' : R.boat.sail ? 'Leave the yacht' : 'Leave the boat') : (R.bird.kind === 'person' ? 'Back to the map' : 'Leave the ' + ({ walker: 'traveller', eagle: 'sea eagle' }[R.bird.kind] || R.bird.kind || 'bird'));
     $('hmUnit').textContent = R.boat ? 'kn' : 'km/h'; $('hmDepthL').textContent = R.boat ? 'depth' : 'height'; el.classList.toggle('walker', !!(R.bird && R.bird.kind === 'walker'));
-    const b = R.boat, can = canSteer(); $('hmTake').style.display = can ? '' : 'none';
-    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'walker' ? 'Drag to look around · walk them yourself, or press Camp to rest' : R.bird.kind === 'plane' ? 'Drag to look around · fly it yourself: steer, climb, and land on a strip' : R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor'; $('rideTip').textContent += ' · scroll or pinch to watch from outside';
+    const b = R.boat, can = canSteer(); $('hmTake').style.display = can && !(R.bird && R.bird.kind === 'person') ? '' : 'none';
+    $('rideTip').textContent = R.car ? 'Drag to look around · take the wheel to drive' : R.bird ? (R.bird.kind === 'person' ? 'On foot · A and D turn, W faster, down arrow slower · tap a vehicle to get in' : R.bird.kind === 'walker' ? 'Drag to look around · walk them yourself, or press Camp to rest' : R.bird.kind === 'plane' ? 'Drag to look around · fly it yourself: steer, climb, and land on a strip' : R.bird.kind === 'pelican' ? 'Drag to look around · fly it yourself to steer, climb and land' : 'Drag to look around · fly it yourself to steer, climb and dive') : can ? 'Drag to look around · take the helm to steer' : b.ferry ? 'Drag to look around · the ferry keeps to its route' : 'Drag to look around · this boat is at anchor'; $('rideTip').textContent += ' · scroll or pinch to watch from outside';
     sync(); syncZoom(); if (hit.control === true || (b && b.jet && hit.control !== false)) take(true);       // a jet ski is yours to ride as soon as you are on it (unless you asked only to watch)
     el.style.display = 'block'; uiT = 0; R.update(0, 0);
     const tip = $('rideTip'); tip.style.opacity = 1; clearTimeout(tipT); tipT = setTimeout(() => { tip.style.opacity = 0; }, 7000);       // the hint says its piece and goes
@@ -205,9 +206,14 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   };
   // the hands on the wheel: applied before the vehicles move this frame
   R.control = (dt) => {
+    // held keys change the pace of whatever you are in control of: Shift up to nearly twice as fast, S down to half; let go and it eases back
+    pace += ((!R.helm ? 1 : fast ? 1.8 : slow ? 0.5 : 1) - pace) * (1 - Math.exp(-dt * 2.2));
+    { const h = R.car ? R.car.drive : R.bird ? R.bird.ctl : R.boat ? R.boat.helm : null; if (h) h.pace = pace; }
+    const steer0 = steer, gas0 = gas; steer *= OPT.invX; if (R.bird && R.bird.kind !== 'walker' && R.bird.kind !== 'person') gas *= OPT.invY;          // (up and down turned round is for flying: push forward to dive)
     if (R.car && R.car.drive) { const c = R.car; c.drive.turn += (steer - c.drive.turn) * (1 - Math.exp(-dt * 3.5)); c.drive.throttle = clamp(c.drive.throttle + gas * dt * 0.7, -0.4, 1.6); }
     if (R.bird && R.bird.ctl) { const p = R.bird; p.ctl.turn += (steer - p.ctl.turn) * (1 - Math.exp(-dt * 3)); p.ctl.climb += (gas - p.ctl.climb) * (1 - Math.exp(-dt * 3)); }
     if (R.boat && R.boat.helm) { const b = R.boat; b.helm.turn += (steer - b.helm.turn) * (1 - Math.exp(-dt * 3)); b.helm.throttle = clamp(b.helm.throttle + gas * dt * 0.6, 0, 1.5); }
+    steer = steer0; gas = gas0;
   };
   // the eye: placed after everything has moved this frame, so the view never trails the thing you ride by a frame
   R.update = (dt, t) => {
@@ -248,7 +254,7 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
       let by = ease('by', p.y, 3.2, dt); by = sm.by = clamp(by, p.y - 1.5, p.y + 1.5);        // it may lag the bird a little, never lose it
       const zm = ease('zm', R.zoom, 5, dt), fp = zm < 1, show = !fp || p.hideInFP === false;
       if (p.m.visible !== show) p.m.visible = show; if (p.kind === 'walker' && env.showWalker) env.showWalker(show);
-      if (!fp) chase(p.hd, p.x, by + (p.kind === 'walker' ? 1.3 : p.kind === 'plane' ? 2.2 : 0.5), p.z, zm, dt, sea);
+      if (!fp) chase(p.hd, p.x, by + (p.kind === 'walker' || p.kind === 'person' ? 1.3 : p.kind === 'plane' ? 2.2 : 0.5), p.z, zm, dt, sea);
       else {                 // through its own eyes: the horizon tips as it banks, lifts and drops as it climbs and dives
         // (the eye is fixed in the creature's or the machine's own frame, so it stays put on the nose when that pitches up or banks)
         const a = ease('ca', p.hd, 7, dt, true), e = p.fpEye || [0.6, 0.3];
@@ -293,8 +299,8 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     }
     if (!R.active || !drag) return;
     // all the way round, in a car as on a boat
-    R.look += (e.clientX - drag.x) * 0.0035; R.look -= Math.PI * 2 * Math.round(R.look / (Math.PI * 2));
-    { const tight = R.car && R.zoom < 1; R.tilt = clamp(R.tilt - (e.clientY - drag.y) * 0.0025, tight ? -0.2 : -0.6, tight ? 0.16 : 0.5); } drag.x = e.clientX; drag.y = e.clientY;
+    R.look += (e.clientX - drag.x) * 0.0035 * OPT.invX; R.look -= Math.PI * 2 * Math.round(R.look / (Math.PI * 2));
+    { const tight = R.car && R.zoom < 1; R.tilt = clamp(R.tilt - (e.clientY - drag.y) * 0.0025 * OPT.invY, tight ? -0.2 : -0.6, tight ? 0.16 : 0.5); } drag.x = e.clientX; drag.y = e.clientY;
   });
   for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, (e) => { pts.delete(e.pointerId); drag = null; pinch = 0; });
   // the helm: buttons you hold, or the keys
@@ -304,9 +310,10 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   $('hmTake').onclick = () => take(!R.helm);
   $('hmCamp').onclick = () => { const p = R.bird; if (p && p.kind === 'walker') { p.askCamp = !p.camped; if (R.helm && !p.camped) take(false); } };
   $('rideOut').onclick = () => R.zoomBy(1.6); $('rideIn').onclick = () => R.zoomBy(1 / 1.6);
-  const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1] };
-  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
-  addEventListener('keyup', (e) => { const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
+  const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], ArrowDown: [0, -1] };          // (S is the slow key, below; the down arrow still brakes, backs or sinks)
+  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = true; if (e.code === 'KeyS') { slow = true; if (R.helm) e.preventDefault(); } if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
+  addEventListener('blur', () => { fast = slow = false; });
+  addEventListener('keyup', (e) => { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = false; if (e.code === 'KeyS') slow = false; const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
   $('rideExit').onclick = () => R.onExit && R.onExit();
   R.take = take; R.canSteer = canSteer;
   return R;

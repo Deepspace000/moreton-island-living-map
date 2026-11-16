@@ -114,7 +114,7 @@ export function buildPlanes(scene, F) {
       let near = null; for (const q of strips) { const ax = p.x - q.a[0], az = p.z - q.a[1], al = ax * q.ux + az * q.uz, cr = Math.abs(ax * q.uz - az * q.ux); if (al > -40 && al < q.L + 40 && cr < 28) near = q; }
       const low = p.y - gy < 0.25 && near;
       if (low) { onGround = true; p.v += ((c.climb > 0.2 ? 46 : 0) - p.v) * (1 - Math.exp(-dt * (c.climb > 0.2 ? 0.35 : 0.5))); w = -c.turn * 0.5 * clamp(p.v / 8, 0, 1); p.hd += w * dt; vyT = c.climb > 0.2 && p.v > 30 ? 5 : 0; }
-      else { p.v += (p.sp - p.v) * (1 - Math.exp(-dt * 0.5)); w = -c.turn * 0.42; p.hd += w * dt; vyT = c.climb * (7 + Math.max(0, p.y - sea()) * 0.02); }
+      else { p.v += (p.sp * (c.pace ?? 1) - p.v) * (1 - Math.exp(-dt * 0.5)); w = -c.turn * 0.42; p.hd += w * dt; vyT = c.climb * (7 + Math.max(0, p.y - sea()) * 0.02); }
       p.next = near ? 'over the ' + (near === strips[0] ? stripName(0) : stripName(strips.indexOf(near))) : '';
     } else if (p.state === 'park') {     // engine ticking over at the end of the strip
       onGround = true; p.v *= Math.exp(-dt * 2); p.wait -= dt; p.next = 'waiting at the ' + stripName(p.strip);

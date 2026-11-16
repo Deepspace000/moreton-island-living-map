@@ -6,7 +6,9 @@ import * as THREE from 'three';
 import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, FEATHER_GLSL, LOGV, LOGF, rng, clamp } from './common.js';
 // birds drawn many at a time: lit at each corner, feathered at each pixel
 const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
-import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
+import { T, meshY, groundH, heightAt, maskAt, narrowK } from './terrain.js';
+import { trackGraph } from './folk.js';
+import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, buildPuddles, probe } from './drive.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
@@ -26,21 +28,24 @@ const attr = (g, name, arr, n, inst) => g.setAttribute(name, inst ? new THREE.In
 
 // ---------------------------------------------------------------- things lying on the beach
 // One instance per grid cell around the viewer; the shader decides from the map what, if anything, lies there.
-function scatter(scene, n, cs, build, body, range, paint) {
+function scatter(scene, n, cs, build, body, range, paint, pre) {
   const cells = new Float32Array(n * n * 2); let k = 0;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
   const g = new THREE.InstancedBufferGeometry(); build(g);
   g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = FAR;
   const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
+  if (pre) uni.uLogs = { value: logTexture() };
   const mat = makeMat({
     uniforms: uni, side: THREE.DoubleSide,
     vs: /* glsl */`
       attribute vec2 iCell; attribute float aK; uniform vec2 uCentre; uniform float uCS, uRange, uRain; varying vec3 vCol, vW;
+      ${pre ? 'uniform sampler2D uLogs;' : ''}
       ${paint ? 'varying vec3 vObj, vNo, vLight; varying float vK; varying vec4 vH;' : ''}
       void main(){
         vec2 cell = uCentre + iCell;
         float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
         vec2 jt = fract(vec2(h1, h2) + texture2D(uNoise, cell * 0.37 + 0.11).rg + texture2D(uNoise, cell / 41.0).gb * 2.0);      // scattered, never in rows
+        ${pre || ''}
         vec2 xz = (cell + jt) * uCS, uv = worldUV(xz);
         vec3 mk = texture2D(uMask, uv).rgb, ov = texture2D(uOver, uv).rgb; float hgt = texture2D(uHeight, uv).r;
         float sandy = step(0.9, mk.r) * smoothstep(0.3, 0.65, mk.g) * step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997);
@@ -98,7 +103,7 @@ function buildBeachLife(scene) {
   };
   const wood = scatter(scene, LOW ? 48 : 72, 3.4, stickGeo, /* glsl */`
         float line = smoothstep(0.7, 1.1, hgt) * (1.0 - smoothstep(2.5, 3.6, hgt));                  // where the last high tide left things
-        float logK = step(h3, 0.016), stick = (1.0 - logK) * step(h3, 0.10);
+        float stick = (1.0 - logK) * step(h3, 0.10);          // (logK: a big log lies here, by the table the 4WDs read too)
         float len = logK > 0.5 ? 2.4 + 3.4 * h1 : 0.45 + 1.1 * h1, rad = logK > 0.5 ? 0.11 + 0.12 * h2 : 0.012 + 0.02 * h2;
         float taper = (1.0 - 0.6 * (position.x + 0.5)) * (1.0 + 0.55 * logK * smoothstep(0.3, 0.5, -position.x)) * (0.9 + 0.2 * sin(position.x * 9.0 + h1 * 20.0) * logK), crook = (sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * 0.22 + sin((position.x + 0.5) * 7.0 + h4 * 6.0) * 0.035 * logK);     // a log swells to its butt, wanders, and thins to a broken end
         s = (logK + stick) * sandy * line;
@@ -107,7 +112,7 @@ function buildBeachLife(scene) {
         float grain = texture2D(uNoise, vec2(position.x * len * 0.35 + h1, aK * 0.07 + h2 + atan(position.z, position.y) * 0.4)).r;
         float crack = texture2D(uNoise, vec2(position.x * len * 0.12 + h2, atan(position.z, position.y) * 1.7 + h1 * 3.0)).g;
         c = mix(vec3(0.58, 0.54, 0.48), vec3(0.34, 0.27, 0.20), smoothstep(0.35, 0.8, h4)) * (0.6 + 0.65 * grain) * (1.0 - 0.55 * logK * smoothstep(0.6, 0.72, crack));     // long dark checks along the grain
-        c *= 0.6 + 0.4 * smoothstep(-0.6, 0.4, position.y);                                                       // dark where it lies on the sand`, 420);
+        c *= 0.6 + 0.4 * smoothstep(-0.6, 0.4, position.y);                                                       // dark where it lies on the sand`, 420, undefined, LOG_PRE);
   // ---- the forest floor ----
   const WOODED = 'step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt)';
   // fallen branches and sticks
@@ -115,7 +120,7 @@ function buildBeachLife(scene) {
         float logK = step(h3, 0.012), stick = (1.0 - logK) * step(h3, 0.3);
         float len = logK > 0.5 ? 2.4 + 2.4 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.08 + 0.08 * h2 : 0.01 + 0.022 * h2;
         float taper = 1.0 - mix(0.5, 0.72, logK) * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * mix(0.3, 0.07, logK);      // a fallen trunk lies long and nearly straight; only thin sticks are bowed
-        s = (logK * (1.0 - smoothstep(0.3, 0.5, mk.g)) * (1.0 - smoothstep(0.03, 0.1, ov.r)) + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
+        s = (logK * (1.0 - smoothstep(0.3, 0.5, mk.g)) * (1.0 - smoothstep(0.03, 0.1, max(ov.r, max(ov.g, ov.b)))) + stick) * step(0.92, mk.r) * (1.0 - smoothstep(0.72, 0.93, mk.g)) * step(1.5, hgt);                 // under the trees, and out over the sandy edge where the dune is falling away
         lp = vec3(position.x * len, (position.y * taper + 0.8) * rad, position.z * rad * taper + crook * len);
         nrm = vec3(0.0, position.y, position.z);
         float grain = texture2D(uNoise, vec2(position.x * len * 0.35 + h1, aK * 0.07 + h2)).r;
@@ -238,6 +243,7 @@ function buildBeachLife(scene) {
         lp = position * vec3(1.0, 0.85, 1.0) + vec3(walk.x * ca + walk.y * sa, 0.0, -walk.x * sa + walk.y * ca) / max(s, 0.0005);
         nrm = normalize(vec3(position.x, 0.7, position.z));
         c = aK > 0.5 ? vec3(0.85, 0.78, 0.65) * (0.55 + 0.6 * position.y) : mix(vec3(0.35, 0.25, 0.45), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
+  probe.add(wood.m, { wp: 'vW', lo: 0.1, log: 1 }); probe.add(sticks.m, { wp: 'vW', lo: 0.12, log: 1 });          // logs on the beach and in the forest: walkers go round them (see drive.js)
   return [shells, wood, sticks, litter, tufts, belt, ferns, crabs];
 }
 
@@ -302,14 +308,72 @@ const beamGeo = (() => { const g = new THREE.BufferGeometry(), p = [], u = [], i
 const beamMat = makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
   vs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
   fs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ ${LOGF}
-    float two = exp(-pow((abs(vUv.y) - 0.55 + 0.3 * vUv.x) * 3.2, 2.0)) + 0.35 * (1.0 - vUv.y * vUv.y);      // two shafts that merge as they spread
-    float a = two * pow(1.0 - vUv.x, 1.6) * smoothstep(0.0, 0.04, vUv.x) * smoothstep(0.25, 0.6, uNight) * 0.3;
+    float sh = (abs(vUv.y) - 0.55 + 0.3 * vUv.x) * 3.2, two = exp(-sh * sh) + 0.35 * (1.0 - vUv.y * vUv.y);      // two shafts that merge as they spread
+    float a = two * pow(clamp(1.0 - vUv.x, 0.0, 1.0), 1.6) * smoothstep(0.0, 0.04, vUv.x) * smoothstep(0.25, 0.6, uNight) * 0.3;
     gl_FragColor = vec4(vec3(1.0, 0.93, 0.78) * a, a); }` });
 export const rideable = [];            // the moving 4WDs, for riding along in (see ride.js)
 // the dark patch a car throws on the sand under itself
 export function carShadow() { const g = new THREE.PlaneGeometry(6.2, 3.0); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, blobShadowMat()); m.position.y = 0.05; m.frustumCulled = false; m.renderOrder = 4; return m; }
+// How fast each stretch of a route can be taken: slower round a bend (by how far the route turns over 44 m), on a slope, on the soft
+// inland tracks (slower still in their rough stretches) and on the narrow tidal beaches. Worked out once for each route.
+const profs = new WeakMap();
+function profile(p, cum) {
+  let f = profs.get(p); if (f) return f;
+  const n = p.length, len = cum[n - 1], bend = new Float32Array(n), ground = new Float32Array(n);
+  const at = (s) => { s = clamp(s, 0, len); let lo = 1, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < s) lo = m + 1; else hi = m; } const a = p[lo - 1], b = p[lo], t = (s - cum[lo - 1]) / Math.max(0.01, cum[lo] - cum[lo - 1]); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
+  for (let i = 0; i < n; i++) {
+    const s = cum[i], a = at(s - 22), b = at(s), c = at(s + 22);
+    let d = Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]); d -= Math.PI * 2 * Math.round(d / (Math.PI * 2));
+    bend[i] = Math.sqrt(2.4 / Math.max(s < 22 || s > len - 22 ? 0 : Math.abs(d) / 22, 0.0008));          // the speed at which the turn pushes sideways no harder than a driver likes
+    const q = at(s + 7), o = at(s - 7), slope = Math.abs(groundH(q[0], q[1]) - groundH(o[0], o[1])) / 14, inland = maskAt(b[0], b[1]).sand < 0.3;
+    ground[i] = Math.max(0.3, (1 / (1 + (slope / 0.1) ** 2)) * (inland ? 0.72 - 0.3 * roughAt(b[0], b[1]) : 1 - 0.25 * narrowK(b[0], b[1])));
+  }
+  profs.set(p, f = { bend, ground }); return f;
+}
+// Driftwood in a car's way. Each log ahead takes a stretch of the beach's width; if the car's own lane is in one, it moves to the nearest
+// clear line that is still dry sand (not the bush, not the water). cx, cz: where it is on its route; tx, tz: the way the route runs.
+const logBuf = [];
+function dodge(c, cx, cz, tx, tz) {
+  const ahead = clamp(c.v * 4.5, 28, 100), nx = tz, nz = -tx, taken = [];
+  logsNear(cx + tx * ahead / 2, cz + tz * ahead / 2, ahead / 2 + 8, logBuf);
+  for (let q = 0; q < logBuf.length; q += 4) {
+    const ox = logBuf[q] - cx, oz = logBuf[q + 1] - cz, hx = logBuf[q + 2], hz = logBuf[q + 3];
+    const f0 = (ox - hx) * tx + (oz - hz) * tz, f1 = (ox + hx) * tx + (oz + hz) * tz; if (Math.max(f0, f1) < -5 || Math.min(f0, f1) > ahead) continue;
+    const l0 = (ox - hx) * nx + (oz - hz) * nz, l1 = (ox + hx) * nx + (oz + hz) * nz;
+    taken.push([Math.min(l0, l1) - 2.5, Math.max(l0, l1) + 2.5, Math.max(0, (f0 + f1) / 2)]);
+  }
+  const free = (l) => !taken.some(t => l > t[0] && l < t[1]);
+  if (!taken.length || free(c.lane)) return undefined;
+  let best, bd = 1e9; const sea = U.uSeaM.value;
+  for (const t of taken) for (const l of [t[0] - 0.1, t[1] + 0.1]) {
+    if (Math.abs(l) > 16 || !free(l)) continue;
+    const px = cx + tx * t[2] + nx * l, pz = cz + tz * t[2] + nz * l, m = maskAt(px, pz);
+    if (m.land < 0.9 || m.sand < 0.45 || heightAt(px, pz) < sea + 0.3) continue;
+    const d = Math.abs(l - c.laneS); if (d < bd) { bd = d; best = l; }
+  }
+  return best;          // (no clear line: it holds its lane)
+}
+// Ways across the island for the 4WDs: from the western beach over to the eastern one by the inland tracks (never by a walking path, and
+// not round by the beach). Three of them, north, middle and south, each the shortest way by the tracks from where it leaves the west beach.
+function crossings(F) {
+  const net = trackGraph(F), H = Math.hypot, out = [];
+  const onBeach = net.filter(n => n.e.some(e => e.c === 3) && n.e.some(e => e.c <= 1)), west = onBeach.filter(n => maskAt(n.p[0] - 350, n.p[1]).land < 0.5), east = onBeach.filter(n => maskAt(n.p[0] + 350, n.p[1]).land < 0.5 && maskAt(n.p[0] - 350, n.p[1]).land > 0.5);
+  if (!west.length || !east.length) return out;
+  for (const zt of [-11500, -2600, 6500]) {
+    const src = west.reduce((a, n) => (Math.abs(n.p[1] - zt) < Math.abs(a.p[1] - zt) ? n : a)); if (out.some(r => r.from === src)) continue;
+    const dist = new Float64Array(net.length).fill(Infinity), prev = new Int32Array(net.length).fill(-1), done = new Uint8Array(net.length), open = [src.i]; dist[src.i] = 0;
+    while (open.length) { let bi = 0; for (let k = 1; k < open.length; k++) if (dist[open[k]] < dist[open[bi]]) bi = k; const i = open.splice(bi, 1)[0]; if (done[i]) continue; done[i] = 1;
+      for (const e of net[i].e) { if (e.c > 1) continue; const d = dist[i] + e.d * (e.c === 0 ? 3 : 1); if (d < dist[e.to.i]) { dist[e.to.i] = d; prev[e.to.i] = i; open.push(e.to.i); } } }
+    const end = east.reduce((a, n) => (dist[n.i] < dist[a.i] ? n : a)); if (!(dist[end.i] < 26000)) continue;
+    const p = []; for (let i = end.i; i >= 0; i = prev[i]) p.unshift(net[i].p);
+    // points every few metres, so the cars' own smoothing has something to work on
+    const q = [p[0]]; for (let i = 1; i < p.length; i++) { const a = p[i - 1], b = p[i], L = H(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.round(L / 12)); for (let k = 1; k <= n; k++) q.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); }
+    if (q.length > 30) out.push({ p: q, side: 0, cross: true, from: src });
+  }
+  return out;
+}
 function buildCars(scene, F, lights) {
-  const routes = (F.drive || F.beach || []).filter(r => r.p.length > 30);          // (the cars' routes go round the beaches that are closed to vehicles: see closeBeaches in features.js)
+  const routes = (F.drive || F.beach || []).filter(r => r.p.length > 30); routes.push(...crossings(F));          // (the cars' routes go round the beaches that are closed to vehicles: see closeBeaches in features.js)
   if (!routes.length) return () => {};
   const R = rng(4004), S = 1.45, mat = objectMat({ side: THREE.DoubleSide, defines: { CAR: 1 } });
   const COLS = [[.90, .90, .88], [.80, .81, .82], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40], [.86, .84, .70]], geos = COLS.map(fourWD);
@@ -320,7 +384,7 @@ function buildCars(scene, F, lights) {
   const cars = [];
   routes.forEach((r, ri) => {
     const cum = [0]; for (let i = 1; i < r.p.length; i++) cum.push(cum[i - 1] + Math.hypot(r.p[i][0] - r.p[i - 1][0], r.p[i][1] - r.p[i - 1][1]));
-    const len = cum[cum.length - 1], n = clamp(Math.round(len / (MOBILE ? 4200 : 2600)), 1, MOBILE ? 5 : 9);
+    const len = cum[cum.length - 1], n = clamp(Math.round(len / ((MOBILE ? 4200 : 2600) * (r.cross ? 2 : 1))), 1, MOBILE ? 5 : 9);
     for (let k = 0; k < n; k++) {
       const m = new THREE.Mesh(geos[(R() * geos.length) | 0], mat); m.name = 'car'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; m.add(carShadow()); scene.add(m);
       const dir = R() < 0.5 ? 1 : -1;
@@ -331,10 +395,12 @@ function buildCars(scene, F, lights) {
     }
   });
   rideable.push(...cars);
+  for (const c of cars) { c.k0 = c.sp / 11; c.v = c.sp; }          // each driver's own pace, as a share of the speed set in the Travel menu
+  const pools = buildPuddles(scene, F);
   // taking the wheel and giving it back: a car left close to its beach run picks the run up again; one left elsewhere stays parked there
   for (const c of cars) c.setDrive = (on) => {
     if (on) { c.drive = { turn: 0, throttle: clamp(c.sp / 15, 0.2, 1), v: c.sp }; c.parked = false; return; }
-    c.drive = null; let bi = 1, bd = 1e9; for (let i = 1; i < c.p.length; i++) { const d = Math.hypot(c.p[i][0] - c.m.position.x, c.p[i][1] - c.m.position.z); if (d < bd) { bd = d; bi = i; } }
+    c.drive = null; c.v = c.sp; let bi = 1, bd = 1e9; for (let i = 1; i < c.p.length; i++) { const d = Math.hypot(c.p[i][0] - c.m.position.x, c.p[i][1] - c.m.position.z); if (d < bd) { bd = d; bi = i; } }
     if (bd < 45) {
       c.s = clamp(c.cum[bi], 41, c.len - 41); c.i = bi; c.parked = false; const sx = c.p[bi][0] - c.p[bi - 1][0], sz = c.p[bi][1] - c.p[bi - 1][1], sl = Math.hypot(sx, sz) || 1, fwd = Math.cos(c.m.rotation.y) * sx - Math.sin(c.m.rotation.y) * sz; c.dir = fwd >= 0 ? 1 : -1; c.lane = Math.abs(c.lane) * c.dir;
       // it does not jump back onto its lane: it starts from where you left it and works its way over
@@ -391,27 +457,39 @@ function buildCars(scene, F, lights) {
       c.m.visible = true; c.m.position.set(p[0], yAt(s), p[1]); c.m.rotation.set(0, c.hd, Math.atan2(yAt(s + 3 * sg) - yAt(s - 3 * sg), 6));
     }
   };
-  return (dt) => {
-    shuttle(dt);
+  return (dt, target, renderer) => {
+    shuttle(dt); pools.update(dt);
     let laid = false;
     for (const c of cars) {
       let tx, tz, x, z;
       if (c.drive || c.parked) {            // someone aboard has the wheel (or left it parked where they stopped): it goes where it is steered, over any ground but not into the sea
         const dr = c.drive || { turn: 0, throttle: 0, v: 0 }; let hd = c.m.rotation.y;
-        dr.v = (dr.v || 0) + (dr.throttle * 15 - (dr.v || 0)) * Math.min(1, dt * 1.3);
+        dr.v = (dr.v || 0) + (dr.throttle * 15 * clamp(carPace.kmh / 40, 0.5, 2.5) * (dr.pace ?? 1) - (dr.v || 0)) * Math.min(1, dt * 1.3);
         hd -= dr.turn * 0.75 * dt * clamp(Math.abs(dr.v) / 4, 0, 1) * (dr.v < 0 ? -1 : 1);
         tx = Math.cos(hd); tz = -Math.sin(hd); x = c.m.position.x; z = c.m.position.z;
         const nx = x + tx * dr.v * dt, nz = z + tz * dr.v * dt;
         // it will not climb a dune face head on, and off the sand, in the bush, it can only crawl
         const way = dr.v < 0 ? -1 : 1, rise = (groundH(nx + tx * 3 * way, nz + tz * 3 * way) - groundH(x, z)) / 3;
-        if (maskAt(x, z).sand < 0.3) dr.v = clamp(dr.v, -3, 5.5);
-        if (rise < 0.42 && groundH(nx + tx * 2, nz + tz * 2) > U.uSeaM.value - 0.45 && Math.abs(nx) < T.sx / 2 - 200 && Math.abs(nz) < T.sz / 2 - 200) { x = nx; z = nz; } else dr.v *= 0.6;
+        if (maskAt(x, z).sand < 0.3) dr.v = clamp(dr.v, -3, (5.5 + 5.5 * (1 - roughAt(x, z))) * (dr.pace ?? 1));
+        // a tree trunk or a big bush in the way stops it dead (it can back out); see the probe in drive.js
+        if (c.drive) { let hit = false; for (const o of [-1.1, 0, 1.1]) if (probe.hit(nx + tx * way * 3.1 - tz * o, nz + tz * way * 3.1 + tx * o, 0.35)) hit = true;
+          if (hit) { if (Math.abs(dr.v) > 1.5) (c.sus || (c.sus = [0, 0, 0, 0, 0, 0]))[4] -= way * Math.min(0.9, Math.abs(dr.v) * 0.12); dr.v = 0; dr.throttle = clamp(dr.throttle, -0.4, 0); } }
+        if (dr.v !== 0 && rise < 0.42 && groundH(nx + tx * 2, nz + tz * 2) > U.uSeaM.value - 0.45 && Math.abs(nx) < T.sx / 2 - 200 && Math.abs(nz) < T.sz / 2 - 200) { x = nx; z = nz; } else dr.v *= 0.6;
         c.sp = Math.abs(dr.v); c.m.rotation.y = hd;
       } else {
-        c.sp = c.sp0 || (c.sp0 = c.sp);
         // on a beach that is narrow from end to end, with no track off it, a car caught by the tide pulls up and waits for the water to drop
         c.waiting = false; if (!c.onAlt) for (const st of c.tidal || []) if (!st.alt && U.uSeaM.value > st.thr && st.s0 <= 41 && st.s1 >= c.len - 41) c.waiting = true;
-        if (c.waiting) c.sp = 0;
+        // Its speed: what the driver likes on a clear straight, less for a bend coming up, a slope, a rough or soft stretch, water on the track,
+        // a log to get round, and the turn at the end of the beach. It brakes in good time and picks up again gently.
+        const cruise = carPace.kmh / 3.6 * c.k0, pf = profile(c.p, c.cum); let want = c.waiting ? 0 : cruise;
+        if (!c.waiting) {
+          const reach = c.v * c.v / 5 + 20;
+          for (let j = clamp(c.i - (c.dir > 0 ? 1 : 0), 0, c.p.length - 1); j >= 0 && j < c.p.length; j += c.dir) { const d = Math.max(0, (c.cum[j] - c.s) * c.dir); if (d > reach) break; const cap = Math.min(pf.bend[j], cruise * pf.ground[j]); want = Math.min(want, Math.sqrt(cap * cap + 5 * d)); }
+          if (!c.onAlt) want = Math.min(want, 3 + Math.max(0, Math.min(c.s - 40, c.len - 40 - c.s)) / 4);
+          if (c.dodge) want = Math.min(want, Math.max(4, cruise * 0.65));
+          if (c.wetAhead) want = Math.min(want, 4.5);
+        }
+        c.v += clamp((want - c.v) * 1.6, -3.6, 1.8) * dt; if (want === 0 && c.v < 0.05) c.v = 0; c.sp = c.v;
         const sOld = c.s; c.s += c.sp * c.dir * dt;
         if (c.onAlt) {            // on an inland track round a beach the tide has shut: at its far end the car comes back onto the sand
           if (c.s >= c.len || c.s <= 0) { const mn = c.main; c.p = mn.p; c.cum = mn.cum; c.len = mn.len; c.s = mn.back; c.i = 1; c.onAlt = null; }
@@ -432,7 +510,12 @@ function buildCars(scene, F, lights) {
         // The track is a chain of straight pieces, but a car does not kink at each joint: it keeps to its lane on the heading it actually has
         // (which swings round smoothly, below), and when it turns back at the end of the beach it crosses over to the other lane as it comes about.
         if (c.laneS === undefined) { c.laneS = c.lane; c.m.rotation.y = Math.atan2(-tz, tx); }
-        c.laneS += (c.lane - c.laneS) * (1 - Math.exp(-dt * 0.9));
+        // driftwood ahead (only near the view, where it is drawn): it picks the nearest clear line past it and is on that line before it gets there
+        const cx0 = a[0] + (b[0] - a[0]) * f, cz0 = a[1] + (b[1] - a[1]) * f;
+        if (target && Math.hypot(cx0 - target.x, cz0 - target.z) < 230) { c.look = (c.look ?? c.k * 0.037) - dt; if (c.look <= 0) { c.look = 0.2; c.goal = dodge(c, cx0, cz0, tx, tz); c.wetAhead = pools.at(cx0 + tx * 9, cz0 + tz * 9) > 0 || pools.at(cx0 + tx * 3, cz0 + tz * 3) > 0; } } else { c.goal = undefined; c.wetAhead = false; }
+        const goal = c.goal ?? c.lane, l0 = c.laneS; c.dodge = c.goal !== undefined;
+        c.laneS += (goal - c.laneS) * (1 - Math.exp(-dt * (c.dodge ? 1.7 : 0.9)));
+        if (c.sp > 1.5 && dt > 0) { const ld = clamp((c.laneS - l0) / dt, -2.5, 2.5), ux = tx * c.sp + tz * ld, uz = tz * c.sp - tx * ld, ul = Math.hypot(ux, uz); tx = ux / ul; tz = uz / ul; }
         const yw = c.m.rotation.y; x = a[0] + (b[0] - a[0]) * f - Math.sin(yw) * c.laneS; z = a[1] + (b[1] - a[1]) * f - Math.cos(yw) * c.laneS;
       }
       const y = Math.max(meshY(x, z), U.uSeaM.value * VEX - 0.2), yf = meshY(x + tx * 3, z + tz * 3), yb = meshY(x - tx * 3, z - tz * 3);
@@ -442,7 +525,17 @@ function buildCars(scene, F, lights) {
       // the wheel is turned in and taken off gradually, so the turning speed never jumps; the nose rises and dips over the sand without snatching
       c.w = (c.w ?? 0) + (clamp(d * 2.2, -1.5, 1.5) - (c.w ?? 0)) * (1 - Math.exp(-dt * 5));
       const ptT = Math.atan2(yf - yb, 6 * S); c.pt = (c.pt ?? ptT) + (ptT - (c.pt ?? ptT)) * (1 - Math.exp(-dt * 5));
-      c.m.rotation.set(0, c.drive ? hd : c.m.rotation.y + clamp(c.w * dt, -Math.abs(d), Math.abs(d)), c.pt);
+      // Rough ground: each wheel rides its own bumps, so the body heaves, pitches and rolls on its springs (hardest on the inland tracks and in
+      // soft sand, hardly at all on sand the tide has packed). Water on the track drags at it and is thrown up in spray.
+      const sus = c.sus || (c.sus = [0, 0, 0, 0, 0, 0]), A = roughAt(x, z) * 0.55, wl = 1.9 * S, ww = 0.95 * S, zx = -tz, zz = tx;
+      const bF = bumpAt(x + tx * wl, z + tz * wl), bB = bumpAt(x - tx * wl, z - tz * wl), bL = bumpAt(x + zx * ww, z + zz * ww), bR = bumpAt(x - zx * ww, z - zz * ww);
+      const wet = pools.at(x, z), lean = Math.atan2(meshY(x - zx * ww, z - zz * ww) - meshY(x + zx * ww, z + zz * ww), 2 * ww);
+      c.rl = (c.rl ?? lean) + (lean - (c.rl ?? lean)) * (1 - Math.exp(-dt * 5));
+      const tg = [(bF + bB + bL + bR) / 4 * A - wet * 0.5, (bF - bB) * A / (2 * wl), (bR - bL) * A / (2 * ww)];
+      for (let n = Math.max(1, Math.min(4, Math.ceil(dt / 0.02))), h = Math.min(dt, 0.08) / n, q = 0; q < n; q++) for (let k = 0; k < 3; k++) { sus[k + 3] += ((tg[k] - sus[k]) * 80 - sus[k + 3] * 7.5) * h; sus[k] += sus[k + 3] * h; }
+      if (wet > 0 && c.sp > 1) { if (c.drive) c.drive.v *= Math.exp(-dt * wet * 3.5); c.wetT = (c.wetT || 0) - dt; if (c.wetT <= 0) { c.wetT = 0.09; pools.splash(x + tx * wl, z + tz * wl, c.y, tx, tz, c.sp, wet); } }
+      c.m.position.y = c.y + sus[0] * VEX;
+      c.m.rotation.set(c.rl + sus[2], c.drive ? hd : c.m.rotation.y + clamp(c.w * dt, -Math.abs(d), Math.abs(d)), c.pt + sus[1]);
       const fx = x + tx * 3.5 * S, fz = z + tz * 3.5 * S;
       const ly = c.m.visible ? c.y + 1.2 * S : -1e4;          // sat inside the car you do not see its own lamps, only what they light
       lights.move(c.li[0], fx - tz * 0.9, ly, fz + tx * 0.9); lights.move(c.li[1], fx + tz * 0.9, ly, fz - tx * 0.9);
@@ -1017,7 +1110,7 @@ function buildPelicans(scene, F) {
         p.y += c.climb * (eagle ? 8 + Math.max(0, p.y - sea) * 0.05 : 5) * dt; const floor = sea + 0.25;       // an eagle climbs fast, and faster the higher it is (it has the whole sky to cross)
         if (p.kind !== 'pelican') { p.y = Math.max(p.y, floor + 0.7); p.afloat = false; }       // only a pelican settles on the water; an eagle can skim it
         else if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
-        p.y = Math.min(p.y, sea + (eagle ? 1000 : 300)); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
+        p.y = Math.min(p.y, sea + (eagle ? 1000 : 300)); p.v = (p.v ?? p.sp) + ((p.afloat ? 0.8 : p.sp * (p.ctl.pace ?? 1)) - (p.v ?? p.sp)) * Math.min(1, dt * 1.5);
         const nx = p.x + Math.cos(p.hd) * p.v * dt, nz = p.z - Math.sin(p.hd) * p.v * dt; if (Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { p.x = nx; p.z = nz; }
         p.y = Math.max(p.y, meshY(p.x, p.z) + (p.afloat ? 0.25 : eagle ? 0.9 : 1.2), p.afloat ? -1e9 : p.fl - (p.fl > sea + 10 ? 5 : 0));       // over the bush it is held above the treetops
         flap = c.climb > 0.1 || p.y < sea + 3;
@@ -1057,9 +1150,9 @@ export function buildLife(scene, F) {
   const pelicans = buildPelicans(scene, F);
   buildSeaLife(scene, F);
   return {
-    update(dt, t, target, camDist) {
+    update(dt, t, target, camDist, renderer) {
       for (const s of near) { s.m.visible = camDist < s.range; if (s.m.visible) s.set(target.x, target.z); }
-      cars(dt); snork(dt, t); birds(dt, target); pelicans(dt, t);
+      cars(dt, target, renderer); snork(dt, t); birds(dt, target); pelicans(dt, t);
       { // which cars' headlamps light the ground: the eight nearest to the view that are under way, once it is getting dark
         const L = U.uCarL.value, dark = U.uNight.value > 0.2, list = dark ? rideable.filter(c => !c.parked || c.drive).map(c => [c, (c.m.position.x - target.x) ** 2 + (c.m.position.z - target.z) ** 2]).sort((a, b) => a[1] - b[1]) : [];
         for (let i = 0; i < 8; i++) { const c = list[i] && list[i][0]; if (!c) { L[i].set(0, 0, 0, 0); continue; } const yaw = c.m.rotation.y, fx = Math.cos(yaw), fz = -Math.sin(yaw); L[i].set(c.m.position.x + fx * 3.4, c.m.position.z + fz * 3.4, fx, fz); } }

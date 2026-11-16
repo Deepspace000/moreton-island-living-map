@@ -5,6 +5,7 @@ import { U, VEX, Q, makeMat, LOGV, LOGF, clamp } from './common.js';
 import { T, meshY, heightAt } from './terrain.js';
 import { figure, trackGraph, shortest, PERSON_FS } from './folk.js';
 import { PERSON_POSE } from './bodies.js';
+import { probe } from './drive.js';
 
 export function buildTraveller(scene, F) {
   const H = Math.hypot, f = figure();
@@ -105,9 +106,9 @@ export function buildTraveller(scene, F) {
     let want = 0;
     if (w.camped) { w.v += (0 - w.v) * (1 - Math.exp(-dt * 4)); w.next = 'camped' + (goal ? ' on the way to ' + goal.name : ''); }
     else if (w.ctl) {                  // walked by hand: turn, and set the pace from a stroll to a jog; no wading past the knees
-      const c = w.ctl; w.hd -= c.turn * 1.6 * dt; w.pace = clamp((w.pace ?? 1.5) + c.climb * 1.6 * dt, 0, 4.2); want = w.pace;
+      const c = w.ctl; w.hd -= c.turn * 1.6 * dt; w.pace = clamp((w.pace ?? 1.5) + c.climb * 1.6 * dt, 0, 4.2); want = w.pace * (c.pace ?? 1);
       const nx = w.x + Math.cos(w.hd) * want * dt, nz = w.z - Math.sin(w.hd) * want * dt;
-      if (heightAt(nx, nz) > U.uSeaM.value - 0.5 && Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { w.x = nx; w.z = nz; w.v += (want - w.v) * (1 - Math.exp(-dt * 4)); } else w.v *= Math.exp(-dt * 6);
+      if (!probe.hit(nx + Math.cos(w.hd) * 0.35, nz - Math.sin(w.hd) * 0.35, 0.3, true) && heightAt(nx, nz) > U.uSeaM.value - 0.5 && Math.abs(nx) < T.sx / 2 - 100 && Math.abs(nz) < T.sz / 2 - 100) { w.x = nx; w.z = nz; w.v += (want - w.v) * (1 - Math.exp(-dt * 4)); } else w.v *= Math.exp(-dt * 6);
       to = null; w.next = 'walking free';
     } else {
       if (!goal) pickGoal();
@@ -118,7 +119,9 @@ export function buildTraveller(scene, F) {
       }
       const dx = to.p[0] - w.x, dz = to.p[1] - w.z, dl = H(dx, dz);
       if (dl < Math.max(0.35, w.v * dt * 1.2)) { at = to; to = null; }
-      else { let d = Math.atan2(-dz, dx) - w.hd; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2)); w.hd += clamp(d * (1 - Math.exp(-dt * 3.5)), -2.2 * dt, 2.2 * dt); want = w.sp * clamp(1.3 - Math.abs(d), 0.25, 1);
+      else { let d = Math.atan2(-dz, dx) - w.hd; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2));
+        const side = probe.way(w.x, w.z, w.hd);          // a trunk, a big bush or a log ahead: they turn aside and walk round it, then pick up their way again
+        if (side) w.hd += side * 2.4 * dt; else w.hd += clamp(d * (1 - Math.exp(-dt * 3.5)), -2.2 * dt, 2.2 * dt); want = w.sp * (side ? 0.6 : clamp(1.3 - Math.abs(d), 0.25, 1));
         w.v += (want - w.v) * (1 - Math.exp(-dt * 3)); w.x += Math.cos(w.hd) * w.v * dt; w.z -= Math.sin(w.hd) * w.v * dt; }
       w.next = goal ? 'to ' + goal.name + ' · ' + (Math.max(0, (at === goal.node ? 0 : route.dist[at.i]) + (to ? dl : 0)) / 1000).toFixed(1) + ' km · ' + w.visited + ' of ' + w.total + ' places' : '';
     }
