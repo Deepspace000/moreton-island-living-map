@@ -1299,13 +1299,71 @@ function beachRoutes() {
   return out;
 }
 
+// Beaches closed to vehicles. In front of Tangalooma resort and of Cowan Cowan the beach is shut off by a barrier at each end: 4WDs cannot drive
+// through, and take the bypass track that runs inland behind the settlement instead. So the beach route is cut there (no wheel ruts, no cars),
+// and the cars' own route leaves the beach by the nearest track before the barrier, follows the mapped tracks round, and rejoins the beach beyond.
+function closeBeaches(F) {
+  const H = Math.hypot, closed = [];
+  for (const [re, rad] of [[/^Tangalooma/, 950], [/Cowan/, 480]]) {
+    const c = F.places.find(o => re.test(o.n || ''))?.p; if (!c) continue;
+    let z0 = 1e9, z1 = -1e9;
+    for (const b of F.buildings) { if (b.k === 'ship') continue; const q = b.p[0]; if (H(q[0] - c[0], q[1] - c[1]) > rad || maskAt(q[0], q[1]).shore > 230) continue; z0 = Math.min(z0, q[1]); z1 = Math.max(z1, q[1]); }
+    if (z1 > z0) closed.push([z0 - 70, z1 + 70]);
+  }
+  const inC = (p) => closed.some(([z0, z1]) => p[1] > z0 && p[1] < z1);
+  // the tracks as a network (village streets count as slow going, so through traffic keeps to the bypass)
+  const nodes = new Map(), node = (p) => { const k = Math.round(p[0] / 5) + ',' + Math.round(p[1] / 5); let n = nodes.get(k); if (!n) nodes.set(k, n = { p, e: [] }); return n; };
+  for (const r of F.roads) { if (r.c > 1) continue; for (let i = 1; i < r.p.length; i++) { const a = node(r.p[i - 1]), b = node(r.p[i]), d = H(a.p[0] - b.p[0], a.p[1] - b.p[1]) * (r.c === 0 ? 8 : 1); if (a !== b) { a.e.push([b, d]); b.e.push([a, d]); } } }
+  const list = [...nodes.values()];
+  const bypass = (pts, i, j) => {            // pts[i .. j-1] are closed: find the way round, from the beach before to the beach after
+    const near = (lo, hi, from) => { const m = new Map(); for (const n of list) { let best = null; for (let k = lo; k <= hi; k++) { const d = H(n.p[0] - pts[k][0], n.p[1] - pts[k][1]); if (d < 90 && (!best || d < best[1])) best = [k, d]; } if (best) m.set(n, { k: best[0], cost: best[1] + Math.abs(best[0] - from) * 22 }); } return m; };
+    const A = near(Math.max(0, i - 34), i - 1, i - 1), B = near(j, Math.min(pts.length - 1, j + 34), j); if (!A.size || !B.size) return null;
+    for (const n of list) { n.d = Infinity; n.prev = null; n.done = false; } const open = []; for (const [n, v] of A) { n.d = v.cost; open.push(n); }
+    while (open.length) { let bi = 0; for (let k = 1; k < open.length; k++) if (open[k].d < open[bi].d) bi = k; const n = open.splice(bi, 1)[0]; if (n.done) continue; n.done = true; if (n.d > 12000) break;
+      for (const [m, d] of n.e) if (!m.done && n.d + d < m.d) { m.d = n.d + d; m.prev = n; open.push(m); } }
+    let end = null, bestD = Infinity; for (const [n, v] of B) if (n.d + v.cost < bestD) { bestD = n.d + v.cost; end = n; } if (!end) return null;
+    const path = []; let n = end; while (n) { path.unshift(n.p); if (!n.prev) break; n = n.prev; }
+    return { a: A.get(n).k, b: B.get(end).k, path };
+  };
+  const beach = [], drive = [], gates = [];
+  for (const r of F.beach) {
+    if (r.side > 0 || !r.p.some(inC)) { beach.push(r); drive.push(r); continue; }
+    let run = []; const flush = () => { if (run.length > 6) beach.push({ p: run, side: r.side }); run = []; };
+    r.p.forEach((p, i) => { if (inC(p)) { if (run.length) gates.push({ p: run[run.length - 1], side: r.side }); flush(); } else { if (!run.length && i > 0 && inC(r.p[i - 1])) gates.push({ p, side: r.side }); run.push(p); } }); flush();
+    let cur = [], i = 0; const done = () => { if (cur.length > 30) drive.push({ p: cur.map(q => [q[0], q[1]]), side: r.side }); cur = []; };
+    while (i < r.p.length) {
+      if (!inC(r.p[i])) { cur.push([r.p[i][0], r.p[i][1], i]); i++; continue; }
+      let j = i; while (j < r.p.length && inC(r.p[j])) j++;
+      const by = i > 0 && j < r.p.length ? bypass(r.p, i, j) : null;
+      if (by) { while (cur.length && cur[cur.length - 1][2] > by.a) cur.pop(); for (const q of by.path) cur.push([q[0], q[1], -1]); i = by.b; F.bypassed = (F.bypassed || 0) + 1; }
+      else { done(); i = j; }
+    }
+    done();
+  }
+  F.beach = beach; F.drive = drive; F.gates = gates;
+}
+// The barriers themselves: a row of stout timber bollards across the beach from the foot of the dune to the water, and a sign.
+function drawGates(F, g) {
+  const TIM = [.46, .39, .30], CAP = [.36, .30, .23];
+  for (const gt of F.gates || []) {
+    const z = gt.p[1], sea = gt.side; let x0 = gt.p[0], x1 = gt.p[0];
+    for (let k = 0; k < 80 && groundH(x0, z) > 0.15; k++) x0 += sea * 1.5;                 // down to the water's edge
+    for (let k = 0; k < 40 && groundH(x1, z) < 2.6; k++) x1 -= sea * 1.5;                  // up to the foot of the dune
+    const n = Math.max(2, Math.round(Math.abs(x1 - x0) / 1.6));
+    for (let i = 0; i <= n; i++) { const x = x0 + (x1 - x0) * i / n, y = meshY(x, z); g.cyl(x, y - 0.4, z, 0.14, 0.12, 0.95 * HK + 0.4, 8, TIM, CAP); }
+    const sx = x1 + sea * 2.5, sy = meshY(sx, z);                                          // the sign: no vehicles beyond this point
+    for (const d of [-0.55, 0.55]) g.box(sx + d, sy - 0.3, z, 0.09, 2.1 * HK + 0.3, 0.09, [.55, .56, .56]);
+    g.box(sx, sy + 1.25 * HK, z, 1.3, 0.85 * HK, 0.06, [.95, .95, .93]); g.box(sx, sy + 1.82 * HK, z, 1.3, 0.24 * HK, 0.08, [.75, .12, .1]); g.box(sx, sy + 1.42 * HK, z, 0.5, 0.3 * HK, 0.08, [.12, .12, .13]);
+  }
+}
+
 export function buildFeatures(scene, F, flyTo) {
   const occ = new Set(), g = new GB(), lights = makeLights(700);
   const casters = [];
-  F.beach = beachRoutes();
+  F.beach = beachRoutes(); closeBeaches(F);
   for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9], [-3, 0.8], [-8.5, 4.4], [1.8, 5.1], [-1.5, 2.2], [-4.4, 3.1], [-7.3, 0.4], [-9.6, 5.7], [2.9, 1.1], [-13, 2.0]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.37 + wig) * 1.5 + Math.sin(i * 0.11 + wig * 3) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // many sets of wheel ruts wandering along the sand and crossing one another: the beaches are the island's roads (the owner's photo at Tangalooma)
   buildOverlay(F);
-  buildBuildings(F, g, occ, casters, lights);
+  buildBuildings(F, g, occ, casters, lights); drawGates(F, g);
   buildRoads(F, scene, occ);
   if (F.drives.length) buildRoads({ roads: F.drives }, scene, new Set());          // the driveways worn from each street to the cars parked by the houses
   const st = buildStructures(F, g, lights, scene, casters);

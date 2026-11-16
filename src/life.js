@@ -309,7 +309,7 @@ export const rideable = [];            // the moving 4WDs, for riding along in (
 // the dark patch a car throws on the sand under itself
 export function carShadow() { const g = new THREE.PlaneGeometry(6.2, 3.0); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, blobShadowMat()); m.position.y = 0.05; m.frustumCulled = false; m.renderOrder = 4; return m; }
 function buildCars(scene, F, lights) {
-  const routes = (F.beach || []).filter(r => r.p.length > 30);
+  const routes = (F.drive || F.beach || []).filter(r => r.p.length > 30);          // (the cars' routes go round the beaches that are closed to vehicles: see closeBeaches in features.js)
   if (!routes.length) return () => {};
   const R = rng(4004), S = 1.45, mat = objectMat({ side: THREE.DoubleSide, defines: { CAR: 1 } });
   const COLS = [[.90, .90, .88], [.80, .81, .82], [.16, .18, .16], [.62, .12, .10], [.72, .66, .50], [.13, .22, .40], [.86, .84, .70]], geos = COLS.map(fourWD);
