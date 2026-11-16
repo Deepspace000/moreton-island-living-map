@@ -32,9 +32,11 @@ export async function loadTerrainData(F, progress) {
   progress?.('Shaping the island');
   const W = T.W = hp.w, H = T.H = hp.h; T.mpp = F.mpp; T.sx = W * F.mpp; T.sz = H * F.mpp;
   const hgt = T.hgt = new Float32Array(W * H), expo = T.expo = new Uint8Array(W * H);
-  const half = new Uint16Array(W * H * 2);
+  const half = new Uint16Array(W * H * 2), raw = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) raw[i] = (hp.data[i * 4] * 256 + hp.data[i * 4 + 1]) / 65535 * F.hrange + F.hmin;
+  shapeBeaches(raw, W, H, F.mpp, mp.data, F);
   for (let i = 0; i < W * H; i++) {
-    const h = (hp.data[i * 4] * 256 + hp.data[i * 4 + 1]) / 65535 * F.hrange + F.hmin;
+    const h = raw[i];
     expo[i] = hp.data[i * 4 + 2];
     half[i * 2] = THREE.DataUtils.toHalfFloat(h); half[i * 2 + 1] = THREE.DataUtils.toHalfFloat(expo[i] / 255);
     hgt[i] = THREE.DataUtils.fromHalfFloat(half[i * 2]);      // exactly what the shaders read
@@ -51,6 +53,31 @@ export async function loadTerrainData(F, progress) {
   U.uWorld.value.set(1 / T.sx, 1 / T.sz, T.sx, T.sz);
   U.uHTex.value.set(1 / W, 1 / H); U.uMpp.value = F.mpp;
   T.step = +(Q.get('step') || (MOBILE ? 6 : LOW ? 4 : 2));
+}
+
+// Beaches. In the height data the land often steps up two or three metres within a cell or two of the water (at Tangalooma, 2.7 m in 15 m),
+// which, drawn with the relief exaggerated, makes a steep bank out of the sea where the owner's photograph shows a broad, nearly level beach.
+// So the shore is given a beach's own profile: from the water's edge the sand rises gently through the tide zone, then lies almost flat as a
+// berm some tens of metres wide (still dry at the highest tide), and only behind that does the ground climb to the dune or the hill at its
+// natural slope. Ground already lower than this is left alone, so wide natural beaches and flats are unchanged; the rocky cape keeps its cliffs;
+// and the ground under buildings on the beachfront is kept above the tide.
+function shapeBeaches(h, W, H, mpp, mask, F) {
+  const d = new Float32Array(W * H), BIG = 1e6, D = 1.4142;
+  for (let i = 0; i < W * H; i++) d[i] = h[i] <= 0 && mask[i * 4 + 2] <= 130 ? 0 : BIG;        // the sea (not a hollow inland)
+  for (let z = 1; z < H; z++) for (let x = 1, i = z * W + 1; x < W - 1; x++, i++) { let v = d[i]; if (v === 0) continue; v = Math.min(v, d[i - 1] + 1, d[i - W] + 1, d[i - W - 1] + D, d[i - W + 1] + D); d[i] = v; }
+  for (let z = H - 2; z >= 0; z--) for (let x = W - 2, i = z * W + W - 2; x > 0; x--, i--) { let v = d[i]; if (v === 0) continue; v = Math.min(v, d[i + 1] + 1, d[i + W] + 1, d[i + W + 1] + D, d[i + W - 1] + D); d[i] = v; }
+  // height allowed at m metres from the water: the tide zone (to 28 m), the berm (to 60 m), then the dune face
+  const cap = (m) => m < 12 ? 0.52 * m / 12 : m < 28 ? 0.52 + 0.73 * (m - 12) / 16 : m < 60 ? 1.25 + 0.55 * (m - 28) / 32 : 1.8 + (m - 60) * 0.35;
+  const keep = new Uint8Array(W * H);                    // under and beside buildings
+  for (const b of F.buildings || []) { if (b.k === 'ship' || !b.p) continue; for (const q of b.p) { const cx = Math.round((q[0] / (W * mpp) + 0.5) * W - 0.5), cz = Math.round((q[1] / (H * mpp) + 0.5) * H - 0.5); for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) { const x = cx + k, z = cz + j; if (x >= 0 && x < W && z >= 0 && z < H) keep[z * W + x] = 1; } } }
+  const cape = (F.lights || []).find(l => /Cape/.test(l.n || ''))?.p;
+  for (let z = 0; z < H; z++) for (let x = 0, i = z * W; x < W; x++, i++) {
+    const v = d[i]; if (v === 0 || v > 40 || h[i] <= 0) continue;
+    const c = cap(Math.max(0, v * mpp - mpp * 0.5)); if (h[i] <= c) continue;
+    let k = 1; if (cape) { const r = Math.hypot((x + 0.5 - W / 2) * mpp - cape[0], (z + 0.5 - H / 2) * mpp - cape[1]); k = Math.min(1, Math.max(0, (r - 700) / 400)); }
+    let n = h[i] + (c - h[i]) * k; if (keep[i]) n = Math.max(n, Math.min(h[i], 1.55));
+    h[i] = n;
+  }
 }
 
 // --- sampling helpers (world metres, x east, z south) ---
@@ -171,7 +198,7 @@ export function buildTerrain(scene) {
           vec2 duv = (t - uDetRect.xy) * uDetRect.z; vec4 dtx = texture2DLodEXT(uDetail, clamp(duv, 0.0, 1.0), 0.0);
           float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
-          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.4, hgt) * clr * smoothstep(0.46, 0.26, lumP);
+          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.5, hgt) * clr * smoothstep(0.46, 0.26, lumP);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
           if(yard > 0.5) dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt);
           else dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2DLodEXT(uNoise, t / 60.0 + 0.17, 0.0).b));      // groves and gaps, as the trees themselves stand

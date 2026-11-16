@@ -571,7 +571,7 @@ function buildTrees(F, scene) {
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn);
           float treeK = smoothstep(0.46, 0.26, lumP);          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
-                                   : (1.0 - sandm) * step(0.92, mk.r) * step(1.4, hgt) * clr * treeK;
+                                   : (1.0 - sandm) * step(0.92, mk.r) * step(1.5, hgt) * clr * treeK;          // (trees start at the back of the berm, clear of the highest tide)
           #ifdef SPECIES
           // which tree grows here (0 eucalypt, 1 she-oak, 2 banksia, 3 paperbark, 4 mangrove), from how far inland and how high the spot is
           float shoreD = (mk.b - 0.5) * 3000.0, hs = hash12(cell * 2.3 + 40.0), hs2 = hash12(cell * 0.71 + 7.7);
@@ -860,7 +860,7 @@ function buildPalms(F, scene, occ) {
     const c = find(re); if (!c) continue;
     for (let t = 0, k = 0; t < n * 60 && k < n; t++) {
       const a = R() * 6.283, r = Math.sqrt(R()) * rad, x = c[0] + Math.cos(a) * r, z = c[1] + Math.sin(a) * r * 1.6, m = maskAt(x, z), y = meshY(x, z) / VEX;
-      if (m.land < 0.9 || y < 1.7 || y > 16 || m.shore < 10 || m.shore > 240 || !free(x, z, 7)) continue;
+      if (m.land < 0.9 || y < 1.5 || y > 16 || m.shore < 10 || m.shore > 240 || !free(x, z, 7)) continue;
       palms.push(x, meshY(x, z) - 0.15, z, R() * 6.283, 0.8 + R() * 0.55, R()); k++;
     }
   }
@@ -1221,9 +1221,9 @@ function beachRoutes() {
     for (let z = -T.sz / 2 + 500; z < T.sz / 2 - 500; z += 45) {
       let x = side * (T.sx / 2 - 150), hit = null;
       for (let i = 0; i < 2400 && Math.abs(x) < T.sx / 2; i++, x -= side * 9) if (groundH(x, z) > 0.9) { hit = x; break; }
-      const bx = hit === null ? 0 : hit - side * 14, m = hit === null ? null : maskAt(bx, z);
+      const bx = hit === null ? 0 : hit - side * 14, m = hit === null ? null : { sand: Math.max(maskAt(hit, z).sand, maskAt(hit + side * 10, z).sand, maskAt(hit - side * 10, z).sand) };      // the route runs along the berm, just above the highest tide; the sand is judged across the open beach (the map of it is patchy, so the best of three spots counts)
       // keep only real beach: sand, open ground behind it, and no jump sideways from the last point (headlands, creek mouths, offshore banks)
-      if (!m || m.sand < 0.5 || groundH(hit - side * 70, z) < 1.2 || (run.length && Math.abs(bx - run[run.length - 1][0]) > 60)) { close(); continue; }
+      if (!m || m.sand < 0.45 || groundH(hit - side * 70, z) < 1.2 || (run.length && Math.abs(bx - run[run.length - 1][0]) > 60)) { close(); continue; }
       run.push([bx, z]);
     }
     close();
