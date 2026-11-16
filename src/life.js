@@ -357,7 +357,39 @@ function buildCars(scene, F, lights) {
         gl_FragColor = vec4(applyFog(c, vW), a * press * crumble * 0.45); }`,
   }));
   tmesh.name = 'tyremarks'; tmesh.frustumCulled = false; tmesh.renderOrder = 3; scene.add(tmesh);
+  // The Micat's cars. While she lies with her bow on the beach, 4WDs come down her ramp one after another, up the sand and away along the beach,
+  // and others come back along the beach and drive aboard. (She keeps her own clock: see boats.js.)
+  const mc = [];
+  if (F.micat) {
+    const M = F.micat, [dx, dz] = M.dir, at = (d) => [M.bow[0] + dx * d * M.S, M.bow[1] + dz * d * M.S], P0 = at(18), P1 = at(36.5);
+    let best = null, bd = 1e9; for (const r of routes) for (let i = 0; i < r.p.length; i++) { const d = Math.hypot(r.p[i][0] - P1[0], r.p[i][1] - P1[1]); if (d < bd) { bd = d; best = [r, i]; } }
+    if (best && bd < 150) {
+      const path = (sgn) => { const pts = [P0, P1, [P1[0] + dx * 9, P1[1] + dz * 9]]; for (let k = 1; k <= 12; k++) { const j = best[1] + sgn * k; if (j < 0 || j >= best[0].p.length) break; pts.push([best[0].p[j][0] + sgn * 2.2, best[0].p[j][1]]); }
+        const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return { pts, cum, len: cum[cum.length - 1] }; };
+      const paths = [path(1), path(-1)].filter(q => q.len > 150), P = rng(606);
+      for (let k = 0; k < (MOBILE ? 4 : 6) && paths.length; k++) { const m = new THREE.Mesh(geos[(P() * geos.length) | 0], mat); m.name = 'micatCar'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; m.visible = false; m.add(carShadow()); scene.add(m); mc.push({ m, path: paths[k % paths.length], off: k * 14, k }); }
+      M.clock = 0;
+    }
+  }
+  const shuttle = (dt) => {
+    const M = F.micat; if (!mc.length) return;
+    if (!M.beached) { M.clock = 0; for (const c of mc) c.m.visible = false; return; }
+    M.clock += dt;
+    const SPD = 7, sea = U.uSeaM.value * VEX;
+    for (const c of mc) {
+      const { pts, cum, len } = c.path, period = len / SPD + 12, tt = M.clock - c.off; if (tt < 0) { c.m.visible = false; continue; }
+      const lap = Math.floor(tt / period), u = tt - lap * period, off = (lap + c.k) % 2 === 0, s = off ? u * SPD : len - u * SPD;      // one lap she drives off, the next she drives aboard
+      if (s < 0 || s > len) { c.m.visible = false; c.hd = undefined; continue; }
+      const posAt = (q) => { q = clamp(q, 0, len); let i = 1; while (i < cum.length - 1 && cum[i] < q) i++; const f = (q - cum[i - 1]) / Math.max(0.01, cum[i] - cum[i - 1]), a = pts[i - 1], b = pts[i]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; };
+      // on the deck and the ramp the car is carried by the ship; beyond the ramp's foot it is on the sand
+      const yAt = (q) => { const p = posAt(q), g = Math.max(meshY(p[0], p[1]), sea - 0.2); if (q >= cum[1]) return g; const lx = 18 + q / M.S, ly = lx < 28.4 ? 3.0 : 2.98 - 2.08 * (lx - 28.4) / 8.1; return Math.max(g, (M.y ?? sea) + ly * M.S); };
+      const sg = off ? 1 : -1, p = posAt(s), pf = posAt(s + 3 * sg), pb = posAt(s - 3 * sg), want = Math.atan2(-(pf[1] - pb[1]), pf[0] - pb[0]);
+      if (c.hd === undefined) c.hd = want; let d = want - c.hd; d -= Math.PI * 2 * Math.round(d / (Math.PI * 2)); c.hd += d * (1 - Math.exp(-dt * 3));
+      c.m.visible = true; c.m.position.set(p[0], yAt(s), p[1]); c.m.rotation.set(0, c.hd, Math.atan2(yAt(s + 3 * sg) - yAt(s - 3 * sg), 6));
+    }
+  };
   return (dt) => {
+    shuttle(dt);
     let laid = false;
     for (const c of cars) {
       let tx, tz, x, z;
@@ -628,6 +660,8 @@ function buildBirds(scene, F) {
     const p = r.p[i], q = r.p[i + 1], gull = R() < 0.35, k = gull ? 2 + ((R() * 4) | 0) : 2, side = r.side || 1;
     for (let j = 0; j < k; j++) { sp.push(p[0] + side * (5 + R() * 5) + (R() - .5) * 4, p[1] + (R() - .5) * 8, Math.atan2(-(q[1] - p[1]), q[0] - p[0]) + (R() < .5 ? 0 : Math.PI), R()); sc.push(...(gull ? GREY : ob)); }
   }
+  if (F.micat) { const M = F.micat, [dx, dz] = M.dir;            // a flock of silver gulls stands about on the sand beside the Micat's landing (the owner's photograph)
+    for (let j = 0; j < 16; j++) { const up = 20 + R() * 16, out = 12 + R() * 26; sp.push(M.land[0] + dx * up - dz * out, M.land[1] + dz * up + dx * out, R() * 6.283, R()); sc.push(...GREY); } }
   ig.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(sp), 4)); ig.setAttribute('iC', new THREE.InstancedBufferAttribute(new Float32Array(sc), 3)); ig.instanceCount = sp.length / 4; ig.boundingSphere = FAR;
   const smat = makeMat({
     side: THREE.DoubleSide,

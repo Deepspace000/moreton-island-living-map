@@ -221,7 +221,8 @@ function micat() {
   for (const z of [-5.6, 5.6]) hull(g, 58, 5.4, 1.7, 2.6, HN, [.3, .3, .32], z, [.2, .08, .07], { style: 6 });
   g.box(0, 2.5, 0, 57, 0.5, 16.8, GREY);                                                    // the vehicle deck
   for (const sd of [-1, 1]) { const z = sd * 8.3;
-    g.box(-5, 3.0, z, 46, 3.4, 0.35, WHITE); for (const x of [-24, -19, -14, -9, -4, 5, 10]) g.box(x, 3.9, z + sd * 0.03, 3.4, 1.5, 0.36, GLASS);      // high white sides aft and amidships, with ports
+    g.box(-5, 3.0, z, 46, 3.4, 0.35, WHITE); for (const x of [-24, -19, -14, -9, -4, 5, 10]) { g.box(x, 3.75, z + sd * 0.03, 3.6, 1.9, 0.36, [.40, .38, .31]); g.box(x, 3.75, z + sd * 0.05, 0.14, 1.9, 0.36, WHITE); }      // high white sides aft and amidships, pierced with big square openings onto the vehicle deck (a mullion down each)
+    for (const x of [-20, -2, 12]) g.box(x, 5.75, z + sd * 0.06, 0.75, 0.75, 0.3, [.9, .35, .08]);                                // lifebuoys
     g.box(23.5, 3.0, z, 11, 1.5, 0.35, WHITE);                                               // lower bulwarks forward, where the name is painted
     g.box(-8, 6.4, z * 0.985, 34, 0.35, 0.3, HN);                                            // a navy line under the passenger deck
   }
@@ -229,6 +230,10 @@ function micat() {
   house(g, -9, 6.7, 0, 32, 2.7, 16.2, WHITE, 0.5, 0, 0, 0.03); for (const sd of [-1, 1]) g.box(-9.5, 7.5, sd * 8.0, 26, 1.0, 0.25, GLASS);         // the passenger deck, a band of windows down each side
   g.box(-9, 9.4, 0, 30, 0.25, 16.6, WHITE);
   house(g, -6, 9.65, 0, 12, 2.4, 10, WHITE, 0.55, 0, 0, 0.06); g.box(-5.4, 10.5, 0, 9.5, 0.9, 10.1, GLASS); g.box(-6, 12.05, 0, 12.6, 0.22, 10.6, HN);       // the bridge, dark glass all round, a navy cap
+  for (const sd of [-1, 1]) { for (const yy of [10.0, 10.5]) rod(g, [-23.5, yy, sd * 8.1], [5.5, yy, sd * 8.1], 0.05, METAL); for (let x = -23.5; x <= 5.6; x += 2.9) rod(g, [x, 9.5, sd * 8.1], [x, 10.5, sd * 8.1], 0.05, METAL); }      // the open sun deck: a rail down each side
+  for (const yy of [10.0, 10.5]) rod(g, [-23.5, yy, -8.1], [-23.5, yy, 8.1], 0.05, METAL);
+  for (const z of [-5, 5]) g.box(-16, 9.55, z, 9, 0.5, 1.2, [.2, .3, .5]);                                                  // benches
+  g.box(-12.3, 10.4, 0, 0.5, 1.9, 2.4, HN);                                                                               // the funnel casing aft of the bridge, with the line's badge
   g.cyl(-8, 12.2, 0, 0.26, 0.16, 4.6, 6, WHITE); g.box(-8, 15.0, 0, 0.4, 0.3, 3.2, WHITE); g.box(-10.5, 12.2, 0, 1.6, 1.3, 1.6, WHITE);                           // mast, yard, a dome aft of it
   g.quad([28.4, 2.98, -4.6], [28.4, 2.98, 4.6], [36.5, 0.9, 4.6], [36.5, 0.9, -4.6], [.5, .5, .5]); g.quad([28.4, 2.7, 4.6], [28.4, 2.7, -4.6], [36.5, 0.7, -4.6], [36.5, 0.7, 4.6], [.3, .3, .32]);      // the bow ramp, down on the sand
   const R = rng(8), CARS = [[.85, .85, .85], [.15, .15, .17], [.6, .1, .08], [.12, .25, .5], [.75, .7, .55], [.3, .35, .3]];
@@ -346,6 +351,8 @@ export function buildBoats(scene, F) {
       let bx = E[0] - dx * 200, bz = E[1] - dz * 200; for (let k = 0; k < 400 && groundH(bx, bz) < 0.25; k++) { bx += dx * 2; bz += dz * 2; }      // where the bow meets the sand
       pts = pts.slice(0, n - 1).concat([[bx - dx * 39, bz - dz * 39]]);
       const cm = [0]; for (let i = 1; i < pts.length; i++) cm.push(cm[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+      F.micat = { land: [bx, bz], dir: [dx, dz], bow: [bx - dx * 39, bz - dz * 39], S, beached: false };
+      for (const [o, a] of [[38, 0.5], [46, 2.3]]) { const px = bx + dx * 30 + dz * o, pz = bz + dz * 30 - dx * o; (F.parked ||= []).push([px, pz, a]); (F.micat.camp ||= []).push([px, pz]); }      // people who have come down to meet her, parked up at the back of the beach
       const b = mk(geo.micat, pts[0][0], pts[0][1], { ferry: 1, move: 1, big: 1, pts, cum: cm, s: 0, dir: 1, wait: 0, scale: 1, cruise: 9, mast: 16, times: [[600, 660], [870, 930]], hdLand: Math.atan2(-dz, dx) });
       // her name on each bow
       const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const c2 = cv.getContext('2d'); c2.font = 'italic 900 130px Arial, Helvetica, sans-serif'; c2.fillStyle = '#14265c'; c2.textBaseline = 'middle'; c2.textAlign = 'center'; c2.fillText('Micat', 256, 86);
@@ -458,6 +465,7 @@ export function buildBoats(scene, F) {
             }
             const s1 = fr * end; b.sp = dt > 0 ? Math.min(Math.abs(s1 - b.s) / dt, 16) : 0; b.s = s1; b.dir = dir;
             if (beached) { b.sp = 0; b.hd = b.hdLand; }
+            F.micat.beached = beached; F.micat.y = b.m.position.y;
           } else if (b.wait > 0) { b.wait -= dt; b.sp += (0 - b.sp) * Math.min(1, dt); }
           else {
             const toEnd = b.dir > 0 ? end - b.s : b.s;

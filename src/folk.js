@@ -375,6 +375,7 @@ export function buildFolk(scene, F) {
     for (const q of F.hoists || []) at(q, 1.5, 0.3);
     for (const q of F.parked || []) at(q, 3.4, 0.16);
     for (const q of F.tinnies || []) at(q, 2.6, 0.22);
+    for (const q of (F.micat && F.micat.camp) || []) { at(q, 3.3, 1); at(q, 4.0, 0.8); }          // people parked up on the beach beside the Micat's landing
     if (yg.p.length) { const ym = new THREE.Mesh(yg.build(), objectMat({ side: THREE.DoubleSide })); ym.name = 'yardChairs'; ym.frustumCulled = false; scene.add(ym); }
   }
   const shade = [], camps = buildCamps(scene, F, people, R, shade), signs = collectSigns(F);
