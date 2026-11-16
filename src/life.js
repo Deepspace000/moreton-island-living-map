@@ -324,7 +324,9 @@ function buildCars(scene, F, lights) {
     for (let k = 0; k < n; k++) {
       const m = new THREE.Mesh(geos[(R() * geos.length) | 0], mat); m.name = 'car'; m.rotation.order = 'YZX'; m.scale.setScalar(S); m.frustumCulled = false; m.add(carShadow()); scene.add(m);
       const dir = R() < 0.5 ? 1 : -1;
-      cars.push({ m, side: r.side, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 2.1), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 2.1)] });
+      // the narrow stretches of this route that the tide shuts, each with the inland way round it (if the tracks give one)
+      const tidal = (r.tidal || []).map(st => { let alt = null; if (st.path) { const cm = [0]; for (let q = 1; q < st.path.length; q++) cm.push(cm[q - 1] + Math.hypot(st.path[q][0] - st.path[q - 1][0], st.path[q][1] - st.path[q - 1][1])); alt = { p: st.path, cum: cm, len: cm[cm.length - 1] }; } return { thr: st.thr, s0: cum[st.a], s1: cum[st.b], alt }; });
+      cars.push({ m, tidal, side: r.side, p: r.p, cum, len, s: (k + R()) / n * len, dir, lane: dir * (1.6 + R()), sp: 8 + R() * 6, i: 1, y: 0, li: [lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 2.1), lights.add([0, 0, 0], [1, .93, .75], 0, 1, 0, 2.1)] });
       m.add(new THREE.Mesh(beamGeo, beamMat));
     }
   });
@@ -407,8 +409,22 @@ function buildCars(scene, F, lights) {
         c.sp = Math.abs(dr.v); c.m.rotation.y = hd;
       } else {
         c.sp = c.sp0 || (c.sp0 = c.sp);
-        c.s += c.sp * c.dir * dt;
-        if (c.s > c.len - 40 || c.s < 40) { c.dir *= -1; c.lane *= -1; c.s = clamp(c.s, 40, c.len - 40); }
+        // on a beach that is narrow from end to end, with no track off it, a car caught by the tide pulls up and waits for the water to drop
+        c.waiting = false; if (!c.onAlt) for (const st of c.tidal || []) if (!st.alt && U.uSeaM.value > st.thr && st.s0 <= 41 && st.s1 >= c.len - 41) c.waiting = true;
+        if (c.waiting) c.sp = 0;
+        const sOld = c.s; c.s += c.sp * c.dir * dt;
+        if (c.onAlt) {            // on an inland track round a beach the tide has shut: at its far end the car comes back onto the sand
+          if (c.s >= c.len || c.s <= 0) { const mn = c.main; c.p = mn.p; c.cum = mn.cum; c.len = mn.len; c.s = mn.back; c.i = 1; c.onAlt = null; }
+        } else {
+          for (const st of c.tidal || []) {            // coming to a narrow beach with the tide too high: take the inland track, or turn back if there is none
+            if (U.uSeaM.value <= st.thr) continue;
+            if (!(c.dir > 0 ? sOld < st.s0 && c.s >= st.s0 : sOld > st.s1 && c.s <= st.s1)) continue;
+            if (st.alt) { c.main = { p: c.p, cum: c.cum, len: c.len, back: c.dir > 0 ? st.s1 : st.s0 }; c.p = st.alt.p; c.cum = st.alt.cum; c.len = st.alt.len; c.s = c.dir > 0 ? 0.01 : c.len - 0.01; c.i = 1; c.onAlt = st; }
+            else { c.s = sOld; c.dir *= -1; c.lane *= -1; }
+            break;
+          }
+          if (!c.onAlt && (c.s > c.len - 40 || c.s < 40)) { c.dir *= -1; c.lane *= -1; c.s = clamp(c.s, 40, c.len - 40); }
+        }
         while (c.i < c.cum.length - 1 && c.cum[c.i] < c.s) c.i++;
         while (c.i > 1 && c.cum[c.i - 1] > c.s) c.i--;
         const a = c.p[c.i - 1], b = c.p[c.i], f = (c.s - c.cum[c.i - 1]) / Math.max(1, c.cum[c.i] - c.cum[c.i - 1]);

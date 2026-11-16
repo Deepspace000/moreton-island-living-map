@@ -9,7 +9,8 @@ import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp, expect, getBlob } from './com
 import { loadTerrainData, buildTerrain, followTerrain, meshY, heightAt, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
-import { wx, live, fetchWeather, stepWeather, setTideDate, freeTide, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode } from './weather.js';
+import { wx, live, fetchWeather, stepWeather, setTideDate, freeTide, setMode, setCustom, seedCustom, custom, TYPES, current, describe, compass, mode, tideOn, tideHeld } from './weather.js';
+import { TIDE_NORTH, TIDE_SOUTH } from './terrain.js';
 import { makeWalk, pickGround } from './walk.js';
 import { buildFeatures } from './features.js';
 import { buildBoats } from './boats.js';
@@ -103,6 +104,37 @@ function refreshWeatherUI() {
   $('wxTide').textContent = (c.tide >= 0 ? '+' : '') + c.tide.toFixed(1);
   $('wxCloud').textContent = Math.round(c.cloud);
   $('wxSea').textContent = Math.round(c.sst);
+}
+// The Tides & travel panel: the tide now and over the next half day, and what it means on the ground. The same numbers steer the 4WDs
+// (see closeBeaches in features.js and the cars in life.js) and the boats (boats.js).
+let condTick = 0;
+const hhmm = (ms) => { const m = Math.round(minutesOf(ms)) % 1440; return String((m / 60) | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+function refreshCond() {
+  const now = st.date, t = wx.tide, SPAN = 13 * 3600e3, N = 78, pts = [];
+  for (let i = 0; i <= N; i++) pts.push(tideOn(now - 3600e3 + SPAN * i / N));
+  const Y = (v) => 56 - (v + 1.25) / 2.5 * 52, X = (i) => 220 * i / N;
+  $('cdLine').setAttribute('d', pts.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(''));
+  const nx = 220 / 13; $('cdNow').setAttribute('x1', nx); $('cdNow').setAttribute('x2', nx);
+  for (const [id, lim] of [['cdBandN', TIDE_NORTH], ['cdBandS', TIDE_SOUTH]]) { $(id).setAttribute('y', 0); $(id).setAttribute('height', Math.max(0, Y(lim)).toFixed(1)); }
+  const rising = tideOn(now + 600e3) > tideOn(now - 600e3) + 0.004, falling = tideOn(now + 600e3) < tideOn(now - 600e3) - 0.004;
+  $('cdTide').textContent = (t >= 0 ? '+' : '') + t.toFixed(1) + ' m';
+  $('cdTrend').textContent = tideHeld() ? 'tide held by hand' : rising ? 'tide rising' : falling ? 'tide falling' : 'tide on the turn';
+  let hi = null, lo = null;          // the next high and low water
+  if (!tideHeld()) for (let k = 1; k < 90 && (hi === null || lo === null); k++) { const a = tideOn(now + (k - 1) * 600e3), b = tideOn(now + k * 600e3), c = tideOn(now + (k + 1) * 600e3); if (hi === null && b >= a && b > c) hi = now + k * 600e3; if (lo === null && b <= a && b < c) lo = now + k * 600e3; }
+  $('cdHigh').textContent = hi ? hhmm(hi) : '--'; $('cdLow').textContent = lo ? hhmm(lo) : '--';
+  $('cdWind').textContent = Math.round(wx.wind * 0.54) + ' kn ' + compass(wx.windDir);
+  const row = (id, cls, txt) => { const li = $(id); li.className = cls; li.lastElementChild.textContent = txt; };
+  row('cdEast', '', 'open'); row('cdTown', 'off', 'no vehicles');
+  row('cdNorth', t > TIDE_NORTH ? 'shut' : t > TIDE_NORTH - 0.25 ? 'warn' : '', t > TIDE_NORTH ? 'shut' : t > TIDE_NORTH - 0.25 ? 'closing soon' : 'open');
+  row('cdSouth', t > TIDE_SOUTH ? 'shut' : t > TIDE_SOUTH - 0.2 ? 'warn' : '', t > TIDE_SOUTH ? 'shut' : t > TIDE_SOUTH - 0.2 ? 'closing soon' : 'open');
+  const inland = rideable.filter(c => c.onAlt).length, waiting = rideable.filter(c => c.waiting).length;
+  row('cdCars', inland || waiting ? 'warn' : 'off', (inland ? inland : 'none') + (waiting ? ', ' + waiting + ' waiting' : ''));
+  const blow = wx.wind > 37 || wx.storm > 0.5; row('cdBoats', blow ? 'shut' : '', blow ? 'staying in' : 'out');
+  const m = minutesOf(now); let mic = 'due 10:00', cls = 'off';
+  if (m >= 560 && m < 600) { mic = 'coming in'; cls = ''; } else if (m >= 600 && m < 660) { mic = 'on the beach'; cls = ''; } else if (m >= 660 && m < 700) { mic = 'leaving'; cls = ''; }
+  else if (m >= 830 && m < 870) { mic = 'coming in'; cls = ''; } else if (m >= 870 && m < 930) { mic = 'on the beach'; cls = ''; } else if (m >= 930 && m < 970) { mic = 'leaving'; cls = ''; }
+  else if (m >= 700 && m < 830) mic = 'due 14:30'; else if (m >= 970) mic = 'due 10:00 tomorrow';
+  row('cdMicat', cls, mic);
 }
 let sunT = sunTimes(st.date), sunDay = dayStart(st.date);
 function refreshClock() {
@@ -393,6 +425,7 @@ function frame() {
 
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
   boats.update(dt, acc, camera, minutesOf(st.date));
+  if ((condTick = (condTick + 1) % 20) === 0) refreshCond();
   clouds.update(dt, acc, camera, showClouds && !U.uUnder.value);
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);

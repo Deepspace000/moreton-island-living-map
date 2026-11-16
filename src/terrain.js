@@ -34,7 +34,7 @@ export async function loadTerrainData(F, progress) {
   const hgt = T.hgt = new Float32Array(W * H), expo = T.expo = new Uint8Array(W * H);
   const half = new Uint16Array(W * H * 2), raw = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) raw[i] = (hp.data[i * 4] * 256 + hp.data[i * 4 + 1]) / 65535 * F.hrange + F.hmin;
-  shapeBeaches(raw, W, H, F.mpp, mp.data, F);
+  shapeBeaches(raw, W, H, F.mpp, mp.data, F, (i) => hp.data[i * 4 + 2] / 255);
   for (let i = 0; i < W * H; i++) {
     const h = raw[i];
     expo[i] = hp.data[i * 4 + 2];
@@ -61,7 +61,22 @@ export async function loadTerrainData(F, progress) {
 // berm some tens of metres wide (still dry at the highest tide), and only behind that does the ground climb to the dune or the hill at its
 // natural slope. Ground already lower than this is left alone, so wide natural beaches and flats are unchanged; the rocky cape keeps its cliffs;
 // and the ground under buildings on the beachfront is kept above the tide.
-function shapeBeaches(h, W, H, mpp, mask, F) {
+// The western (bay-side) beach is a tidal road (Queensland Parks: Tangalooma to Bulwer is open from mid to low tide; Tangalooma to Kooringal only
+// within about two hours of low tide; the eastern beach is always open). So away from the settlements and the Micat's landing the bay beach is
+// narrow: at high tide a strip of dry sand is left under the trees, too narrow to drive, and the 4WDs take the inland tracks.
+export const TIDE_NORTH = 0.1, TIDE_SOUTH = -0.45;       // the sea level (m) above which each part of the western beach is shut
+const WIDE = []; let splitZ = 0;
+function setWide(F) {
+  WIDE.length = 0; const place = (re) => (F.places || []).find(o => re.test(o.n || ''))?.p;
+  for (const [re, r] of [[/Bulwer/, 650], [/Cowan/, 560], [/^Tangalooma/, 950], [/Kooringal/, 1000]]) { const c = place(re); if (c) WIDE.push([c[0], c[1], r]); }
+  const fr = (F.ferries || []).find(f => /MICAT/i.test(f.n || '')); if (fr) { const E = [fr.p[0], fr.p[fr.p.length - 1]].sort((a, b) => Math.hypot(a[0], a[1] / 2) - Math.hypot(b[0], b[1] / 2))[0]; WIDE.push([E[0], E[1], 800]); }
+  splitZ = (place(/^Tangalooma/) || [0, 0])[1];
+}
+const narrowOf = (x, z, expo) => { let k = Math.min(1, Math.max(0, (0.42 - expo) / 0.14)); if (k <= 0) return 0; for (const [cx, cz, r] of WIDE) k = Math.min(k, Math.min(1, Math.max(0, (Math.hypot(x - cx, z - cz) - r) / 250))); return k; };
+export const narrowK = (x, z) => narrowOf(x, z, maskAt(x, z).expo);                       // 0 a wide beach, 1 a narrow tidal one
+export const tideLimit = (x, z) => narrowK(x, z) > 0.5 ? (z < splitZ ? TIDE_NORTH : TIDE_SOUTH) : null;      // the sea level above which the beach here is shut to 4WDs (null: never)
+function shapeBeaches(h, W, H, mpp, mask, F, expoAt) {
+  setWide(F);
   const N = W * H, BIG = 1e6, D = 1.4142;
   // distance (in cells) from the nearest cell where d starts at 0; with src, each cell also learns WHICH cell that was
   const chamfer = (d, src) => {
@@ -76,7 +91,10 @@ function shapeBeaches(h, W, H, mpp, mask, F) {
   chamfer(dL); chamfer(dS);
   // The beach lies in FRONT of the land the map knows: the towns stand back from the sea behind it, as they really do. OUT metres seaward of the
   // mapped shoreline the sand comes up through the tide zone; the highest tide stops about at the mapped shoreline; the berm runs inland from there.
-  const OUT = 30;
+  const OUT = 30, OUTN = 14;
+  // the narrow beach: the same gentle tide zone, a strip of dry sand only some eight metres wide, and then the dune
+  const profN = (a) => a < 0 ? a * 0.03 : a < 14 ? 1.15 * a / 14 : a < 22 ? 1.15 + 0.35 * (a - 14) / 8 : 1.5 + (a - 22) * 0.35;
+  const capAt = (m, x, z, i) => { const S = narrowOf((x + 0.5 - W / 2) * mpp, (z + 0.5 - H / 2) * mpp, expoAt(i)), c = prof(m + OUT); return S > 0 ? c * (1 - S) + profN(m + OUTN) * S : c; };
   // height at a metres up the beach: below the lowest tides a gentle sea bed (a < 0), the tide zone (to 28 m), the berm (to 60 m), then the dune face
   const prof = (a) => a < 0 ? a * 0.03 : a < 12 ? 0.52 * a / 12 : a < 28 ? 0.52 + 0.73 * (a - 12) / 16 : a < 60 ? 1.25 + 0.55 * (a - 28) / 32 : 1.8 + (a - 60) * 0.35;
   const keep = new Uint8Array(N);                        // under and beside buildings
@@ -86,7 +104,7 @@ function shapeBeaches(h, W, H, mpp, mask, F) {
   // first the land: nothing near the shore stands higher than the beach allows
   for (let z = 0; z < H; z++) for (let x = 0, i = z * W; x < W; x++, i++) {
     if (dL[i] === 0 || dL[i] > 40 || h[i] <= 0) continue;
-    const c = prof(dL[i] * mpp - mpp * 0.5 + OUT); if (h[i] <= c) continue;
+    const c = capAt(dL[i] * mpp - mpp * 0.5, x, z, i); if (h[i] <= c) continue;
     let n = h[i] + (c - h[i]) * capeK(x, z); if (keep[i]) n = Math.max(n, Math.min(h[i], 1.55));
     h[i] = n;
   }
@@ -95,7 +113,7 @@ function shapeBeaches(h, W, H, mpp, mask, F) {
   const idx = [], val = [];
   for (let z = 3; z < H - 3; z++) for (let x = 3, i = z * W + 3; x < W - 3; x++, i++) {
     const isSea = dL[i] === 0; if (isSea ? dS[i] > seaward : dL[i] > 3.2) continue;
-    const c0 = prof((isSea ? -(dS[i] * mpp - mpp * 0.5) : dL[i] * mpp - mpp * 0.5) + OUT); if (h[i] >= c0) continue;
+    const c0 = capAt(isSea ? -(dS[i] * mpp - mpp * 0.5) : dL[i] * mpp - mpp * 0.5, x, z, i); if (h[i] >= c0) continue;
     let R = 0; for (let j = -3; j <= 3; j++) for (let k = -3, q = i + j * W - 3; k <= 3; k++, q++) if (dL[q] !== 0 && h[q] > R) R = h[q];
     const c = Math.min(c0, R); if (h[i] >= c) continue;
     idx.push(i); val.push(h[i] + (c - h[i]) * capeK(x, z));

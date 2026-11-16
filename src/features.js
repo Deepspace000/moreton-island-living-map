@@ -2,7 +2,7 @@
 // the wrecks, lighthouses, jetty, navigation marks, lakes and the name labels.
 import * as THREE from 'three';
 import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
-import { T, meshY, groundH, heightAt, maskAt, albedoAt } from './terrain.js';
+import { T, meshY, groundH, heightAt, maskAt, albedoAt, tideLimit } from './terrain.js';
 import { GB, makeLights } from './geo.js';
 
 const seaY = () => U.uSeaM.value * VEX;
@@ -387,7 +387,7 @@ function buildRoads(F, scene, occ) {
           col = vec3(0.80, 0.72, 0.52) * (0.9 + 0.2 * n); a = 0.7 * rut * (0.6 + 0.4 * texture2D(uNoise, vec2(vP.y / 23.0, 0.7)).g) * (1.0 - smoothstep(600.0, 1500.0, vD));
         } else if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
-          col = vec3(0.40, 0.33, 0.22); a = 0.34 * rut * (0.45 + 0.55 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.7 + 0.3 * texture2D(uNoise, vW.xz / 5.0).b);   // tracks darken the sand a little, in sun or in shade, and are broken along their length
+          col = vec3(0.40, 0.33, 0.22); a = 0.42 * rut * (0.45 + 0.55 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.7 + 0.3 * texture2D(uNoise, vW.xz / 5.0).b);   // tracks darken the sand a little, in sun or in shade, and are broken along their length
           a *= mix(1.0, 0.6 + 0.8 * step(0.5, fract(vP.y * 3.6 + abs(vP.x) * 3.0)), 1.0 - smoothstep(12.0, 40.0, vD));          // up close each rut shows the chevrons of the tyre's tread   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
@@ -1289,7 +1289,8 @@ function beachRoutes() {
     for (let z = -T.sz / 2 + 500; z < T.sz / 2 - 500; z += 45) {
       let x = side * (T.sx / 2 - 150), hit = null;
       for (let i = 0; i < 2400 && Math.abs(x) < T.sx / 2; i++, x -= side * 9) if (groundH(x, z) > 0.9) { hit = x; break; }
-      const bx = hit === null ? 0 : hit - side * 22, m = hit === null ? null : { sand: Math.max(maskAt(hit - side * 12, z).sand, maskAt(hit - side * 24, z).sand, maskAt(hit - side * 36, z).sand) };      // the route runs along the berm, just above the highest tide; the sand is judged across the open beach (the map of it is patchy, so the best of three spots counts)
+      let xd = hit; if (hit !== null) for (let k = 0; k < 30 && groundH(xd, z) < 2.0; k++) xd -= side * 2;          // the foot of the dune behind
+      const bx = hit === null ? 0 : hit - side * Math.max(4, Math.abs(xd - hit) * 0.5), m = hit === null ? null : { sand: Math.max(maskAt(hit - side * 12, z).sand, maskAt(hit - side * 24, z).sand, maskAt(hit - side * 36, z).sand) };      // the route runs along the berm, just above the highest tide; the sand is judged across the open beach (the map of it is patchy, so the best of three spots counts)
       // keep only real beach: sand, open ground behind it, and no jump sideways from the last point (headlands, creek mouths, offshore banks)
       if (!m || m.sand < 0.45 || groundH(hit - side * 70, z) < 1.2 || (run.length && Math.abs(bx - run[run.length - 1][0]) > 60)) { close(); continue; }
       run.push([bx, z]);
@@ -1319,7 +1320,7 @@ function closeBeaches(F) {
     const near = (lo, hi, from) => { const m = new Map(); for (const n of list) { let best = null; for (let k = lo; k <= hi; k++) { const d = H(n.p[0] - pts[k][0], n.p[1] - pts[k][1]); if (d < 90 && (!best || d < best[1])) best = [k, d]; } if (best) m.set(n, { k: best[0], cost: best[1] + Math.abs(best[0] - from) * 22 }); } return m; };
     const A = near(Math.max(0, i - 34), i - 1, i - 1), B = near(j, Math.min(pts.length - 1, j + 34), j); if (!A.size || !B.size) return null;
     for (const n of list) { n.d = Infinity; n.prev = null; n.done = false; } const open = []; for (const [n, v] of A) { n.d = v.cost; open.push(n); }
-    while (open.length) { let bi = 0; for (let k = 1; k < open.length; k++) if (open[k].d < open[bi].d) bi = k; const n = open.splice(bi, 1)[0]; if (n.done) continue; n.done = true; if (n.d > 12000) break;
+    while (open.length) { let bi = 0; for (let k = 1; k < open.length; k++) if (open[k].d < open[bi].d) bi = k; const n = open.splice(bi, 1)[0]; if (n.done) continue; n.done = true; if (n.d > 30000) break;
       for (const [m, d] of n.e) if (!m.done && n.d + d < m.d) { m.d = n.d + d; m.prev = n; open.push(m); } }
     let end = null, bestD = Infinity; for (const [n, v] of B) if (n.d + v.cost < bestD) { bestD = n.d + v.cost; end = n; } if (!end) return null;
     const path = []; let n = end; while (n) { path.unshift(n.p); if (!n.prev) break; n = n.prev; }
@@ -1330,7 +1331,7 @@ function closeBeaches(F) {
     if (r.side > 0 || !r.p.some(inC)) { beach.push(r); drive.push(r); continue; }
     let run = []; const flush = () => { if (run.length > 6) beach.push({ p: run, side: r.side }); run = []; };
     r.p.forEach((p, i) => { if (inC(p)) { if (run.length) gates.push({ p: run[run.length - 1], side: r.side }); flush(); } else { if (!run.length && i > 0 && inC(r.p[i - 1])) gates.push({ p, side: r.side }); run.push(p); } }); flush();
-    let cur = [], i = 0; const done = () => { if (cur.length > 30) drive.push({ p: cur.map(q => [q[0], q[1]]), side: r.side }); cur = []; };
+    let cur = [], i = 0; const done = () => { if (cur.length > 30) drive.push({ p: cur.map(q => [q[0], q[1]]), side: r.side, lim: cur.map(q => q[2] >= 0 ? tideLimit(q[0], q[1]) : null) }); cur = []; };
     while (i < r.p.length) {
       if (!inC(r.p[i])) { cur.push([r.p[i][0], r.p[i][1], i]); i++; continue; }
       let j = i; while (j < r.p.length && inC(r.p[j])) j++;
@@ -1340,6 +1341,17 @@ function closeBeaches(F) {
     }
     done();
   }
+  // The tide. Each stretch of narrow beach is shut to 4WDs while the sea stands above its limit; where the mapped tracks give a way round inland
+  // (the high tide access tracks), the cars take it, and where they do not, the cars turn back.
+  for (const d of drive) {
+    if (!d.lim) d.lim = d.p.map(q => tideLimit(q[0], q[1]));
+    d.tidal = []; const n = d.p.length;
+    for (let i = 0; i < n; i++) { if (d.lim[i] === null) continue; let j = i; while (j < n && d.lim[j] !== null && d.lim[j] === d.lim[i]) j++;
+      const by = i > 0 && j < n ? bypass(d.p, i, j) : null;
+      d.tidal.push({ a: by ? by.a : Math.max(0, i - 1), b: by ? by.b : Math.min(n - 1, j), thr: d.lim[i], path: by ? [d.p[by.a], ...by.path, d.p[by.b]] : null });
+      i = j - 1; }
+  }
+  for (const r of beach) r.w = r.p.map(q => { let w = 0; while (w < 40 && groundH(q[0] - r.side * w, q[1]) < 2.0) w += 1.5; return w; });          // how far the sand runs back to the dune from each point of the route
   F.beach = beach; F.drive = drive; F.gates = gates;
 }
 // The barriers themselves: a row of stout timber bollards across the beach from the foot of the dune to the water, and a sign.
@@ -1361,7 +1373,7 @@ export function buildFeatures(scene, F, flyTo) {
   const occ = new Set(), g = new GB(), lights = makeLights(700);
   const casters = [];
   F.beach = beachRoutes(); closeBeaches(F);
-  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9], [-3, 0.8], [-8.5, 4.4], [1.8, 5.1], [-1.5, 2.2], [-4.4, 3.1], [-7.3, 0.4], [-9.6, 5.7], [2.9, 1.1], [-13, 2.0]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.37 + wig) * 1.5 + Math.sin(i * 0.11 + wig * 3) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // many sets of wheel ruts wandering along the sand and crossing one another: the beaches are the island's roads (the owner's photo at Tangalooma)
+  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9], [-3, 0.8], [-8.5, 4.4], [1.8, 5.1], [-1.5, 2.2], [-4.4, 3.1], [-7.3, 0.4], [-9.6, 5.7], [2.9, 1.1], [-13, 2.0]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * Math.min(1, Math.max(0.2, (r.w ? r.w[i] : 20) / 18)) * (off + Math.sin(i * 0.37 + wig) * 1.5 + Math.sin(i * 0.11 + wig * 3) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // many sets of wheel ruts wandering along the sand and crossing one another: the beaches are the island's roads (the owner's photo at Tangalooma)
   buildOverlay(F);
   buildBuildings(F, g, occ, casters, lights); drawGates(F, g);
   buildRoads(F, scene, occ);

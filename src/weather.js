@@ -38,6 +38,8 @@ const tideAt = (ms) => {
   return tideModel(ms + tideShift);
 };
 export const tideLevel = () => tideManual ? custom.tide : clamp(tideAt(tideDate), -1.15, 1.05);
+export const tideOn = (ms) => tideManual ? custom.tide : clamp(tideAt(ms), -1.15, 1.05);          // the tide at another moment (for the tide panel); a tide held by hand stays where it is put
+export const tideHeld = () => tideManual;
 export let mode = 'live';
 // hand-set weather (the sliders)
 export const custom = { sun: 85, cloud: 25, ctype: 'cumulus', wind: 14, windDir: 120, rain: 0, fog: 5, swell: 0.9, tide: 0, storm: 0 };

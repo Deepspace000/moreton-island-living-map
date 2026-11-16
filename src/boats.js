@@ -502,6 +502,7 @@ export function buildBoats(scene, F) {
           const helm = b.helm;                        // someone aboard has taken the wheel: the boat goes where it is steered
           if (helm) want = b.hd;
           let cruise = b.cruise * (helm ? helm.throttle : 1);
+          if (!helm && (b.jet || b.small) && (wx.wind > 37 || wx.storm > 0.5)) cruise *= 0.25;          // in a blow (over about 20 knots) or a storm the jet skis and dinghies only idle about near where they lie
           if (b.sail) {
             let off = ((want - upwind + Math.PI * 3) % (Math.PI * 2)) - Math.PI;      // angle off the wind
             if (!helm && Math.abs(off) < 0.75) { if (Math.random() < dt / 45) b.tack *= -1; want = upwind + 0.78 * b.tack; off = 0.78 * b.tack; }
