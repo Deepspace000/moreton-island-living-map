@@ -194,6 +194,8 @@ function buildBuildings(F, g, occ, casters, lights) {
   const reach = (x, z, p) => { let d = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length], dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); d = Math.min(d, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return d; };
   const freeOf = (self) => (x, z, r) => plans.every(q => q.b === self || Math.hypot(x - q.x, z - q.z) > q.r + r || (!within(x, z, q.p) && reach(x, z, q.p) > r));
   const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
+  const resort = F.places.find(o => /^Tangalooma Resort/.test(o.n || ''))?.p || F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p;
+  if (resort) U.uResort.value.set(resort[0] + 120, resort[1] - 150, 620, 0);            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
   // which way the street lies from a house: the nearest point of any street or track within 70 m
   const toStreet = (x, z) => { let bd = 70 * 70, bx = 0, bz = 0; for (let i = 0; i < streetPts.length; i += 2) { const dx = streetPts[i] - x, dz = streetPts[i + 1] - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bx = dx; bz = dz; } } const l = Math.hypot(bx, bz); return l > 0.5 ? [bx / l, bz / l, l] : null; };
   const onStreet = (x, z) => { for (let dx = -4; dx <= 4; dx += 4) for (let dz = -4; dz <= 4; dz += 4) if (streets.has(cellKey(x + dx, z + dz, 4))) return true; return false; };
@@ -205,9 +207,10 @@ function buildBuildings(F, g, occ, casters, lights) {
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
     for (const q of plans) {
       if (q.a < 25) continue;
-      for (let cz = Math.floor((q.z - q.r - 18) / CS); cz <= Math.floor((q.z + q.r + 18) / CS); cz++) for (let cx = Math.floor((q.x - q.r - 18) / CS); cx <= Math.floor((q.x + q.r + 18) / CS); cx++) {
+      const pad = resort && Math.hypot(q.x - resort[0] - 120, q.z - resort[1] + 150) < 700 ? 60 : 18;
+      for (let cz = Math.floor((q.z - q.r - pad) / CS); cz <= Math.floor((q.z + q.r + pad) / CS); cz++) for (let cx = Math.floor((q.x - q.r - pad) / CS); cx <= Math.floor((q.x + q.r + pad) / CS); cx++) {
         const key = cx + ',' + cz; if (cells.has(key)) continue;
-        const x = (cx + 0.5) * CS, z = (cz + 0.5) * CS, ok = reach(x, z, q.p) < 18 && anyFree(x, z, 4.8) && !onStreet(x, z) && maskAt(x, z).land > 0.9;
+        const x = (cx + 0.5) * CS, z = (cz + 0.5) * CS, inResort = resort && Math.hypot(x - resort[0] - 120, z - resort[1] + 150) < 620, ok = reach(x, z, q.p) < (inResort ? 60 : 18) && anyFree(x, z, 4.8) && !onStreet(x, z) && maskAt(x, z).land > 0.9;
         if (!ok) continue;
         cells.set(key, [cx, cz]); x0 = Math.min(x0, cx); x1 = Math.max(x1, cx); z0 = Math.min(z0, cz); z1 = Math.max(z1, cz);
       }
@@ -569,7 +572,10 @@ function buildTrees(F, scene) {
           vec2 duv = (xz - uDetRect.xy) * uDetRect.z; vec4 dtx = texture2D(uDetail, clamp(duv, 0.0, 1.0));
           float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn);
-          float treeK = smoothstep(0.46, 0.26, lumP);          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
+          float treeK = smoothstep(0.46, 0.26, lumP);
+          { // round Tangalooma resort the forest stands right behind and between the buildings (the owner's aerial photograph), whatever the coarse sand map says
+            float rk = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(xz - uResort.xy))) * step(2.6, hgt) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0);
+            sandm *= 1.0 - rk; treeK = max(treeK, 0.85 * rk); }          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.5, hgt) * clr * treeK;          // (trees start at the back of the berm, clear of the highest tide)
           #ifdef SPECIES
@@ -588,7 +594,7 @@ function buildTrees(F, scene) {
           { // and on the sheltered south-western shore (below the sandhills, as the owner photographed) clumps of mangroves stand out in the shallows, their feet in the water
             float bay = 1.0 - smoothstep(0.25, 0.4, texture2D(uHeight, uv).g), stand = step(0.6, texture2D(uNoise, xz / 240.0 + 0.4).r);
             if(hgt > -0.5 && hgt < 0.9 && shoreD > -70.0 && shoreD < 40.0 && xz.y > 9000.0 && bay * stand > 0.5){ sp = 4.0; dens = 0.55 * clr; } }
-          if(yard > 0.5){ dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt); sp = hs < 0.58 ? 0.0 : hs < 0.8 ? 1.0 : hs < 0.9 ? 2.0 : 3.0; }      // in the yards: a gum, a she-oak, a banksia or a paperbark by the house
+          if(yard > 0.5){ dens = mix(0.5, 0.82, 1.0 - smoothstep(uResort.z * 0.85, uResort.z, length(xz - uResort.xy))) * step(0.92, mk.r) * step(1.5, hgt) * smoothstep(40.0, 70.0, shoreD); sp = hs < 0.58 ? 0.0 : hs < 0.8 ? 1.0 : hs < 0.9 ? 2.0 : 3.0; }      // in the yards: a gum, a she-oak, a banksia or a paperbark by the house
           if(uForceSp > -0.5) sp = uForceSp;          // (for looking at one kind of tree on its own)
           if(uForceSp < -1.5 && !(sp > 0.5 && sp < 1.5)) dens = 0.0;      // (or at the she-oaks alone, where they really stand)
           #endif

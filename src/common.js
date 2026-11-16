@@ -24,7 +24,7 @@ export const U = {
   uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
   uHeight: { value: null }, uOver: { value: null }, uYard: { value: null }, uYardO: { value: new THREE.Vector4(0, 0, 1, 1) }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
-  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
+  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) }, uResort: { value: new THREE.Vector4(0, 0, 1, 0) },        // Cape Moreton headland: x, z, radius
   uCloudTex: { value: null }, uCloudRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCloudAlt: f(2000), uCloudStr: f(0.7),
   uWindDir: { value: new THREE.Vector2(1, 0) }, uChop: f(0.5), uSurf: f(1.2), uWhitecap: f(0), uRain: f(0), uSwell: f(1),
   uWaves: { value: Array.from({ length: 6 }, () => new THREE.Vector4(1, 0, 0, 100)) },
@@ -38,7 +38,7 @@ uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, 
 uniform sampler2D uYard; uniform vec4 uYardO;      // one texel for each 11 m cell of the tree grid near houses: 1 where a garden tree may stand
 uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
 uniform vec4 uCarL[8];        // the headlamps of the eight nearest 4WDs: where the front of the car is (x, z) and the way it points (zero when its lamps are off)
-uniform vec4 uWorld, uCloudRect, uCape;
+uniform vec4 uWorld, uCloudRect, uCape, uResort;      // uResort: Tangalooma resort's grounds: x, z, radius
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }
 float sat(float x){ return clamp(x, 0.0, 1.0); }

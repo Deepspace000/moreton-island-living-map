@@ -198,9 +198,10 @@ export function buildTerrain(scene) {
           vec2 duv = (t - uDetRect.xy) * uDetRect.z; vec4 dtx = texture2DLodEXT(uDetail, clamp(duv, 0.0, 1.0), 0.0);
           float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
-          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45)) * step(0.92, mk.r) * step(1.5, hgt) * clr * smoothstep(0.46, 0.26, lumP);
+          float rkT = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(t - uResort.xy))) * step(2.6, hgt) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0);      // (the resort's trees: see features.js)
+          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45) * (1.0 - rkT)) * step(0.92, mk.r) * step(1.5, hgt) * clr * max(smoothstep(0.46, 0.26, lumP), 0.85 * rkT);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
-          if(yard > 0.5) dens = 0.5 * step(0.92, mk.r) * step(1.4, hgt);
+          if(yard > 0.5) dens = mix(0.5, 0.82, 1.0 - smoothstep(uResort.z * 0.85, uResort.z, length(t - uResort.xy))) * step(0.92, mk.r) * step(1.5, hgt) * smoothstep(40.0, 70.0, (mk.b - 0.5) * 3000.0);
           else dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2DLodEXT(uNoise, t / 60.0 + 0.17, 0.0).b));      // groves and gaps, as the trees themselves stand
           if(h3 > dens * 1.15) continue;
           float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), hc = 6.5 * (0.9 + 0.2 * h4), r = 4.0 * big;
@@ -427,6 +428,11 @@ export function buildTerrain(scene) {
           col = mix(col, mix(sd * 0.9, vec3(0.17, 0.215, 0.09) * (0.75 + 0.5 * nC.g), 0.62), yd * grassP * 0.7);
           float speck = texture2D(uNoise, vW.xz / 0.9).b;
           col = mix(col, mix(vec3(0.25, 0.17, 0.09), vec3(0.13, 0.095, 0.065), speck), yd * driftP * (1.0 - 0.5 * grassP) * (0.38 + 0.4 * smoothstep(0.35, 0.65, speck))); }
+        { // Tangalooma resort keeps its grounds: the cleared ground among and behind the buildings is watered lawn, not bare sand (the beach itself stays sand)
+          float rk = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(vW.xz - uResort.xy))) * smoothstep(2.3, 3.0, h) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.3, 0.8, ov.g));
+          float lawnK = smoothstep(0.04, 0.12, ov.r);                                   // lawn close round the buildings; beyond them the forest floor, in the shade of the trees
+          col = mix(col, vec3(0.05, 0.068, 0.03) * (0.7 + 0.6 * nC.g), rk * smoothstep(0.25, 0.55, sand) * (1.0 - lawnK) * 0.9);
+          col = mix(col, vec3(0.105, 0.15, 0.055) * (0.78 + 0.4 * nC.g) * (0.9 + 0.2 * nB.r), rk * lawnK * 0.9); }
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
