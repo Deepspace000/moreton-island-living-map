@@ -309,3 +309,15 @@ input, textarea { -webkit-user-select: auto; user-select: auto; }
 #ride.person .helm { max-width: 270px; }
 #ride .helm.min .foot { display: none !important; }
 @media (pointer: coarse) { #ride .helm .foot .pill { min-height: 40px; font-size: 14px; } #ride .helm .foot .ft-speed .pill { min-height: 36px; } #ride.person .helm { max-width: 284px; } }
+
+/* every panel is a window: drag it anywhere (also as a chip), and resize it by the grip in its bottom right corner (see windows.js) */
+.win { touch-action: none; }
+#walkHint { pointer-events: auto; }
+.win.dragging { cursor: grabbing; box-shadow: 0 2px 6px rgba(0, 0, 0, .3), 0 14px 34px rgba(0, 0, 0, .4); }
+.win.min { transform: none !important; height: auto !important; }
+.win-rs { position: absolute; right: 0; bottom: 0; width: 15px; height: 15px; z-index: 2; cursor: nwse-resize; touch-action: none; opacity: .5; border-bottom-right-radius: inherit;
+  background: linear-gradient(135deg, transparent 0 46%, currentColor 46% 54%, transparent 54% 66%, currentColor 66% 74%, transparent 74% 86%, currentColor 86% 94%, transparent 94%); }
+.win-rs:hover, .win.dragging > .win-rs { opacity: 1; }
+#mini > .win-rs { color: #5f6368; opacity: 1; width: 18px; height: 18px; background-color: rgba(255, 255, 255, .9); border-top-left-radius: 7px; } .mm-zoom { bottom: 22px; }
+@media (pointer: coarse) { .win-rs { width: 24px; height: 24px; } .mm-zoom { bottom: 30px; } }
+body.ui-off .win { display: none !important; }

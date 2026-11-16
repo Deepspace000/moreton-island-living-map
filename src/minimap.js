@@ -129,19 +129,11 @@ export function buildMinimap(F, o) {
   function zoomBy(n) { zoom[mode] = clamp(zoom[mode] + n, 0, MAXZ); buttons(); acc = 1; try { localStorage.setItem('mini:zoom', JSON.stringify(zoom)); } catch (e) { /* not remembered then */ } }
   const at = (clientX, clientY) => { const r = canvas.getBoundingClientRect(); return { x: cx + (clientX - r.left - cw / 2) * mpp, z: cz + (clientY - r.top - ch / 2) * mpp }; };
 
-  // Dragging the map moves the whole thing about the screen (it stays where you leave it, also next time); a click without a drag moves the view.
-  let drag = null, dragged = false;
-  const put = (l, t) => { const w = root.offsetWidth, h = root.offsetHeight; root.style.left = clamp(l, 4, Math.max(4, innerWidth - w - 4)) + 'px'; root.style.top = clamp(t, 4, Math.max(4, innerHeight - h - 4)) + 'px'; root.style.right = root.style.bottom = 'auto'; root.classList.add('moved'); };
-  const keep = () => { try { localStorage.setItem('mini:pos', JSON.stringify([parseFloat(root.style.left), parseFloat(root.style.top)])); } catch (e) { /* not remembered then */ } };
-  function reset() { root.classList.remove('moved'); root.style.left = root.style.top = root.style.right = root.style.bottom = ''; try { localStorage.removeItem('mini:pos'); } catch (e) { /* nothing kept */ } }
-  try { const s = JSON.parse(localStorage.getItem('mini:pos') || 'null'); if (s && isFinite(s[0]) && isFinite(s[1])) put(s[0], s[1]); } catch (e) { /* storage can be blocked */ }
-  addEventListener('resize', () => { if (root.classList.contains('moved')) put(parseFloat(root.style.left), parseFloat(root.style.top)); });
-  canvas.addEventListener('pointerdown', (e) => { finger = e.pointerType !== 'mouse'; if (e.button !== 0) return; const r = root.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, on: false }; dragged = false; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* no capture: the drag still works over the map */ } });
-  canvas.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.on && Math.hypot(dx, dy) < 6) return; drag.on = true; root.classList.add('dragging'); put(drag.l + dx, drag.t + dy); });
-  for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, () => { if (drag && drag.on) { dragged = true; keep(); } drag = null; root.classList.remove('dragging'); });
+  // (Dragging the map about the screen, and resizing it, is done by the windows: see windows.js. A drag does not count as a click.)
+  canvas.addEventListener('pointerdown', (e) => { finger = e.pointerType !== 'mouse'; });
   let first = null, finger = false;            // (it takes two clicks on the same spot: one alone, or the end of a drag, does nothing; a finger gets a little more room and time than a mouse)
   canvas.addEventListener('click', (e) => {
-    if (dragged) { dragged = false; first = null; return; } const now = performance.now();
+    const now = performance.now();
     if (!(first && now - first.t < (finger ? 520 : 420) && Math.hypot(e.clientX - first.x, e.clientY - first.y) < (finger ? 34 : 20))) { first = { t: now, x: e.clientX, y: e.clientY }; return; }
     first = null; if (mpp) { const p = at(e.clientX, e.clientY); o.go(p.x, p.z); }
   });
@@ -174,5 +166,5 @@ export function buildMinimap(F, o) {
       ctx.beginPath(); ctx.arc(gx, gy - 13, 2.6, 0, 7); ctx.fillStyle = '#7a0e0b'; ctx.fill(); }
   }
   buttons();
-  return { update, zoomBy, at, reset, root, canvas, get zoom() { return zoom[mode]; }, max: MAXZ };
+  return { update, zoomBy, at, root, canvas, get zoom() { return zoom[mode]; }, max: MAXZ };
 }

@@ -28,6 +28,7 @@ import { carPace, probe, OPT } from './drive.js';
 import { buildAboard } from './avatar.js';
 import { buildSeabed } from './seabed.js';
 import { buildMinimap } from './minimap.js';
+import { makeWindows } from './windows.js';
 import { makeMenu } from './menu.js';
 
 const $ = (id) => document.getElementById(id);
@@ -264,7 +265,7 @@ function travel(kind, control) {
 }
 // How to control whatever you are doing just now: the map, walking, or the thing you ride, watching it or in control of it.
 // It stays on screen (in its own panel over the control bar, which can be minimised) and changes as you change what you do.
-let helpKey = '';
+let helpKey = '', wins = null;
 function syncHelp() {
   const touch = matchMedia('(pointer: coarse)').matches, o = ride.active ? ride.car || ride.boat || ride.bird : null;
   const key = [touch, walk.active, ride.active, ride.helm, o && (o.kind || (o.jet ? 'jet' : o.sail ? 'sail' : '')), ride.car ? 1 : 0].join(); if (key === helpKey) return; helpKey = key;
@@ -283,7 +284,7 @@ function syncHelp() {
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
   } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
-  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu';
+  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu · drag any panel to move it, its corner to resize it' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu · drag any panel to move it, its corner to resize it';
   $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
 }
 function syncTravel() {
@@ -323,15 +324,18 @@ $('tvSecs').onchange = () => { tour.secs = +$('tvSecs').value || 30; };
   sl.oninput = () => { show(); try { localStorage.setItem('carKmh', sl.value); } catch (e) { /* not remembered then */ } }; show(); }
 // the left-hand column stacks: title, then Travel, then Places, whatever size each is just now
 function layoutLeft() {
-  const t = $('title'), tv = $('travel'), pl = $('places'); t.style.top = document.body.classList.contains('riding') ? '52px' : '';
-  const tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
-  tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
-  pl.style.maxHeight = Math.max(80, Math.round(innerHeight - b - (document.body.classList.contains('riding') ? (document.querySelector('#ride.person') ? 292 : 210) : 86))) + 'px';          // (while riding, the helm sits under the list)
+  const t = $('title'), tv = $('travel'), sg = $('settings'), pl = $('places'), riding = document.body.classList.contains('riding'), moved = (el) => el.classList.contains('moved');
+  if (wins) wins.fit();
+  if (!moved(t)) t.style.top = riding ? '52px' : '';
+  let b = riding ? 50 : 10;          // (a panel dragged somewhere by hand is out of the column: the others close up)
+  for (const el of [t, tv, sg]) { if (moved(el)) continue; if (el !== t) el.style.top = b + 'px'; const r = el.getBoundingClientRect(); if (r.height > 0) b = r.bottom + 8; }
+  if (!moved(pl)) { pl.style.top = b + 'px'; pl.style.maxHeight = Math.max(80, Math.round(innerHeight - b - (riding ? (document.querySelector('#ride.person') ? 292 : 210) : 86))) + 'px'; }
+  else pl.style.maxHeight = Math.max(80, Math.round((innerHeight - pl.getBoundingClientRect().top - 10) / wins.scale(pl))) + 'px';          // (while riding, the helm sits under the list)
   // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
   // and on a narrow screen it goes under the Travel chip
   const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); if (mm.classList.contains('moved')) return;          // (dragged somewhere by hand: it stays there)
   mm.style.top = small ? b + 'px' : '';
-  mm.style.left = !small && !document.body.classList.contains('riding') && pr.height > 0 && pr.bottom + 8 > innerHeight - 152 - mm.offsetHeight ? Math.round(pr.right + 8) + 'px' : '';
+  mm.style.left = !small && !moved(pl) && !document.body.classList.contains('riding') && pr.height > 0 && pr.bottom + 8 > innerHeight - 152 - mm.offsetHeight ? Math.round(pr.right + 8) + 'px' : '';
 }
 { let down = null, last = null;    // two clicks (or taps) on the same spot, not a drag: on a 4WD, a boat or a bird to go along with it, on the ground or the sea to stand there
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
@@ -396,7 +400,7 @@ function openMenu(cx, cy, el) {
     if (mini.zoom < mini.max) items.push({ label: 'Zoom the mini map in', run: () => mini.zoomBy(1) });
     if (mini.zoom > 0) items.push({ label: 'Zoom the mini map out', run: () => mini.zoomBy(-1) });
   }
-  if (mini && mm.classList.contains('moved')) items.push({ label: 'Put the mini map back in its corner', run: () => mini.reset() });
+  if (wins && wins.anyMoved()) items.push({ label: 'Put every panel back in its place', run: () => wins.resetAll() });
   items.push({ label: mm.classList.contains('min') ? 'Show the mini map' : 'Hide the mini map', run: () => mm.querySelector('.win-min').click() });
   menu.show(cx, cy, items);
 }
@@ -460,6 +464,7 @@ for (const w of document.querySelectorAll('.win')) {
   b.onclick = () => { const m = !w.classList.contains('min'); set(m); try { localStorage.setItem(key, m ? '1' : '0'); } catch (e) { /* not remembered then */ } };
   w.append(b);
 }
+wins = makeWindows({ onChange: layoutLeft });          // every panel can be dragged about (also as a chip) and resized by its corner: see windows.js
 // ---------- download: the whole app as one HTML file (also started by ?download in the address) ----------
 const btSave = $('btSave');
 if (window.PACKED) btSave.remove();          // this already is the one-file copy
