@@ -136,13 +136,13 @@ export function buildMinimap(F, o) {
   function reset() { root.classList.remove('moved'); root.style.left = root.style.top = root.style.right = root.style.bottom = ''; try { localStorage.removeItem('mini:pos'); } catch (e) { /* nothing kept */ } }
   try { const s = JSON.parse(localStorage.getItem('mini:pos') || 'null'); if (s && isFinite(s[0]) && isFinite(s[1])) put(s[0], s[1]); } catch (e) { /* storage can be blocked */ }
   addEventListener('resize', () => { if (root.classList.contains('moved')) put(parseFloat(root.style.left), parseFloat(root.style.top)); });
-  canvas.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; const r = root.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, on: false }; dragged = false; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* no capture: the drag still works over the map */ } });
+  canvas.addEventListener('pointerdown', (e) => { finger = e.pointerType !== 'mouse'; if (e.button !== 0) return; const r = root.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, on: false }; dragged = false; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* no capture: the drag still works over the map */ } });
   canvas.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.on && Math.hypot(dx, dy) < 6) return; drag.on = true; root.classList.add('dragging'); put(drag.l + dx, drag.t + dy); });
   for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, () => { if (drag && drag.on) { dragged = true; keep(); } drag = null; root.classList.remove('dragging'); });
-  let first = null;            // (it takes two clicks on the same spot: one alone, or the end of a drag, does nothing)
+  let first = null, finger = false;            // (it takes two clicks on the same spot: one alone, or the end of a drag, does nothing; a finger gets a little more room and time than a mouse)
   canvas.addEventListener('click', (e) => {
     if (dragged) { dragged = false; first = null; return; } const now = performance.now();
-    if (!(first && now - first.t < 420 && Math.hypot(e.clientX - first.x, e.clientY - first.y) < 20)) { first = { t: now, x: e.clientX, y: e.clientY }; return; }
+    if (!(first && now - first.t < (finger ? 520 : 420) && Math.hypot(e.clientX - first.x, e.clientY - first.y) < (finger ? 34 : 20))) { first = { t: now, x: e.clientX, y: e.clientY }; return; }
     first = null; if (mpp) { const p = at(e.clientX, e.clientY); o.go(p.x, p.z); }
   });
   let wheel = 0;

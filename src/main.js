@@ -281,7 +281,7 @@ function syncHelp() {
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
   } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
-  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu';
+  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu';
   $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
 }
 function syncTravel() {
@@ -324,7 +324,7 @@ function layoutLeft() {
   const t = $('title'), tv = $('travel'), pl = $('places'); t.style.top = document.body.classList.contains('riding') ? '52px' : '';
   const tr = t.getBoundingClientRect(), top = tr.height > 0 ? tr.bottom + 8 : document.body.classList.contains('riding') ? 50 : 10;
   tv.style.top = top + 'px'; const sg = $('settings'); sg.style.top = (tv.getBoundingClientRect().bottom + 8) + 'px'; const b = sg.getBoundingClientRect().bottom + 8; pl.style.top = b + 'px';
-  pl.style.maxHeight = `calc(100vh - ${Math.round(b + (document.body.classList.contains('riding') ? 210 : 86))}px)`;          // (while riding, the helm sits under the list)
+  pl.style.maxHeight = Math.max(80, Math.round(innerHeight - b - (document.body.classList.contains('riding') ? 210 : 86))) + 'px';          // (while riding, the helm sits under the list)
   // the mini map sits in the bottom left corner; where the Places list reaches down that far it moves over to stand beside the list,
   // and on a narrow screen it goes under the Travel chip
   const mm = $('mini'), small = innerWidth <= 820, pr = pl.getBoundingClientRect(); if (mm.classList.contains('moved')) return;          // (dragged somewhere by hand: it stays there)
@@ -335,9 +335,10 @@ function layoutLeft() {
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', (e) => {
     const onFoot = ride.active && ride.bird && ride.bird.kind === 'person';            // (on foot you can still pick a vehicle to get into)
-    if (!down || e.button !== 0 || walk.active || (ride.active && !onFoot) || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9 || performance.now() - down.t > 500) { down = null; return; }
+    const finger = e.pointerType !== 'mouse';            // (a finger is less exact than a mouse, and a little slower)
+    if (!down || e.button !== 0 || walk.active || (ride.active && !onFoot) || Math.hypot(e.clientX - down.x, e.clientY - down.y) > (finger ? 16 : 9) || performance.now() - down.t > 500) { down = null; return; }
     down = null; const now = performance.now();
-    if (!(last && now - last.t < 420 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30)) { last = { t: now, x: e.clientX, y: e.clientY }; return; }            // that was the first click: nothing happens until the second
+    if (!(last && now - last.t < (finger ? 520 : 420) && Math.hypot(e.clientX - last.x, e.clientY - last.y) < (finger ? 46 : 30))) { last = { t: now, x: e.clientX, y: e.clientY }; return; }            // that was the first click: nothing happens until the second
     last = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit && !(aboard && hit.obj === aboard.av)) return enterRide(hit);
     if (onFoot || !aboard) return;
     // the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
@@ -361,7 +362,9 @@ $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.
 const btSound = $('btSound');
 const setSound = (v) => { if (sound.on !== v) sound.toggle(); btSound.classList.toggle('on', sound.on); try { localStorage.setItem('sound', sound.on ? '1' : '0'); } catch (e) { /* not remembered then */ } };
 btSound.onclick = () => setSound(!sound.on);
-try { if (localStorage.getItem('sound') !== '0') addEventListener('pointerdown', (e) => { if (e.target !== btSound && !sound.on) setSound(true); }, { once: true }); } catch (e) { /* storage can be blocked */ }
+// (Safari, and so every iPad, lets sound start only from a finished tap, a click or a key: a finger going down is not enough)
+try { if (localStorage.getItem('sound') !== '0') { const evs = ['pointerup', 'touchend', 'click', 'keydown'], go = (e) => { for (const ev of evs) removeEventListener(ev, go, true); if (e.target !== btSound && !sound.on) setSound(true); }; for (const ev of evs) addEventListener(ev, go, true); } } catch (e) { /* storage can be blocked */ }
+for (const ev of ['pointerup', 'touchend', 'keydown']) addEventListener(ev, () => sound.wake(), true);          // (and after a phone call, or a drag that did not count as a tap, the next tap starts it again)
 // ---------- the right mouse button: the app's own menu, in place of the browser's ("Save image as...") ----------
 const menu = makeMenu();
 const latLon = (x, z) => { const F = window.MAP.F, n = 2 ** 15, fx = (x - F.tx0) / F.tsize + F.tile0[0], fy = (z - F.tz0) / F.tsize + F.tile0[1]; return [Math.atan(Math.sinh(Math.PI * (1 - 2 * fy / n))) * 180 / Math.PI, fx / n * 360 - 180]; };
@@ -405,20 +408,43 @@ function openMenu(cx, cy, el) {
     openMenu(e.clientX, e.clientY, el);
   }, true);
 }
+// A touch screen has no right button, and Safari on an iPad sends no menu event for a held finger: a finger held still on the map or the mini map
+// for a little over half a second brings the menu up. (Not while you walk or steer: a held finger is doing that.)
+{ let lp = null; const stop = () => { if (lp) { clearTimeout(lp.t); lp = null; } };
+  addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return; if (lp) return stop();          // (a second finger: that is a pinch or a twist)
+    const el = e.target; if (!features || walk.active || (ride.active && ride.control) || (el !== canvas && !(el.closest && el.closest('#mini') && !el.closest('button')))) return;
+    lp = { id: e.pointerId, x: e.clientX, y: e.clientY, t: setTimeout(() => { const q = lp; lp = null; if (q && !menu.open) openMenu(q.x, q.y, el); }, 600) };
+  }, true);
+  addEventListener('pointermove', (e) => { if (lp && e.pointerId === lp.id && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 10) stop(); }, true);
+  for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, stop, true);
+}
+// Safari sends a pinch on a trackpad as its own gesture events and would zoom the whole page with it: the page stays as it is, and on a
+// Mac the pinch zooms whatever is under the pointer, as the scroll wheel does. (On an iPad two fingers on the map already zoom it.)
+{ let gs = 1; const GEST = 1900;
+  addEventListener('gesturestart', (e) => { e.preventDefault(); gs = e.scale || 1; }, { passive: false });
+  addEventListener('gesturechange', (e) => { e.preventDefault(); if (navigator.maxTouchPoints > 0) return; const s = e.scale || 1, el = document.elementFromPoint(e.clientX, e.clientY) || canvas;
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -Math.log(s / gs) * (el.closest && el.closest('#mini') ? 260 : GEST), clientX: e.clientX, clientY: e.clientY, bubbles: true, cancelable: true })); gs = s; }, { passive: false });
+  addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+}
 // ---------- settings: how sharp the picture is drawn, the whole screen or the window, and which way the controls work ----------
 function applyOpts(save) {
   OPT.invX = OPTS.invX ? -1 : 1; OPT.invY = OPTS.invY ? -1 : 1; resize();
   const w = +(Q.get('w') || innerWidth), h = +(Q.get('h') || innerHeight), r = pixelRatio();
   $('stScale').value = Math.round(r * 100); $('stScaleO').textContent = Math.round(r * 100) + '% · ' + Math.round(w * r) + ' × ' + Math.round(h * r);
-  $('stInvX').checked = OPTS.invX; $('stInvY').checked = OPTS.invY; $('stDot').checked = OPTS.dot; document.body.classList.toggle('dot', !!OPTS.dot); $('stFull').textContent = document.fullscreenElement ? 'Back to a window' : 'Full screen'; $('stFull').classList.toggle('on', !!document.fullscreenElement);
+  $('stInvX').checked = OPTS.invX; $('stInvY').checked = OPTS.invY; $('stDot').checked = OPTS.dot; document.body.classList.toggle('dot', !!OPTS.dot); $('stFull').textContent = fsEl() ? 'Back to a window' : 'Full screen'; $('stFull').classList.toggle('on', !!fsEl());
   if (save) try { localStorage.setItem('opts', JSON.stringify(OPTS)); } catch (e) { /* not remembered then */ }
 }
 $('stScale').oninput = (e) => { OPTS.scale = +e.target.value / 100; applyOpts(true); };
 $('stAuto').onclick = () => { OPTS.scale = 0; applyOpts(true); };
 $('stInvX').onchange = (e) => { OPTS.invX = e.target.checked; applyOpts(true); }; $('stInvY').onchange = (e) => { OPTS.invY = e.target.checked; applyOpts(true); };
 $('stDot').onchange = (e) => { OPTS.dot = e.target.checked; applyOpts(true); };
-$('stFull').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => { /* not allowed here */ }); };
-document.addEventListener('fullscreenchange', () => applyOpts(false));
+function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }          // (older Safari knows the whole screen under its own name)
+{ const d = document.documentElement, ask = d.requestFullscreen || d.webkitRequestFullscreen, leave = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!ask || navigator.standalone) $('stFull').hidden = true;          // an iPhone has no full screen, and the map opened from the home screen already fills it
+  $('stFull').onclick = () => { try { const r = fsEl() ? leave.call(document) : ask.call(d); if (r && r.catch) r.catch(() => { /* not allowed here */ }); } catch (e) { /* not allowed here */ } };
+  for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => applyOpts(false));
+}
 applyOpts(false);
 // ---------- windows: each one can be shrunk to a small named chip and opened again (remembered between visits) ----------
 if (innerWidth <= 820) $('mini').dataset.min = '1';

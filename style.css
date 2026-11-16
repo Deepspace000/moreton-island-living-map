@@ -291,3 +291,10 @@ body.ui-off #getOut { display: none !important; }
 #ride .helm .hm-speed { min-width: 150px; font-size: 11px; } #ride .helm .hm-speed input { height: 14px; }
 #ride .helm.min { max-width: none; }
 @media (pointer: coarse) { #ride .helm .keys .pill { min-width: 42px; min-height: 38px; font-size: 15px; } }
+
+/* Safari and iPad: nothing on the map is text to select (a double tap would mark a word, a held finger would bring up the copy bubble),
+   a double tap must not zoom the page, and a tap leaves no grey flash */
+html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+input, textarea { -webkit-user-select: auto; user-select: auto; }
+#places::-webkit-scrollbar { display: none; }
+@supports (height: 100dvh) { #wx { max-height: calc(100dvh - 120px); } }

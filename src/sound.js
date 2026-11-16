@@ -15,6 +15,7 @@ export function makeSound() {
   const ease = (param, v, tc = 0.4) => param.setTargetAtTime(v, ctx.currentTime, tc);
 
   function build() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* not on this browser */ }          // (an iPad or iPhone set to silent would otherwise play nothing)
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -121,17 +122,21 @@ export function makeSound() {
     env.land = m.land;
   }
 
+  let wakeT = 0;
+  function wake() { if (ctx && on && ctx.state !== 'running') { try { const r = ctx.resume(); if (r && r.catch) r.catch(() => { /* not yet allowed: the next tap will do it */ }); } catch (e) { /* the same */ } } }
   return {
     get on() { return on; },
     toggle() {
       on = !on;
-      if (on) { if (!ctx) build(); ctx.resume(); ease(out.gain, 0.9, 0.6); } else if (ctx) ease(out.gain, 0, 0.15);
+      if (on && !ctx && !(window.AudioContext || window.webkitAudioContext)) return (on = false);          // (a browser with no sound at all: the button simply stays off)
+      if (on) { if (!ctx) build(); wake(); ease(out.gain, 0.9, 0.6); } else if (ctx) ease(out.gain, 0, 0.15);
       return on;
     },
+    wake,          // called from a tap or a key: Safari starts (or restarts) sound only then
     // s: { x, z, dist (camera distance, 0 when walking), wind km/h, wave m, rain 0..1, dt }
     update(s) {
       if (!ctx || !on) return;
-      if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); return; } else if (ctx.state === 'suspended') ctx.resume();
+      if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); return; } else if (ctx.state !== 'running' && (wakeT -= s.dt) < 0) { wakeT = 1; wake(); }          // (Safari also has an 'interrupted' state, after a call or another app's sound)
       const dt = s.dt, t = ctx.currentTime, night = U.uNight.value, day = 1 - smooth(0.25, 0.7, night);
       envT -= dt; if (envT < 0) { envT = 0.3; listen(s.x, s.z); }
       const local = smooth(4000, 250, s.dist), wide = smooth(16000, 600, s.dist);          // from high above only the big sounds carry
