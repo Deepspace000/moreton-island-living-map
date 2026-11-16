@@ -222,7 +222,10 @@ export function buildTerrain(scene) {
           float dIn = step(0.0, duv.x) * step(duv.x, 1.0) * step(0.0, duv.y) * step(duv.y, 1.0) * dtx.a * uDetRect.w;
           float lumP = mix(lum, dot(dtx.rgb / max(dtx.a, 0.01), vec3(0.3, 0.55, 0.15)), dIn), clr = 1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b));
           float rkT = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(t - uResort.xy))) * step(2.6, hgt) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0);      // (the resort's trees: see features.js)
-          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45) * (1.0 - rkT)) * step(0.92, mk.r) * step(1.5, hgt) * clr * max(smoothstep(0.46, 0.26, lumP), 0.85 * rkT);
+          { float ck = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, hgt) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2DLodEXT(uHeight, uv, 0.0).g)) * (1.0 - smoothstep(0.52, 0.64, lumP)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(t - uCape.xy));
+            if(ck > 0.01) ck *= smoothstep(0.05, 0.14, length(vec2(texture2DLodEXT(uHeight, worldUV(t + vec2(22.0, 0.0)), 0.0).r - hgt, texture2DLodEXT(uHeight, worldUV(t + vec2(0.0, 22.0)), 0.0).r - hgt)) / 22.0);
+            rkT = max(rkT, ck); }      // (and the forest wall of the island's sides)
+          float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45) * (1.0 - rkT)) * step(0.92, mk.r) * step(1.5, hgt) * clr * max(smoothstep(0.46, 0.26, lumP), rkT);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
           if(yard > 0.5) dens = mix(0.5, 0.82, 1.0 - smoothstep(uResort.z * 0.85, uResort.z, length(t - uResort.xy))) * step(0.92, mk.r) * step(1.5, hgt) * smoothstep(40.0, 70.0, (mk.b - 0.5) * 3000.0);
           else dens *= mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2DLodEXT(uNoise, t / 60.0 + 0.17, 0.0).b));      // groves and gaps, as the trees themselves stand
@@ -371,8 +374,17 @@ export function buildTerrain(scene) {
         float close = 1.0 - smoothstep(25.0, 140.0, dist);
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(vW.xz - uCape.xy));
         // low wet flats away from the shore and the houses are fern country: a bright green carpet, not sand
-        float wetK = (1.0 - smoothstep(7.0, 11.0, h)) * smoothstep(0.54, 0.587, mk.b) * (1.0 - sand) * (1.0 - smoothstep(0.05, 0.13, ov.r)) * (1.0 - headland);
+        float wetK = (1.0 - smoothstep(7.0, 11.0, h)) * smoothstep(0.54, 0.587, mk.b) * (1.0 - sand) * (1.0 - smoothstep(0.05, 0.13, ov.r)) * (1.0 - headland) * (1.0 - smoothstep(0.05, 0.14, length(vec2(hl - hr, hu - hd)) / (2.0 * uMpp)));      // wet country is flat country: a slope drains
         float floorK = (1.0 - sand) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK);
+        // Tangalooma resort stands in forest (the owner's aerial photograph): within its grounds, everything but the lawns close round the buildings,
+        // the tracks and the beach is forest, whatever the coarse sand map says
+        float resLawn = smoothstep(0.04, 0.12, ov.r);
+        float resK = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(vW.xz - uResort.xy))) * smoothstep(2.3, 3.0, h) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.3, 0.8, ov.g));
+        // and the island's sides are a wall of forest down to the beach (see the trees in features.js): the ground there is forest floor, not open sand
+        float coastK = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, h) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2D(uHeight, cuv).g))
+                     * (1.0 - smoothstep(0.52, 0.64, lum)) * (1.0 - headland) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r))
+                     * smoothstep(0.05, 0.14, length(vec2(hl - hr, hu - hd)) / (2.0 * uMpp));          // (slopes, not the low flats behind the beaches)
+        float forced = max(resK * (1.0 - resLawn), coastK);
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;
@@ -395,7 +407,7 @@ export function buildTerrain(scene) {
           // drifts of dead leaves, bark and twigs under the trees, a scatter of single pieces between, and almost no grass.
           // (scrub country: wherever the map is not open sand and the photograph is not bright with it, trees and bushes grow and their leaves lie under them,
           //  even where the sand shows pale between the crowns from the air)
-          float leafK = max(floorK, (1.0 - smoothstep(0.12, 0.5, mk.g)) * (1.0 - smoothstep(0.40, 0.56, lum)) * step(0.92, mk.r) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+          float leafK = max(max(floorK, forced), (1.0 - smoothstep(0.12, 0.5, mk.g)) * (1.0 - smoothstep(0.40, 0.56, lum)) * step(0.92, mk.r) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
           if(leafK * close > 0.0){
             float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, vW.xz / 900.0).b);          // the same burnt country the trees know
             // (two samples at odd scales and angles, each pushed about by a third, so the pattern never lines up in rows)
@@ -403,7 +415,7 @@ export function buildTerrain(scene) {
             // Under the scrub the ground is all but covered with fallen leaves: a brown carpet of them, old ones dark and matted underneath,
             // newer ones lying singly on top in every shade from red-brown to pale tan, with only chinks of sand showing through.
             float nearD = 1.0 - smoothstep(10.0, 45.0, dist);                                    // (further off the carpet is one mottled brown: its fine pattern would only show as rows)
-            vec3 det = mix(vec3(0.185, 0.155, 0.115) * (0.85 + 0.3 * nE.g), mix(vec3(0.125, 0.102, 0.078), vec3(0.245, 0.205, 0.15), w2.r) * (0.8 + 0.4 * w1.g), nearD);      // grey-brown, as dead gum leaves weather
+            vec3 det = mix(vec3(0.155, 0.125, 0.088) * (0.85 + 0.3 * nE.g), mix(vec3(0.105, 0.084, 0.062), vec3(0.205, 0.165, 0.115), w2.r) * (0.8 + 0.4 * w1.g), nearD);      // grey-brown, as dead gum leaves weather
             det = mix(det, vec3(0.03, 0.028, 0.026), smoothstep(0.55, 0.8, w2.b) * burnt);      // charcoal where it has burnt
             float thin = smoothstep(0.3, 0.62, nE.r * 0.55 + w1.b * 0.45), cover = mix(0.8, 0.95, thin);          // a little thinner in places, never bare
             float lfw = fwidth(vW.x * 9.0) + fwidth(vW.z * 9.0), nearLf = 1.0 - smoothstep(0.3, 1.1, lfw), anyLeaf = 0.0;
@@ -419,7 +431,7 @@ export function buildTerrain(scene) {
                 top = mix(top, lc, on); anyLeaf = max(anyLeaf, on);
               }
             }
-            float chink = max(smoothstep(0.66, 0.76, w1.r * 0.6 + w2.g * 0.5) * (1.0 - thin * 0.6) * (1.0 - anyLeaf * nearLf) * nearD, smoothstep(0.6, 0.72, nE.b * 0.6 + nB.g * 0.5) * 0.55);   // chinks of sand between the leaves, and here and there a sunny gap where the sand lies nearly bare
+            float chink = max(smoothstep(0.66, 0.76, w1.r * 0.6 + w2.g * 0.5) * (1.0 - thin * 0.6) * (1.0 - anyLeaf * nearLf) * nearD, smoothstep(0.66, 0.78, nE.b * 0.6 + nB.g * 0.5) * 0.4);   // chinks of sand between the leaves, and here and there a sunny gap where the sand lies nearly bare
             vec3 lf = mix(mix(det, top, nearLf), sd, chink * 0.85);
             float fine = (1.0 - smoothstep(5.0, 16.0, dist)) * 0.5;          // (sticks only right at your feet: further off their grain reads as furrows)
             // sticks and strips of bark, lying every way. (Each is a stretched sample of the noise; the stretch is kept wide and the rows are bent by a second
@@ -443,19 +455,16 @@ export function buildTerrain(scene) {
         col = mix(col, mix(sd, vec3(0.13, 0.09, 0.055), 0.62 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));
         // seen from a distance, forest is its canopy: dark green, mottled with crowns
         // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
-        float woodFar = max(1.0 - sand, smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
-        col = mix(col, vec3(0.036, 0.050, 0.021) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+        float woodFar = max(max(1.0 - sand, forced), smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
+        col = mix(col, vec3(0.036, 0.050, 0.021) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * max(smoothstep(0.52, 0.27, lum), forced) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
         { // round the houses: low grass in patches, drifts of fallen leaves, and worn sand between (the grass blades and the leaves themselves are drawn on top, see life.js)
           float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h) * (1.0 - smoothstep(0.6, 0.8, mk.g)) * smoothstep(40.0, 80.0, (mk.b - 0.5) * 3000.0);
           float grassP = smoothstep(0.30, 0.46, texture2D(uNoise, vW.xz / 13.0 + 0.3).g), driftP = smoothstep(0.36, 0.6, texture2D(uNoise, vW.xz / 9.0).r * 0.7 + texture2D(uNoise, vW.xz / 2.3 + 0.4).g * 0.3);
           col = mix(col, mix(sd * 0.9, vec3(0.17, 0.215, 0.09) * (0.75 + 0.5 * nC.g), 0.62), yd * grassP * 0.7);
           float speck = texture2D(uNoise, vW.xz / 0.9).b;
           col = mix(col, mix(vec3(0.25, 0.17, 0.09), vec3(0.13, 0.095, 0.065), speck), yd * driftP * (1.0 - 0.5 * grassP) * (0.38 + 0.4 * smoothstep(0.35, 0.65, speck))); }
-        { // Tangalooma resort keeps its grounds: the cleared ground among and behind the buildings is watered lawn, not bare sand (the beach itself stays sand)
-          float rk = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(vW.xz - uResort.xy))) * smoothstep(2.3, 3.0, h) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.3, 0.8, ov.g));
-          float lawnK = smoothstep(0.04, 0.12, ov.r);                                   // lawn close round the buildings; beyond them the forest floor, in the shade of the trees
-          col = mix(col, vec3(0.05, 0.068, 0.03) * (0.7 + 0.6 * nC.g), rk * smoothstep(0.25, 0.55, sand) * (1.0 - lawnK) * 0.9);
-          col = mix(col, vec3(0.105, 0.15, 0.055) * (0.78 + 0.4 * nC.g) * (0.9 + 0.2 * nB.r), rk * lawnK * 0.9); }
+        col = mix(col, vec3(0.105, 0.15, 0.055) * (0.78 + 0.4 * nC.g) * (0.9 + 0.2 * nB.r), resK * resLawn * 0.9);          // the resort's lawns, close round its buildings
+        col *= 1.0 - 0.5 * coastK * (1.0 - close);          // under the forest wall the ground lies in deep shade
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         col = mix(col, vec3(0.50, 0.43, 0.30) * (0.8 + 0.4 * nC.r), smoothstep(0.1, 0.75, ov.g) * 0.75 * (1.0 - sand));
         vec3 Nn = normalize(mix(mix(Nv, normalize(N + vec3(nD.r - 0.5, 0.0, nD.b - 0.5) * 0.3 * near), open), Ns, sand));
@@ -531,9 +540,9 @@ export function buildTerrain(scene) {
           vec3 bl = bed * (uLightCol * sun * vis * (0.72 + caus) * bsh + amb * 0.9);
           float cosr = sqrt(1.0 - (1.0 - V.y * V.y) / 1.77);         // refracted view ray
           float path = depth * (1.0 + 1.0 / max(cosr, 0.3));
-          vec3 Tm = exp(-vec3(0.33, 0.085, 0.10) * uTurb * path);       // clear water: knee deep you still see the sand its own colour, only a little greener
+          vec3 Tm = exp(-vec3(0.36, 0.092, 0.082) * uTurb * path);       // clear water: knee deep you still see the sand its own colour, only a little greener
           float ex = texture2D(uHeight, cuv).g, big = texture2D(uNoise, vW.xz / 9000.0).r;
-          vec3 deep = mix(uWaterDeep * vec3(1.0, 1.25, 0.85), uWaterDeep * vec3(1.0, 0.72, 1.12), smoothstep(0.3, 0.9, ex)) * (0.82 + 0.36 * big);   // green bay, indigo ocean
+          vec3 deep = mix(uWaterDeep * vec3(1.0, 1.02, 0.98), uWaterDeep * vec3(1.0, 0.72, 1.12), smoothstep(0.3, 0.9, ex)) * (0.82 + 0.36 * big);   // the bay runs from turquoise shallows to deep blue in the channel (the owner's aerial photograph of Tangalooma); the ocean is indigo
           vec3 scat = deep * (uLightCol * (0.10 + 0.22 * sun) * (0.5 + 0.5 * cs) + uAmbSky * 0.8);
           // a touch of turquoise back-scatter over bright sand
           scat += vec3(0.0, 0.05, 0.04) * exp(-depth * 0.2) * (uLightCol * sun * vis + uAmbSky) * 0.13;

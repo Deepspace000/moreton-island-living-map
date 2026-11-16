@@ -143,6 +143,7 @@ export function buildWater(scene) {
         float F = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
         // far water: unresolved waves tilt the mirror, lowering the grazing reflectance a little
         F = mix(F, min(F, 0.6), smoothstep(3000.0, 30000.0, dist));
+        F *= mix(0.3, 1.0, smoothstep(0.05, 1.0, depth));          // a thin sheet of water over pale sand shows the sand, not the sky: the shallows are clear, not milky
         vec3 R = reflect(-V, N); R.y = abs(R.y) + 0.02; R = normalize(R);
         vec3 refl = skyColor(R);
         // clouds mirrored in the sea

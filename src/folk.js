@@ -358,6 +358,16 @@ export function buildFolk(scene, F) {
       else people.push(x + 7, z - 20 - R() * 30, x + 7, z + 20 + R() * 30, R(), 1.0 + R() * 0.4, 0, 1.25 + R() * 0.15, ...shirt());   // walking the beach
     }
   }
+  { // Tangalooma's beach is busy (the owner's photographs): people stand about and stroll on the dry sand in front of the resort
+    const res = F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p, B = rng(4242);
+    if (res) for (let i = 0, n = 0; i < 400 && n < (MOBILE ? 12 : 24); i++) {
+      const z = res[1] - 900 + B() * 1000; let x = res[0] - 500, ok = false;
+      for (let k = 0; k < 160 && !ok; k++, x += 4) { const h = groundH(x, z); ok = h > 1.3 && h < 1.8 && maskAt(x, z).land > 0.2; }
+      if (!ok) continue; x += B() * 14; n++;
+      if (B() < 0.4) people.push(x, z - 15 - B() * 40, x + (B() - 0.5) * 8, z + 15 + B() * 40, B(), 0.9 + B() * 0.5, 0, 1.25 + B() * 0.15, ...shirt());      // strolling along the beach
+      else { people.push(x, z, x - 10, z + (B() - 0.5) * 10, B(), 0, 2, 1.25 + B() * 0.15, ...shirt()); if (B() < 0.5) people.push(x + 0.9, z + 0.7, x - 10, z, B(), 0, 2, 1.25 + B() * 0.15, ...shirt()); }      // standing, looking out at the water; often two together
+    }
+  }
   { // people at home in the townships: someone hanging out the washing, someone by the car or the boat, a few just standing in the yard (see the yards in features.js)
     const H = rng(8088), yg = new GB(), at = (q, d, p) => { if (H() > p) return; const a = H() * 6.283, x = q[0] + Math.cos(a) * d, z = q[1] + Math.sin(a) * d; if (maskAt(x, z).land < 0.9) return; const sit = H() < 0.3, size = 1.25 + H() * 0.15; people.push(x, z, q[0], q[1], H(), 0, sit ? 3 : 2, size, ...shirt()); if (sit) campChair(yg, x, z, q[0], q[1], size, [[.12, .2, .32], [.14, .28, .18], [.42, .14, .12], [.3, .3, .32]][(H() * 4) | 0]);
       if (sit && H() < 0.55) { const l = Math.hypot(q[0] - x, q[1] - z) || 1, px = x - (q[1] - z) / l * 1.15, pz = z + (q[0] - x) / l * 1.15, sz2 = 1.25 + H() * 0.15; if (maskAt(px, pz).land > 0.9) { people.push(px, pz, q[0], q[1], H(), 0, 3, sz2, ...shirt()); campChair(yg, px, pz, q[0], q[1], sz2, [[.12, .2, .32], [.14, .28, .18], [.42, .14, .12], [.3, .3, .32]][(H() * 4) | 0]); } return; }      // often two chairs side by side

@@ -2,7 +2,7 @@
 // the island ferries on their charted routes, wakes and navigation lights.
 import * as THREE from 'three';
 import { U, VEX, MOBILE, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
-import { T, heightAt, maskAt } from './terrain.js';
+import { T, heightAt, groundH, maskAt } from './terrain.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wx } from './weather.js';
@@ -214,13 +214,35 @@ function barge() {            // vehicle ferry
   return finish(g);
 }
 
+// The Micat (the owner's photograph): the big vehicle catamaran from Brisbane, which noses onto the beach just north of Tangalooma. Two navy hulls,
+// white sides to the vehicle deck pierced with big square ports, a passenger deck above with a band of windows, the bridge on top, a ramp at the bow.
+function micat() {
+  const g = new GB(), HN = [.07, .10, .22], GREY = [.36, .37, .38];
+  for (const z of [-5.6, 5.6]) hull(g, 58, 5.4, 1.7, 2.6, HN, [.3, .3, .32], z, [.2, .08, .07], { style: 6 });
+  g.box(0, 2.5, 0, 57, 0.5, 16.8, GREY);                                                    // the vehicle deck
+  for (const sd of [-1, 1]) { const z = sd * 8.3;
+    g.box(-5, 3.0, z, 46, 3.4, 0.35, WHITE); for (const x of [-24, -19, -14, -9, -4, 5, 10]) g.box(x, 3.9, z + sd * 0.03, 3.4, 1.5, 0.36, GLASS);      // high white sides aft and amidships, with ports
+    g.box(23.5, 3.0, z, 11, 1.5, 0.35, WHITE);                                               // lower bulwarks forward, where the name is painted
+    g.box(-8, 6.4, z * 0.985, 34, 0.35, 0.3, HN);                                            // a navy line under the passenger deck
+  }
+  g.box(-8, 6.4, 0, 36, 0.3, 17, WHITE);
+  house(g, -9, 6.7, 0, 32, 2.7, 16.2, WHITE, 0.5, 0, 0, 0.03); for (const sd of [-1, 1]) g.box(-9.5, 7.5, sd * 8.0, 26, 1.0, 0.25, GLASS);         // the passenger deck, a band of windows down each side
+  g.box(-9, 9.4, 0, 30, 0.25, 16.6, WHITE);
+  house(g, -6, 9.65, 0, 12, 2.4, 10, WHITE, 0.55, 0, 0, 0.06); g.box(-5.4, 10.5, 0, 9.5, 0.9, 10.1, GLASS); g.box(-6, 12.05, 0, 12.6, 0.22, 10.6, HN);       // the bridge, dark glass all round, a navy cap
+  g.cyl(-8, 12.2, 0, 0.26, 0.16, 4.6, 6, WHITE); g.box(-8, 15.0, 0, 0.4, 0.3, 3.2, WHITE); g.box(-10.5, 12.2, 0, 1.6, 1.3, 1.6, WHITE);                           // mast, yard, a dome aft of it
+  g.quad([28.4, 2.98, -4.6], [28.4, 2.98, 4.6], [36.5, 0.9, 4.6], [36.5, 0.9, -4.6], [.5, .5, .5]); g.quad([28.4, 2.7, 4.6], [28.4, 2.7, -4.6], [36.5, 0.7, -4.6], [36.5, 0.7, 4.6], [.3, .3, .32]);      // the bow ramp, down on the sand
+  const R = rng(8), CARS = [[.85, .85, .85], [.15, .15, .17], [.6, .1, .08], [.12, .25, .5], [.75, .7, .55], [.3, .35, .3]];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 8; c++) if (R() < 0.75) { const x = -24 + c * 5.9, z = (r - 1) * 4.6; g.box(x, 3.0, z, 4.4, 1.3, 2.0, CARS[(R() * CARS.length) | 0]); g.box(x - 0.3, 4.3, z, 2.4, 0.7, 1.8, GLASS); }
+  return finish(g);
+}
+
 export function buildBoats(scene, F) {
   const R = rng(31337), S = 1.55;
   const mat = objectMat({ side: THREE.DoubleSide, defines: { BOAT: 1 } });
   const HC = [WHITE, WHITE, [.12, .18, .32], [.9, .88, .8], [.55, .1, .1], [.1, .3, .28]];
   const geo = {
     sail: [yacht(true, WHITE), yacht(true, HC[2])], moor: HC.map(c => yacht(false, c)),
-    cru: [cruiser(WHITE), cruiser(HC[3])], tin: [tinny()], flyer: flyer(), barge: barge(),
+    cru: [cruiser(WHITE), cruiser(HC[3])], tin: [tinny()], flyer: flyer(), barge: barge(), micat: micat(),
     fly: [flybridge(WHITE), flybridge(HC[2])], jet: [[.9, .15, .1], [.1, .45, .8], [.95, .8, .1], [.1, .1, .1]].map(jetski),
   };
   const pick = (a) => a[(R() * a.length) | 0];
@@ -229,7 +251,7 @@ export function buildBoats(scene, F) {
   // where you stand aboard each kind. Yacht: at the rail, clear of the sail. Cruiser: on the coachroof ahead of the wheelhouse. Flybridge: at the upper helm.
   // Small craft: just behind and above whoever is driving, so you can see the boat you are on. Ferries: on the bridge.
   eyes(geo.sail, [-4.6, 3.6, -1.6]); eyes(geo.moor, [-4.6, 3.6, -1.6]); eyes(geo.cru, [1.5, 3.85]); eyes(geo.fly, [0.2, 4.55]);
-  eyes(geo.tin, [-2.5, 2.1]); eyes(geo.jet, [-2.4, 2.45]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]);
+  eyes(geo.tin, [-2.5, 2.1]); eyes(geo.jet, [-2.4, 2.45]); eyes(geo.flyer, [7.4, 8.7]); eyes(geo.barge, [19.5, 9.9]); eyes(geo.micat, [-1.5, 11.0]);
   const boats = [], lights = makeLights(260);
   const mk = (g, x, z, o = {}) => {
     const m = new THREE.Mesh(g, mat); m.rotation.order = 'YZX'; m.scale.setScalar(S * (o.scale || 1)); m.frustumCulled = false; scene.add(m);
@@ -318,6 +340,22 @@ export function buildBoats(scene, F) {
     // the island end of each route: the resort jetty, the wrecks landing, Kooringal
     const end = cum[cum.length - 1], e0 = pts[0], e1 = pts[pts.length - 1], islandFirst = Math.hypot(e0[0], e0[1] / 2) < Math.hypot(e1[0], e1[1] / 2);
     const out = big ? 2600 : trader ? 900 : 1500;                       // metres still to run when the map opens
+    if (big) {            // the Micat keeps a timetable and lands on the beach: see the update below
+      if (islandFirst) pts = pts.slice().reverse();
+      const n = pts.length, E = pts[n - 1], P0 = pts[n - 2], dl = Math.hypot(E[0] - P0[0], E[1] - P0[1]) || 1, dx = (E[0] - P0[0]) / dl, dz = (E[1] - P0[1]) / dl;
+      let bx = E[0] - dx * 200, bz = E[1] - dz * 200; for (let k = 0; k < 400 && groundH(bx, bz) < 0.25; k++) { bx += dx * 2; bz += dz * 2; }      // where the bow meets the sand
+      pts = pts.slice(0, n - 1).concat([[bx - dx * 39, bz - dz * 39]]);
+      const cm = [0]; for (let i = 1; i < pts.length; i++) cm.push(cm[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+      const b = mk(geo.micat, pts[0][0], pts[0][1], { ferry: 1, move: 1, big: 1, pts, cum: cm, s: 0, dir: 1, wait: 0, scale: 1, cruise: 9, mast: 16, times: [[600, 660], [870, 930]], hdLand: Math.atan2(-dz, dx) });
+      // her name on each bow
+      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const c2 = cv.getContext('2d'); c2.font = 'italic 900 130px Arial, Helvetica, sans-serif'; c2.fillStyle = '#14265c'; c2.textBaseline = 'middle'; c2.textAlign = 'center'; c2.fillText('Micat', 256, 86);
+      const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
+      const nm = makeMat({ transparent: true, depthWrite: false, side: THREE.FrontSide, uniforms: { uTex: { value: tx } },
+        vs: /* glsl */`varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; ${LOGV} }`,
+        fs: /* glsl */`uniform sampler2D uTex; varying vec2 vUv; varying vec3 vW; void main(){ ${LOGF} vec4 t = texture2D(uTex, vUv); if(t.a < 0.05) discard; vec3 c = t.rgb * (uLightCol * (0.35 + 0.5 * max(uLightDir.y, 0.0)) + uAmbSky * 0.9); gl_FragColor = vec4(applyFog(c, vW), t.a); }` });
+      for (const sd of [-1, 1]) { const pl = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.38), nm); pl.position.set(23.6, 3.78, sd * 8.5); if (sd < 0) pl.rotation.y = Math.PI; pl.frustumCulled = false; pl.renderOrder = 6; b.m.add(pl); }
+      continue;
+    }
     mk(big || trader ? geo.barge : geo.flyer, pts[0][0], pts[0][1], { ferry: 1, move: 1, big: 1, pts, cum, s: islandFirst ? out : end - out, dir: islandFirst ? -1 : 1, wait: 0, scale: trader ? 0.55 : 1, cruise: big ? 9 : trader ? 6 : 15, mast: big ? 12.5 : 10.8 });
   }
 
@@ -400,7 +438,7 @@ export function buildBoats(scene, F) {
   const turn = (b, want, rate, dt) => { let d = ((want - b.hd + Math.PI * 3) % (Math.PI * 2)) - Math.PI; b.hd += clamp(d, -rate * dt, rate * dt); return d; };
   return {
     boats,
-    update(dt, t, camera) {
+    update(dt, t, camera, mins = 720) {
       const wt = U.uWindDir.value, sea = U.uSeaM.value * VEX, upwind = Math.atan2(wt.y, -wt.x);
       recT += dt; const rec = recT > 0.28; if (rec) recT = 0;
       for (const b of boats) {
@@ -411,7 +449,16 @@ export function buildBoats(scene, F) {
           b.x = b.ax - Math.cos(b.hd) * b.scope; b.z = b.az + Math.sin(b.hd) * b.scope;
         } else if (b.ferry) {
           const end = b.cum[b.cum.length - 1];
-          if (b.wait > 0) { b.wait -= dt; b.sp += (0 - b.sp) * Math.min(1, dt); }
+          if (b.times) {            // the Micat runs to the clock: she comes in twice a day, lies with her bow on the beach for an hour, and goes back to Brisbane
+            const RUN = 40; let fr = 0, beached = false, dir = 1;                // (minutes she takes over the part of her run that the map shows)
+            for (const [arr, dep] of b.times) {
+              if (mins >= arr - RUN && mins < arr) { const f = (mins - arr + RUN) / RUN; fr = 1 - Math.pow(1 - f, 1.7); dir = 1; }
+              else if (mins >= arr && mins < dep) { fr = 1; beached = true; }
+              else if (mins >= dep && mins < dep + RUN) { const f = (mins - dep) / RUN; fr = 1 - Math.pow(f, 1.7); dir = -1; }
+            }
+            const s1 = fr * end; b.sp = dt > 0 ? Math.min(Math.abs(s1 - b.s) / dt, 16) : 0; b.s = s1; b.dir = dir;
+            if (beached) { b.sp = 0; b.hd = b.hdLand; }
+          } else if (b.wait > 0) { b.wait -= dt; b.sp += (0 - b.sp) * Math.min(1, dt); }
           else {
             const toEnd = b.dir > 0 ? end - b.s : b.s;
             b.sp += (Math.min(b.cruise, 1.5 + toEnd * 0.05) * 1.6 - b.sp) * Math.min(1, dt * 0.5);

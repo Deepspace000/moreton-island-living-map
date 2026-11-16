@@ -392,7 +392,7 @@ function frame() {
   followTerrain(t.x, t.z);
 
   features.update(dt, acc, camera, showLabels && !document.body.classList.contains('ui-off') || (showLabels && Q.get('labels') === '1'), t);
-  boats.update(dt, acc, camera);
+  boats.update(dt, acc, camera, minutesOf(st.date));
   clouds.update(dt, acc, camera, showClouds && !U.uUnder.value);
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);

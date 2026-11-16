@@ -141,7 +141,7 @@ function buildBeachLife(scene) {
     const pos = [], k = [], idx = [];
     for (let b = 0; b < 9; b++) {            // each blade rises, then bends over under its own weight
       const a = b * 0.71 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.2 + 0.55 * ((b * 37) % 10) / 10, tall = 0.75 + 0.35 * ((b * 13) % 7) / 6, q = pos.length / 3;
-      for (const [out, up, w, u] of [[0.03, 0, 0.022, 0], [0.03 + lean * 0.3, 0.55 * tall, 0.016, 0.55], [0.03 + lean * 0.75, 0.9 * tall, 0.009, 0.85]]) for (const sd of [-1, 1]) { pos.push(ca * out - sa * w * sd, up, sa * out + ca * w * sd); k.push(u); }
+      for (const [out, up, w, u] of [[0.03, 0, 0.012, 0], [0.03 + lean * 0.3, 0.55 * tall, 0.009, 0.55], [0.03 + lean * 0.75, 0.9 * tall, 0.005, 0.85]]) for (const sd of [-1, 1]) { pos.push(ca * out - sa * w * sd, up, sa * out + ca * w * sd); k.push(u); }
       pos.push(ca * (0.03 + lean * 1.15), 0.86 * tall, sa * (0.03 + lean * 1.15)); k.push(1);
       idx.push(q, q + 1, q + 2, q + 2, q + 1, q + 3, q + 2, q + 3, q + 4, q + 4, q + 3, q + 5, q + 4, q + 5, q + 6);
     }
@@ -167,7 +167,7 @@ function buildBeachLife(scene) {
         lp = position * vec3(1.0 + 0.35 * oakHere, 0.7 + 0.6 * h2, 1.0 + 0.35 * oakHere) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK * aK;      // (under a she-oak the tufts spread till they meet)
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(vec3(0.22, 0.27, 0.12), vec3(0.50, 0.48, 0.28), step(0.4, h2)) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4);
-        c = mix(c, vec3(0.20, 0.27, 0.10) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4), oakHere * step(h2, 0.62));                 // the grass under a she-oak is mostly green`, 200);
+        c = mix(c, vec3(0.17, 0.215, 0.095) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4), oakHere * step(h2, 0.62));                 // the grass under a she-oak is mostly green`, 200);
   // The grass belt: between the open beach and the first trees there is nearly always a strip of dune grass (the owner's photo): green tussocks,
   // and among them older ones gone to straw, grey-brown and lying over; thick by the scrub, thinning out onto the sand.
   const fineGeo = (g) => {              // dune grass: many thin blades, each a gentle curve that tips over at the end
@@ -213,7 +213,7 @@ function buildBeachLife(scene) {
         // patches of brown ones where a fire has been through or the old fronds have died off (as the owner describes)
         float edge = smoothstep(0.2, 0.33, mk.g) * (1.0 - smoothstep(0.5, 0.66, mk.g)) * smoothstep(2.4, 3.2, hgt) * step(0.92, mk.r) * (1.0 - smoothstep(0.02, 0.1, ov.r)) * smoothstep(0.38, 0.55, texture2D(uNoise, xz / 23.0).b);
         float atEdge = step(wet, 0.5) * step(0.01, edge), burntPatch = step(0.64, texture2D(uNoise, xz / 70.0 + 0.3).g), brown = atEdge * step(mix(0.85, 0.25, burntPatch), fract(h1 * 7.0));
-        s = (0.5 + 0.55 * h1) * max(step(h3, 0.62) * wet, step(h3, 0.62 * edge));
+        s = (0.5 + 0.55 * h1) * max(step(h3, 0.62) * wet, step(h3, 0.62 * edge)) * smoothstep(60.0, 85.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.03, 0.1, ov.g));      // (never out on the open beach or in a wheel track)
         lp = position * vec3(0.85 + 0.3 * h4, (0.7 + 0.6 * fract(h2 * 9.0)) * (1.0 - 0.35 * brown), 0.85 + 0.3 * h1) + vec3(0.0, sin(uTime * 1.4 + h1 * 20.0 + position.x * 3.0) * 0.035 * aK, 0.0);       // no two ferns the same; the dead ones sag
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(mix(vec3(0.065, 0.09, 0.03), vec3(0.12, 0.135, 0.05), h2), vec3(0.16, 0.115, 0.06), step(0.68, fract(h1 * 7.0))) * (0.35 + 0.8 * aK) * (0.75 + 0.5 * texture2D(uNoise, xz / 110.0).r);
