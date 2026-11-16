@@ -122,13 +122,13 @@ function refreshCond() {
   let hi = null, lo = null;          // the next high and low water
   if (!tideHeld()) for (let k = 1; k < 90 && (hi === null || lo === null); k++) { const a = tideOn(now + (k - 1) * 600e3), b = tideOn(now + k * 600e3), c = tideOn(now + (k + 1) * 600e3); if (hi === null && b >= a && b > c) hi = now + k * 600e3; if (lo === null && b <= a && b < c) lo = now + k * 600e3; }
   $('cdHigh').textContent = hi ? hhmm(hi) : '--'; $('cdLow').textContent = lo ? hhmm(lo) : '--';
-  $('cdWind').textContent = Math.round(wx.wind * 0.54) + ' kn ' + compass(wx.windDir);
+  { const c = current(); $('cdWind').textContent = Math.round(c.wind * 0.54) + ' kn ' + compass(c.windDir); }
   const row = (id, cls, txt) => { const li = $(id); li.className = cls; li.lastElementChild.textContent = txt; };
   row('cdEast', '', 'open'); row('cdTown', 'off', 'no vehicles');
   row('cdNorth', t > TIDE_NORTH ? 'shut' : t > TIDE_NORTH - 0.25 ? 'warn' : '', t > TIDE_NORTH ? 'shut' : t > TIDE_NORTH - 0.25 ? 'closing soon' : 'open');
   row('cdSouth', t > TIDE_SOUTH ? 'shut' : t > TIDE_SOUTH - 0.2 ? 'warn' : '', t > TIDE_SOUTH ? 'shut' : t > TIDE_SOUTH - 0.2 ? 'closing soon' : 'open');
   const inland = rideable.filter(c => c.onAlt).length, waiting = rideable.filter(c => c.waiting).length;
-  row('cdCars', inland || waiting ? 'warn' : 'off', (inland ? inland : 'none') + (waiting ? ', ' + waiting + ' waiting' : ''));
+  row('cdCars', inland || waiting ? 'warn' : 'off', inland + ' inland, ' + waiting + ' waiting');
   const blow = wx.wind > 37 || wx.storm > 0.5; row('cdBoats', blow ? 'shut' : '', blow ? 'staying in' : 'out');
   const m = minutesOf(now); let mic = 'due 10:00', cls = 'off';
   if (m >= 560 && m < 600) { mic = 'coming in'; cls = ''; } else if (m >= 600 && m < 660) { mic = 'on the beach'; cls = ''; } else if (m >= 660 && m < 700) { mic = 'leaving'; cls = ''; }

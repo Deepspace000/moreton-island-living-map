@@ -873,7 +873,7 @@ function buildCreeper(scene) {
         float here = step(0.9, mk.r) * smoothstep(2.6, 3.4, hgt) * (1.0 - smoothstep(6.0, 9.0, hgt)) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * edge * step(h3, mix(0.6, 0.2, smoothstep(0.55, 0.8, mk.g))) * smoothstep(0.3, 0.5, texture2D(uNoise, xz / 19.0).g) * (1.0 - smoothstep(0.02, 0.1, ov.r));      // thick mats in places near the scrub, thinner further out
         s = (1.7 + 1.8 * h2) * here;
         lp = position; nrm = normalize(vec3(position.x * 0.6, 1.0, position.z * 0.6));
-        c = aK < 0.5 ? mix(vec3(0.11, 0.25, 0.055), vec3(0.21, 0.37, 0.09), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
+        c = aK < 0.5 ? mix(vec3(0.12, 0.2, 0.07), vec3(0.2, 0.27, 0.11), h1) * (0.85 + 0.3 * fract(h4 * 7.0 + position.x * 9.0))
           : aK < 1.5 ? vec3(0.22, 0.13, 0.09)
           : (h4 > 0.45 ? vec3(0.60, 0.24, 0.52) : vec3(0.86, 0.72, 0.10));
         if(aK > 1.5 && fract(h1 * 9.0) > 0.45) s = 0.0;                    // not every runner is in flower`, 110);

@@ -489,7 +489,7 @@ export function buildBoats(scene, F) {
           // free-roaming yacht or cruiser: wander inside its home water, keep off the banks
           b.tt -= dt; b.chasing = false;
           if (b.chase && F.micat && F.micat.b) { const m = F.micat.b;
-            if (m.sp > 2 && Math.hypot(m.x - b.home[0], m.z - b.home[1]) < 2800) { const ph = t * 0.33 + b.ph, back = 60 + 28 * Math.sin(ph * 0.7), side = 36 * Math.sin(ph); b.tx = m.x - Math.cos(m.hd) * back + Math.sin(m.hd) * side; b.tz = m.z + Math.sin(m.hd) * back + Math.cos(m.hd) * side; b.tt = 5; b.chasing = true; } }
+            if (m.sp > 4.5 && Math.hypot(m.x - b.home[0], m.z - b.home[1]) < 2800) { const ph = t * 0.21 + b.ph, back = 95 + 45 * Math.sin(ph * 0.7), side = 70 * Math.sin(ph);   /* wide, lazy sweeps from one side of the wake to the other, not tight circles */   b.tx = m.x - Math.cos(m.hd) * back + Math.sin(m.hd) * side; b.tz = m.z + Math.sin(m.hd) * back + Math.cos(m.hd) * side; b.tt = 5; b.chasing = true; } }
           const dx = b.tx - b.x, dz = b.tz - b.z, dd = Math.hypot(dx, dz);
           const ahead = (d, off) => depth(b.x + Math.cos(b.hd + off) * d, b.z - Math.sin(b.hd + off) * d);
           const shoal = ahead(120, 0) < 3.2 || ahead(260, 0) < 2.6 || !inRect(b.x + Math.cos(b.hd) * 400, b.z - Math.sin(b.hd) * 400, 500);

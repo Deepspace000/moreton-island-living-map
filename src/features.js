@@ -198,7 +198,7 @@ function buildBuildings(F, g, occ, casters, lights) {
     if (fr) { const E = [fr.p[0], fr.p[fr.p.length - 1]].sort((a, b) => Math.hypot(a[0], a[1] / 2) - Math.hypot(b[0], b[1] / 2))[0];
       const shoreX = (z) => { let x = E[0] - 400; for (let k = 0; k < 400 && groundH(x, z) < 1.2; k++) x += 3; return x; };
       const put = (i, dz, half, depth) => { const z = E[1] + dz; U.uBlow.value[i].set(shoreX(z) + depth * 0.82, z, half, depth); };
-      put(0, -390, 125, 78); put(1, -150, 62, 92); } }
+      put(0, -390, 130, 112); put(1, -150, 66, 128); } }
   const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
   const resort = F.places.find(o => /^Tangalooma Resort/.test(o.n || ''))?.p || F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p;
   if (resort) U.uResort.value.set(resort[0] + 100, resort[1] - 20, 850, 0);            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
@@ -248,7 +248,7 @@ function buildBuildings(F, g, occ, casters, lights) {
     h *= HK;
     let wall = WALLS[(R() * WALLS.length) | 0], roof = ROOFS[(R() * ROOFS.length) | 0];
     const inResort = resort && Math.hypot(cx - resort[0] - 100, cz - resort[1] + 20) < 800;
-    if (inResort && area > 340) { if (!(b.ht > 0) && !(b.lv > 0)) h = (area > 700 ? 4 : 3) * 3.1 * HK; wall = [[.95, .93, .86], [.93, .89, .78], [.96, .95, .92]][(R() * 3) | 0]; }      // the resort's apartment blocks: three and four storeys, cream and white (the owner's photograph from the jetty)
+    if (inResort && area > 340) { if (!(b.ht > 0) && !(b.lv > 0)) h = (area > 700 ? 4 : 3) * 3.1 * HK; wall = [[.90, .86, .76], [.88, .83, .72], [.92, .89, .80]][(R() * 3) | 0]; }      // the resort's apartment blocks: three and four storeys, cream and white (the owner's photograph from the jetty)
     if (cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350) { wall = [.94, .93, .89]; roof = [.50, .52, .54]; }       // the lighthouse keepers' cottages and sheds: white walls, grey roofs
     const isCape = cape && Math.hypot(cx - cape[0], cz - cape[1]) < 350, st = n === 4 && area < 340 ? houseStyle(R, area, isCape) : null;
     if (st) h = (st.stump + st.wallH) * HK;
@@ -293,10 +293,10 @@ function buildBuildings(F, g, occ, casters, lights) {
         g.quad(P(a0, D, yk - 0.22), P(a1, D, yk - 0.22), P(a1, D, yk + 1.05 * HK), P(a0, D, yk + 1.05 * HK), BAL);                                        // the balustrade along the front
         for (const e of [a0, a1]) g.quad(P(e, 0, yk - 0.22), P(e, D, yk - 0.22), P(e, D, yk + 1.05 * HK), P(e, 0, yk + 1.05 * HK), BAL);
         for (let d = 7.2; d < len - 4; d += 7.2) { const e = [p[0] + ex * d, p[1] + ez * d]; g.quad(P(e, 0, yk), P(e, D, yk), P(e, D, yk + 2.4 * HK), P(e, 0, yk + 2.4 * HK), wall); }      // a screen wall between one apartment's balcony and the next
-        const dk = [wall[0] * 0.5, wall[1] * 0.5, wall[2] * 0.54]; g.quad(P(a0, 0.05, yk - 0.22 - 1.1 * HK), P(a1, 0.05, yk - 0.22 - 1.1 * HK), P(a1, 0.05, yk - 0.22), P(a0, 0.05, yk - 0.22), dk);      // the wall under each balcony lies in its shadow
+        const dk = [wall[0] * 0.36, wall[1] * 0.36, wall[2] * 0.42]; g.quad(P(a0, 0.05, yk - 0.22 - 1.7 * HK), P(a1, 0.05, yk - 0.22 - 1.7 * HK), P(a1, 0.05, yk - 0.22), P(a0, 0.05, yk - 0.22), dk);      // the wall under each balcony lies in its shadow
         if (k === 1) for (let d = 0.4; d <= len - 0.3; d += 3.6) { const e = P([p[0] + ex * d, p[1] + ez * d], D - 0.15, 0); g.box(e[0], hi - 0.6, e[2], 0.24, yk - 0.22 - hi + 0.6, 0.24, [.92, .91, .88]); }      // the first balcony stands on posts: a verandah along the ground floor
       }
-      if (sea) { const dk = [wall[0] * 0.5, wall[1] * 0.5, wall[2] * 0.54], Pw = (e, y) => [e[0] + ox * 0.05, y, e[1] + oz * 0.05]; g.quad(Pw(p, y1 - 1.0 * HK), Pw(q, y1 - 1.0 * HK), Pw(q, y1), Pw(p, y1), dk); }
+      if (sea) { const dk = [wall[0] * 0.36, wall[1] * 0.36, wall[2] * 0.42], Pw = (e, y) => [e[0] + ox * 0.05, y, e[1] + oz * 0.05]; g.quad(Pw(p, y1 - 1.0 * HK), Pw(q, y1 - 1.0 * HK), Pw(q, y1), Pw(p, y1), dk); }
       if (sea) { const yk = y1 + 0.05, a0 = [p[0], p[1]], a1 = [q[0], q[1]]; g.quad([a0[0], yk, a0[1]], [a1[0], yk, a1[1]], [a1[0] + ox * 1.9, yk - 0.1, a1[1] + oz * 1.9], [a0[0] + ox * 1.9, yk - 0.1, a0[1] + oz * 1.9], [.82, .82, .80]); }      // the roof carries out over the top balconies
       along += len + 1.3;
     }
@@ -387,7 +387,7 @@ function buildRoads(F, scene, occ) {
           col = vec3(0.80, 0.72, 0.52) * (0.9 + 0.2 * n); a = 0.7 * rut * (0.6 + 0.4 * texture2D(uNoise, vec2(vP.y / 23.0, 0.7)).g) * (1.0 - smoothstep(600.0, 1500.0, vD));
         } else if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
-          col = vec3(0.40, 0.33, 0.22); a = 0.42 * rut * (0.45 + 0.55 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.7 + 0.3 * texture2D(uNoise, vW.xz / 5.0).b);   // tracks darken the sand a little, in sun or in shade, and are broken along their length
+          col = vec3(0.38, 0.31, 0.2); a = 0.55 * rut * (0.45 + 0.55 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.7 + 0.3 * texture2D(uNoise, vW.xz / 5.0).b);   // tracks darken the sand a little, in sun or in shade, and are broken along their length
           a *= mix(1.0, 0.6 + 0.8 * step(0.5, fract(vP.y * 3.6 + abs(vP.x) * 3.0)), 1.0 - smoothstep(12.0, 40.0, vD));          // up close each rut shows the chevrons of the tyre's tread   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
@@ -618,7 +618,7 @@ function buildTrees(F, scene) {
           // low wet flats: paperbarks and swamp gums over a carpet of fern; fire goes through often, so trunks are dark and many trees stand dead
           float wetland = (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, shoreD) * (1.0 - smoothstep(0.05, 0.13, ov.r)) * (1.0 - rkR);          // (the forest wall of the island's sides is gum forest, not swamp)
           if(wetland > 0.5) sp = hs < 0.55 ? 3.0 : hs < 0.8 ? 0.0 : 1.0;
-          if(shoreD < 170.0 && hgt < 22.0) sp = hs < 0.45 ? 1.0 : hs < 0.75 ? 2.0 : 0.0;   // behind the beach: coastal she-oak, coast banksia, and the forest coming down to the sand
+          if(shoreD < 170.0 && hgt < 22.0) sp = rkR > 0.5 ? (hs < 0.14 ? 1.0 : hs < 0.26 ? 2.0 : 0.0) : hs < 0.45 ? 1.0 : hs < 0.75 ? 2.0 : 0.0;   // behind the beach: coastal she-oak, coast banksia, and the forest coming down to the sand
           float swept = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));          // on the cape the wind shapes everything
           if(swept > 0.5){ sp = hs < 0.82 ? 2.0 : 1.0; dens *= 0.55; }
           if(hgt < 1.7 && shoreD < 130.0){                                               // dark growth at the tide line: mangroves
@@ -657,12 +657,12 @@ function buildTrees(F, scene) {
             float big = (0.75 + 0.45 * smoothstep(0.12, 0.03, lum)) * (0.8 + 0.4 * h4), form = hash12(cell * 3.1 + 11.0);
             float H, tr, lean, wig, fork, spread, top0, top1 = 0.98, arch, kink, twig, rbK, hang = 0.2; vec3 sc = vec3(1.0), bark, tint;
             if(sp < 0.5){ H = 14.0; tr = 0.0165; vPor = 0.67; rbK = 0.115; sc.y = 1.05; twig = 0.2;                      // eucalypt: pale scribbly gum or dark rough bloodwood
-              bark = hs2 < 0.45 ? vec3(0.62, 0.60, 0.54) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
+              bark = hs2 < 0.45 ? vec3(0.50, 0.47, 0.41) : vec3(0.29, 0.23, 0.18); tint = vec3(0.90, 1.0, 0.86);
               if(form < 0.38){ fork = 0.46; spread = 0.24; top0 = 0.76; arch = 0.12; kink = 0.09; lean = 0.16; wig = 0.07; }           // tall, forking high
               else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
               else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.38; wig = 0.13; } }                 // leaning and crooked
             else if(sp < 1.5){                                                          // she-oak (casuarina), in the two forms the owner photographed:
-              bark = vec3(0.20, 0.17, 0.15); tint = vec3(1.0, 1.1, 0.98); kink = 0.07; wig = 0.05;          // grey-green; (a bluer, paler mix read from a distance as grey boulders)
+              bark = vec3(0.20, 0.17, 0.15); tint = vec3(0.82, 0.98, 0.78); kink = 0.07; wig = 0.05;          // grey-green; (a bluer, paler mix read from a distance as grey boulders)
               float tallOak = step(0.5, smoothstep(45.0, 110.0, shoreD) + (hs2 - 0.5) * 0.4 + yard);
               if(tallOak > 0.5){                                                       // the tall one, standing behind the beach-front trees and through the forest: several thin dark stems that climb steeply
                 H = 14.0; tr = 0.012; vPor = 0.68; rbK = 0.085; sc = vec3(0.9, 1.3, 0.9); twig = 0.12; hang = -0.45;      // from near the ground, an open see-through crown, a tuft of long drooping needles at every twig end
@@ -681,7 +681,7 @@ function buildTrees(F, scene) {
             float dense = max(smoothstep(0.30, 0.12, lum), rkR);                         // closed forest: crowns spread until they meet
             rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
             rbK *= 1.0 + 0.45 * rkR; spread *= 1.0 + 0.25 * rkR; vPor -= 0.15 * rkR;          // in the forest wall of the island's sides the crowns are broad and full, and close up one into the next
-            wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); arch *= 0.6; lean *= mix(0.42, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.25 * yard;
+            wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); arch *= 0.6; lean *= mix(0.3, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.25 * yard;
             { float gir = hash12(cell * 5.3 + 8.0); tr *= 0.62 + 0.9 * gir * gir; vSp = sp; if(NLIMB > 3.5) rbK *= 0.84; }            // saplings, grown trees and the odd old giant; with more clumps on a tree each is smaller            // no tree grows straight, but real trunks and limbs bend in long, easy curves
             fork *= 0.85 + 0.3 * h3; if(yard > 0.5 && sp < 0.5) fork = max(fork, 0.42);          // a garden gum has a clear trunk to above the roof before it forks
             H *= big * 1.25 * (1.0 + 0.4 * rkR * step(sp, 0.5));          // (the gums of the coastal wall are tall)                                  // trees share the relief's exaggeration
@@ -898,7 +898,7 @@ function buildPalms(F, scene, occ) {
   const free = (x, z, d) => { const k = cellKey(x, z, d); if (taken.has(k) || occ.has(cellKey(x, z, 6))) return false; taken.add(k); return true; };
   const palms = [], pands = [];
   const find = (re) => F.places.find(o => re.test(o.n || ''))?.p;
-  for (const [re, n, rad] of [[/^Tangalooma/, 150, 560], [/Bulwer/, 36, 380], [/Cowan/, 22, 320], [/Kooringal/, 40, 420]]) {
+  for (const [re, n, rad] of [[/^Tangalooma/, 260, 560], [/Bulwer/, 36, 380], [/Cowan/, 22, 320], [/Kooringal/, 40, 420]]) {
     const c = find(re); if (!c) continue;
     const bigs = /Tangalooma/.test(re.source) ? F.buildings.filter(b => b.k !== 'ship' && b.p.length >= 4 && Math.hypot(b.p[0][0] - c[0], b.p[0][1] - c[1]) < 800 && Math.abs(b.p.reduce((a, q, i) => { const r = b.p[(i + 1) % b.p.length]; return a + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2 > 340).map(b => b.p[0]) : null;
     for (let t = 0, k = 0; t < n * 60 && k < n; t++) {
@@ -1360,7 +1360,7 @@ function drawGates(F, g) {
   const TIM = [.46, .39, .30], CAP = [.36, .30, .23];
   for (const gt of F.gates || []) {
     const z = gt.p[1], sea = gt.side; let x0 = gt.p[0], x1 = gt.p[0];
-    for (let k = 0; k < 80 && groundH(x0, z) > 0.15; k++) x0 += sea * 1.5;                 // down to the water's edge
+    for (let k = 0; k < 80 && groundH(x0, z) > 0.95; k++) x0 += sea * 1.5;                 // down to about the high-water mark
     for (let k = 0; k < 40 && groundH(x1, z) < 2.6; k++) x1 -= sea * 1.5;                  // up to the foot of the dune
     const n = Math.max(2, Math.round(Math.abs(x1 - x0) / 1.6));
     for (let i = 0; i <= n; i++) { const x = x0 + (x1 - x0) * i / n, y = meshY(x, z); g.cyl(x, y - 0.4, z, 0.14, 0.12, 0.95 * HK + 0.4, 8, TIM, CAP); }

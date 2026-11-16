@@ -62,7 +62,7 @@ float sandBlow(vec2 xz){
   float k = 0.0;
   for(int i = 0; i < 2; i++){
     vec4 b = uBlow[i]; vec2 d = xz - b.xy; d.y -= d.x * 0.55;
-    float e = length(d / vec2(b.w, b.z)) + (texture2D(uNoise, xz / 140.0 + float(i) * 0.37).r - 0.5) * 0.35;
+    float e = length(d / vec2(b.w, b.z)) + (texture2D(uNoise, xz / 140.0 + float(i) * 0.37).r - 0.5) * 0.4 + (texture2D(uNoise, xz / 31.0).g - 0.5) * 0.22;          // (a ragged edge, where the trees stand out into the sand)
     k = max(k, 1.0 - smoothstep(0.86, 1.02, e));
   }
   return k;

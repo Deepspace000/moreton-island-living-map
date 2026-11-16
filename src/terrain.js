@@ -309,6 +309,7 @@ export function buildTerrain(scene) {
 
         float sand = smoothstep(0.2, 0.7, mk.g + (nB.r - 0.5) * 0.5 + (nC.r - 0.5) * 0.35 * near);
         float blowK = sandBlow(vW.xz); sand = max(sand, blowK);          // the two great sand blows are open sand, whatever the photograph shows
+        float blowRun = blowK * smoothstep(0.55, 0.8, texture2D(uNoise, vec2(vW.z / 11.0, vW.x / 160.0)).r);          // runnels down the face of a sand blow, where the sand has slid
         float slope = 1.0 - N.y;
 
         // ---- vegetation: lift the satellite colour, add canopy clumps ----
@@ -397,8 +398,8 @@ export function buildTerrain(scene) {
         float floorK = (1.0 - sand) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK);
         // Tangalooma resort stands in forest (the owner's aerial photograph): within its grounds, everything but the lawns close round the buildings,
         // the tracks and the beach is forest, whatever the coarse sand map says
-        float resLawn = smoothstep(0.04, 0.12, ov.r);
-        float resK = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(vW.xz - uResort.xy))) * smoothstep(2.3, 3.0, h) * smoothstep(60.0, 95.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.3, 0.8, ov.g));
+        float resLawn = smoothstep(0.025, 0.09, ov.r);
+        float resK = (1.0 - smoothstep(uResort.z * 0.8, uResort.z, length(vW.xz - uResort.xy))) * smoothstep(1.9, 2.4, h) * smoothstep(38.0, 60.0, (mk.b - 0.5) * 3000.0) * (1.0 - smoothstep(0.3, 0.8, ov.g));
         // and the island's sides are a wall of forest down to the beach (see the trees in features.js): the ground there is forest floor, not open sand
         float coastK = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, h) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2D(uHeight, cuv).g))
                      * (1.0 - smoothstep(0.52, 0.64, lum)) * (1.0 - headland) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)) * (1.0 - smoothstep(0.55, 0.85, mk.g))
@@ -485,8 +486,9 @@ export function buildTerrain(scene) {
           col = mix(col, mix(sd * 0.9, vec3(0.17, 0.215, 0.09) * (0.75 + 0.5 * nC.g), 0.62), yd * grassP * 0.7);
           float speck = texture2D(uNoise, vW.xz / 0.9).b;
           col = mix(col, mix(vec3(0.25, 0.17, 0.09), vec3(0.13, 0.095, 0.065), speck), yd * driftP * (1.0 - 0.5 * grassP) * (0.38 + 0.4 * smoothstep(0.35, 0.65, speck))); }
-        col = mix(col, vec3(0.105, 0.15, 0.055) * (0.78 + 0.4 * nC.g) * (0.9 + 0.2 * nB.r), resK * resLawn * 0.9);          // the resort's lawns, close round its buildings
+        col = mix(col, vec3(0.15, 0.235, 0.085) * (0.82 + 0.3 * nC.g) * (0.92 + 0.16 * nB.r), resK * resLawn * 0.92);          // the resort's lawns, close round its buildings
         col *= 1.0 - 0.5 * coastK * (1.0 - close);          // under the forest wall the ground lies in deep shade
+        col *= mix(vec3(1.0), vec3(0.9, 0.86, 0.8), blowK) * (1.0 - 0.2 * blowRun);          // the blows are a deeper tan than the beach, streaked where the sand runs
         // sand tracks worn into the ground (the crisp ribbon is drawn on top)
         // (seen low across the forest from the sea, the canopy hides the tracks: they show from above, as on a map, and close to)
         float trackSee = mix(1.0 - 0.9 * smoothstep(500.0, 2200.0, dist), 1.0, smoothstep(0.1, 0.4, normalize(cameraPosition - vW).y));
@@ -515,8 +517,8 @@ export function buildTerrain(scene) {
         if(flatK > 0.0 && depth <= 0.0){
           float rp = sin(dot(vW.xz, vec2(1.9, 0.7)) + texture2D(uNoise, vW.xz / 9.0).r * 8.0) * 0.5 + 0.5;
           float pool = smoothstep(0.56, 0.66, texture2D(uNoise, vW.xz / 37.0 + 0.2).g * 0.6 + texture2D(uNoise, vW.xz / 150.0).b * 0.5) * smoothstep(0.5, 0.1, -depth);
-          col = mix(col, col * vec3(0.82, 0.74, 0.58) * (0.94 + 0.1 * rp * (1.0 - smoothstep(20.0, 120.0, dist))), flatK * 0.8);
-          col = mix(col, uAmbSky * 0.55 + uLightCol * 0.05, pool * flatK * 0.55);
+          col = mix(col, col * vec3(0.72, 0.63, 0.47) * (0.94 + 0.1 * rp * (1.0 - smoothstep(20.0, 120.0, dist))), flatK * 0.85);          // wet sand is darker than dry, never paler
+          col = mix(col, uAmbSky * 0.55 + uLightCol * 0.05, pool * flatK * 0.22);
         }
         // wet sand just above the waterline
         // (the owner's photo of the southern tip: bright dry sand ends at a clean, wandering edge, and below it the wet sand is a warm tan)
