@@ -127,7 +127,7 @@ function buildBeachLife(scene) {
         float bark = step(h3, 0.05), leaf = (1.0 - bark) * step(h3, 0.75);
         s = (bark + leaf) * ${WOODED} * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));
         { // round the houses too: fallen leaves lie in drifts in the yards, thick in places and swept thin in others
-          float yardK = smoothstep(0.05, 0.11, ov.r) * (1.0 - smoothstep(0.3, 0.7, ov.g)) * step(0.92, mk.r) * step(2.0, hgt) * (1.0 - smoothstep(0.72, 0.9, mk.g));      // (not on the open beach in front of a beachfront building)
+          float yardK = smoothstep(0.05, 0.11, ov.r) * (1.0 - smoothstep(0.3, 0.7, ov.g)) * step(0.92, mk.r) * step(2.0, hgt) * (1.0 - smoothstep(0.6, 0.8, mk.g)) * smoothstep(40.0, 80.0, (mk.b - 0.5) * 3000.0);      // (not on the open beach in front of a beachfront building)
           float drift = smoothstep(0.36, 0.6, texture2D(uNoise, xz / 9.0).r * 0.7 + texture2D(uNoise, xz / 2.3 + 0.4).g * 0.3);
           s = max(s, yardK * step(h3, 0.12 + 0.72 * drift)); }
         float len = bark > 0.5 ? 0.16 + 0.26 * h1 : 0.07 + 0.07 * h1, wid = bark > 0.5 ? 0.025 + 0.02 * h2 : 0.02;
@@ -164,10 +164,10 @@ function buildBeachLife(scene) {
           float sOak = (0.85 + 0.75 * h1) * step(h3, 1.1 * oakG) * step(0.92, mk.r) * step(1.2, hgt) * (1.0 - smoothstep(0.03, 0.1, ov.g));
           oakHere = step(0.001, sOak) * step(s, sOak); s = max(s, sOak);
         }
-        lp = position * vec3(1.0, 0.7 + 0.6 * h2, 1.0) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK * aK;
+        lp = position * vec3(1.0 + 0.35 * oakHere, 0.7 + 0.6 * h2, 1.0 + 0.35 * oakHere) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.06 * aK * aK;      // (under a she-oak the tufts spread till they meet)
         nrm = vec3(0.0, 1.0, 0.0);
         c = mix(vec3(0.22, 0.27, 0.12), vec3(0.50, 0.48, 0.28), step(0.4, h2)) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4);
-        c = mix(c, vec3(0.19, 0.29, 0.10) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4), oakHere * step(h2, 0.78));                 // the grass under a she-oak is mostly green`, 200);
+        c = mix(c, vec3(0.20, 0.27, 0.10) * (0.4 + 0.75 * aK) * (0.8 + 0.4 * h4), oakHere * step(h2, 0.62));                 // the grass under a she-oak is mostly green`, 200);
   // The grass belt: between the open beach and the first trees there is nearly always a strip of dune grass (the owner's photo): green tussocks,
   // and among them older ones gone to straw, grey-brown and lying over; thick by the scrub, thinning out onto the sand.
   const fineGeo = (g) => {              // dune grass: many thin blades, each a gentle curve that tips over at the end
@@ -184,7 +184,7 @@ function buildBeachLife(scene) {
         float dry = step(0.7, h2), thick = mix(1.0, 0.1, smoothstep(0.55, 0.8, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
         s = (0.55 + 0.5 * h1) * step(h3, thick * band * smoothstep(2.5, 3.4, hgt)) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * (1.0 - smoothstep(0.02, 0.1, ov.r));       // behind the beach only, starting at the foot of the dune: the lower beach is bare
         // and round the houses: low grass, ankle high, in patches with bare sand and leaf drifts between (the same patches the ground is tinted with)
-        float yardK = smoothstep(0.05, 0.11, ov.r) * (1.0 - smoothstep(0.3, 0.7, ov.g)) * step(0.92, mk.r) * step(2.0, hgt) * (1.0 - smoothstep(0.72, 0.9, mk.g));      // (not on the open beach in front of a beachfront building)
+        float yardK = smoothstep(0.05, 0.11, ov.r) * (1.0 - smoothstep(0.3, 0.7, ov.g)) * step(0.92, mk.r) * step(2.0, hgt) * (1.0 - smoothstep(0.6, 0.8, mk.g)) * smoothstep(40.0, 80.0, (mk.b - 0.5) * 3000.0);      // (not on the open beach in front of a beachfront building)
         float sYard = (0.55 + 0.4 * h1) * step(h3, 0.95 * yardK * smoothstep(0.30, 0.46, texture2D(uNoise, xz / 13.0 + 0.3).g)), low = step(s, 0.001) * step(0.001, sYard);
         s = max(s, sYard); dry = mix(dry, step(0.82, h2), low);
         lp = position * mix(mix(vec3(1.0, 0.8 + 0.5 * h4, 1.0), vec3(1.5, 0.5 + 0.2 * h4, 1.5), dry), vec3(1.15, 0.26 + 0.16 * h4, 1.15), low) + vec3(sin(uTime * 1.7 + h1 * 20.0), 0.0, cos(uTime * 1.3 + h2 * 20.0)) * 0.07 * aK * aK * (1.0 - 0.6 * dry) * (1.0 - 0.7 * low);

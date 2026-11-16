@@ -352,7 +352,7 @@ export function buildTerrain(scene) {
             // Under the scrub the ground is all but covered with fallen leaves: a brown carpet of them, old ones dark and matted underneath,
             // newer ones lying singly on top in every shade from red-brown to pale tan, with only chinks of sand showing through.
             float nearD = 1.0 - smoothstep(10.0, 45.0, dist);                                    // (further off the carpet is one mottled brown: its fine pattern would only show as rows)
-            vec3 det = mix(vec3(0.15, 0.108, 0.07) * (0.85 + 0.3 * nE.g), mix(vec3(0.10, 0.072, 0.05), vec3(0.205, 0.145, 0.09), w2.r) * (0.8 + 0.4 * w1.g), nearD);
+            vec3 det = mix(vec3(0.185, 0.155, 0.115) * (0.85 + 0.3 * nE.g), mix(vec3(0.125, 0.102, 0.078), vec3(0.245, 0.205, 0.15), w2.r) * (0.8 + 0.4 * w1.g), nearD);      // grey-brown, as dead gum leaves weather
             det = mix(det, vec3(0.03, 0.028, 0.026), smoothstep(0.55, 0.8, w2.b) * burnt);      // charcoal where it has burnt
             float thin = smoothstep(0.3, 0.62, nE.r * 0.55 + w1.b * 0.45), cover = mix(0.8, 0.95, thin);          // a little thinner in places, never bare
             float lfw = fwidth(vW.x * 9.0) + fwidth(vW.z * 9.0), nearLf = 1.0 - smoothstep(0.3, 1.1, lfw), anyLeaf = 0.0;
@@ -362,15 +362,15 @@ export function buildTerrain(scene) {
                 float fk = float(k), ang = 0.6 + fk * 1.1, lsz = k == 0 ? 9.0 : k == 1 ? 12.3 : 7.4;
                 vec2 pr = vec2(vW.x * cos(ang) - vW.z * sin(ang), vW.x * sin(ang) + vW.z * cos(ang)) * lsz + fk * 7.3;
                 vec3 Lf = groundLeaf(pr, 3.0 + fk * 5.0, lfw * lsz / 9.0 * 1.5 + 0.012);
-                vec3 lc = Lf.y < 0.3 ? vec3(0.17, 0.095, 0.05) : Lf.y < 0.55 ? vec3(0.25, 0.165, 0.085) : Lf.y < 0.75 ? vec3(0.115, 0.092, 0.072) : Lf.y < 0.9 ? vec3(0.31, 0.175, 0.07) : vec3(0.39, 0.31, 0.18);
+                vec3 lc = Lf.y < 0.3 ? vec3(0.17, 0.125, 0.085) : Lf.y < 0.55 ? vec3(0.245, 0.195, 0.135) : Lf.y < 0.75 ? vec3(0.13, 0.115, 0.10) : Lf.y < 0.88 ? vec3(0.30, 0.22, 0.13) : vec3(0.43, 0.38, 0.28);      // browns and greys, and the odd straw-pale one
                 lc *= (0.82 + 0.36 * fract(Lf.y * 5.3)) * (1.0 - 0.22 * smoothstep(0.1, 0.0, abs(Lf.z)));            // each leaf its own shade, a darker midrib
                 float on = Lf.x * step(fract(Lf.y * 7.7), cover);
                 top = mix(top, lc, on); anyLeaf = max(anyLeaf, on);
               }
             }
-            float chink = smoothstep(0.7, 0.8, w1.r * 0.6 + w2.g * 0.5) * (1.0 - thin * 0.7) * (1.0 - anyLeaf * nearLf) * nearD;   // the few places the sand shows
+            float chink = max(smoothstep(0.66, 0.76, w1.r * 0.6 + w2.g * 0.5) * (1.0 - thin * 0.6) * (1.0 - anyLeaf * nearLf) * nearD, smoothstep(0.6, 0.72, nE.b * 0.6 + nB.g * 0.5) * 0.55);   // chinks of sand between the leaves, and here and there a sunny gap where the sand lies nearly bare
             vec3 lf = mix(mix(det, top, nearLf), sd, chink * 0.85);
-            float fine = 1.0 - smoothstep(8.0, 50.0, dist);
+            float fine = (1.0 - smoothstep(5.0, 16.0, dist)) * 0.5;          // (sticks only right at your feet: further off their grain reads as furrows)
             // sticks and strips of bark, lying every way. (Each is a stretched sample of the noise; the stretch is kept wide and the rows are bent by a second
             // noise, or the texture's own repeat shows through as a regular hatching, which is what a critic saw here before.)
             float s1 = texture2D(uNoise, vec2(dot(vW.xz, vec2(0.8, 0.6)) / 7.0, dot(vW.xz, vec2(-0.6, 0.8)) / 0.62 + w1.g * 2.3)).r;
@@ -395,7 +395,7 @@ export function buildTerrain(scene) {
         float woodFar = max(1.0 - sand, smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
         col = mix(col, vec3(0.036, 0.050, 0.021) * (0.6 + 0.9 * nB.g) * (0.75 + 0.5 * nC.g), woodFar * smoothstep(0.52, 0.27, lum) * (1.0 - headland) * (1.0 - wetK) * (1.0 - close) * 0.88 * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
         { // round the houses: low grass in patches, drifts of fallen leaves, and worn sand between (the grass blades and the leaves themselves are drawn on top, see life.js)
-          float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h) * (1.0 - smoothstep(0.72, 0.9, mk.g));
+          float yd = smoothstep(0.05, 0.12, ov.r) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * smoothstep(2.0, 3.0, h) * (1.0 - smoothstep(0.6, 0.8, mk.g)) * smoothstep(40.0, 80.0, (mk.b - 0.5) * 3000.0);
           float grassP = smoothstep(0.30, 0.46, texture2D(uNoise, vW.xz / 13.0 + 0.3).g), driftP = smoothstep(0.36, 0.6, texture2D(uNoise, vW.xz / 9.0).r * 0.7 + texture2D(uNoise, vW.xz / 2.3 + 0.4).g * 0.3);
           col = mix(col, mix(sd * 0.9, vec3(0.17, 0.215, 0.09) * (0.75 + 0.5 * nC.g), 0.62), yd * grassP * 0.7);
           float speck = texture2D(uNoise, vW.xz / 0.9).b;

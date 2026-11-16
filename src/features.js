@@ -146,7 +146,7 @@ function clothesHoist(g, x, y, z, R) {
   for (const f of [0.45, 0.72, 1.0]) for (let i = 0; i < 4; i++) {
     const p0 = arm[i](f), p1 = arm[(i + 1) % 4](f); g.quad(p0, p1, [p1[0], p1[1] + 0.03, p1[2]], [p0[0], p0[1] + 0.03, p0[2]], [.80, .80, .78]);
     if (f > 0.5 && R() < 0.6) {            // a towel, a shirt, a sheet
-      const u0 = 0.08 + R() * 0.45, u1 = u0 + 0.18 + R() * 0.2, drop = (0.45 + R() * 0.45) * K, c = [[.86, .86, .84], [.25, .45, .70], [.80, .30, .25], [.92, .80, .35], [.30, .58, .50], [.90, .62, .70]][(R() * 6) | 0];
+      const u0 = 0.08 + R() * 0.45, u1 = u0 + 0.18 + R() * 0.2, drop = (0.45 + R() * 0.45) * K, c = [[.86, .86, .84], [.42, .55, .70], [.74, .46, .42], [.86, .80, .58], [.48, .64, .58], [.84, .70, .74], [.80, .80, .76], [.55, .60, .66]][(R() * 8) | 0];      // sun-faded towels, shirts and sheets
       const A = p0.map((v, k) => v + (p1[k] - v) * u0), B = p0.map((v, k) => v + (p1[k] - v) * u1); g.quad([A[0], A[1] - drop, A[2]], [B[0], B[1] - drop, B[2]], B, A, c);
     }
   }
@@ -359,7 +359,8 @@ function buildRoads(F, scene, occ) {
           col = vec3(0.80, 0.72, 0.52) * (0.9 + 0.2 * n); a = 0.7 * rut * (0.6 + 0.4 * texture2D(uNoise, vec2(vP.y / 23.0, 0.7)).g) * (1.0 - smoothstep(600.0, 1500.0, vD));
         } else if(cls > 2.5){            // wheel ruts pressed into the beach
           float rut = smoothstep(0.5, 0.62, abs(vP.x)) * smoothstep(0.98, 0.86, abs(vP.x));
-          col = vec3(0.52, 0.45, 0.33); a = 0.23 * rut * (0.3 + 0.7 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.55 + 0.45 * texture2D(uNoise, vW.xz / 5.0).b);   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
+          col = vec3(0.40, 0.33, 0.22); a = 0.34 * rut * (0.45 + 0.55 * texture2D(uNoise, vec2(vP.y / 90.0, 0.3)).g) * (0.7 + 0.3 * texture2D(uNoise, vW.xz / 5.0).b);   // tracks darken the sand a little, in sun or in shade, and are broken along their length
+          a *= mix(1.0, 0.6 + 0.8 * step(0.5, fract(vP.y * 3.6 + abs(vP.x) * 3.0)), 1.0 - smoothstep(12.0, 40.0, vD));          // up close each rut shows the chevrons of the tyre's tread   // old tracks only darken the sand a little, in sun or in shade, and are broken along their length
         } else if(cls > 1.5){     // walking path: pale dashes
           float dash = mix(step(fract(vP.y / 16.0), 0.6), 1.0, smoothstep(2500.0, 6000.0, vD));
           col = vec3(0.92, 0.84, 0.66); a = 0.75 * dash * edge;
@@ -554,7 +555,7 @@ function buildTrees(F, scene) {
           { vec2 yuv = (cell - uYardO.xy + 0.5) * uYardO.zw; if(yuv.x > 0.0 && yuv.x < 1.0 && yuv.y > 0.0 && yuv.y < 1.0) yard = step(0.5, texture2D(uYard, yuv).r); }      // a garden tree stands near the middle of its cell, which is known to be clear of the houses
           #endif
           vec2 jit = vec2(h1, h2);
-          if(uMode > 1.5) jit = fract(jit + texture2D(uNoise, cell * 0.37 + 0.11).rg + texture2D(uNoise, cell / 41.0).gb * 2.0);      // low plants are scattered, never in rows
+          if(uMode > 0.5) jit = fract(jit + texture2D(uNoise, cell * 0.37 + 0.11).rg + texture2D(uNoise, cell / 41.0).gb * 2.0);      // low plants are scattered, never in rows
           vec2 xz = (cell + mix(jit, 0.5 + (jit - 0.5) * 0.3, yard)) * uCS;
           vec2 uv = worldUV(xz);
           vec3 mk = texture2D(uMask, uv).rgb;
@@ -622,14 +623,14 @@ function buildTrees(F, scene) {
               else if(form < 0.74){ fork = 0.22; spread = 0.4; top0 = 0.62; arch = 0.24; kink = 0.13; lean = 0.14; wig = 0.09; }     // forking low into wide, twisting limbs
               else { fork = 0.34; spread = 0.3; top0 = 0.66; arch = 0.15; kink = 0.14; lean = 0.38; wig = 0.13; } }                 // leaning and crooked
             else if(sp < 1.5){                                                          // she-oak (casuarina), in the two forms the owner photographed:
-              bark = vec3(0.20, 0.17, 0.15); tint = vec3(1.2, 1.12, 1.45); kink = 0.07; wig = 0.05;
+              bark = vec3(0.20, 0.17, 0.15); tint = vec3(1.15, 1.17, 1.5); kink = 0.07; wig = 0.05;
               float tallOak = step(0.5, smoothstep(45.0, 110.0, shoreD) + (hs2 - 0.5) * 0.4 + yard);
               if(tallOak > 0.5){                                                       // the tall one, standing behind the beach-front trees and through the forest: several thin dark stems that climb steeply
-                H = 14.0; tr = 0.012; vPor = 0.74; rbK = 0.07; sc = vec3(0.9, 1.3, 0.9); twig = 0.12; hang = -0.45;      // from near the ground, an open see-through crown, a tuft of long drooping needles at every twig end
-                top0 = 0.5; top1 = 1.0; arch = 0.07; fork = 0.09 + 0.12 * form; spread = 0.2; lean = 0.1;
+                H = 14.0; tr = 0.012; vPor = 0.68; rbK = 0.085; sc = vec3(0.9, 1.3, 0.9); twig = 0.12; hang = -0.45;      // from near the ground, an open see-through crown, a tuft of long drooping needles at every twig end
+                top0 = 0.26; top1 = 1.0; arch = 0.07; fork = 0.09 + 0.12 * form; spread = 0.2; lean = 0.1;
               } else {                                                                 // the low one at the back of the beach: limbs that reach out and droop over the sand, hung with plumes of needles
-                H = 8.5; tr = 0.017; vPor = 0.62; rbK = 0.1; sc = vec3(0.85, 1.6, 0.85); twig = 0.14; hang = -0.8;
-                top0 = 0.22; top1 = 0.85; arch = 0.24; fork = 0.16 + 0.1 * form; spread = 0.42; lean = form > 0.8 ? 0.42 : 0.12;
+                H = 8.5; tr = 0.017; vPor = 0.5; rbK = 0.125; sc = vec3(0.85, 1.6, 0.85); twig = 0.14; hang = -0.8;
+                top0 = 0.12; top1 = 0.8; arch = 0.24; fork = 0.16 + 0.1 * form; spread = 0.42; lean = form > 0.8 ? 0.42 : 0.12;
               } }
             else if(sp < 2.5){ H = 6.0; tr = 0.029; vPor = 0.58; rbK = 0.2; sc.y = 0.8; twig = 0.24; bark = vec3(0.19, 0.15, 0.12); tint = vec3(0.72, 0.88, 0.66);    // banksia: low, gnarled, dense and dark
               fork = 0.14 + 0.2 * form; spread = 0.46; top0 = 0.55; arch = 0.1; kink = 0.2; lean = 0.38; wig = 0.14; }
@@ -743,7 +744,8 @@ function buildTrees(F, scene) {
             float n = (texture2D(uNoise, vO.zy * 0.2).g * tw.x + texture2D(uNoise, vO.xz * 0.2).g * tw.y + texture2D(uNoise, vO.xy * 0.2).g * tw.z) * 0.66
                     + (texture2D(uNoise, vO.zy * 0.47 + 0.21).r * tw.x + texture2D(uNoise, vO.xz * 0.47 + 0.21).r * tw.y + texture2D(uNoise, vO.xy * 0.47 + 0.21).r * tw.z) * 0.34, n2 = texture2D(uNoise, vO.xy * 1.3 + 0.3).b;
             #else
-            float n = texture2D(uNoise, vObj.xz * 0.3 + vObj.yy * 0.2).g, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
+            vec3 tw = abs(normalize(vN)); tw *= tw; tw /= tw.x + tw.y + tw.z;        // (three-sided lookup, as for the trees: no stripes round a bush)
+            float n = texture2D(uNoise, vObj.zy * 0.3).g * tw.x + texture2D(uNoise, vObj.xz * 0.3).g * tw.y + texture2D(uNoise, vObj.xy * 0.3).g * tw.z, n2 = texture2D(uNoise, vObj.xy * 1.3 + 0.3).b;
             #endif
             float rim = 1.0 - abs(dot(normalize(vN), -vDir));
             float clump = smoothstep(vPor - 0.07, vPor + 0.07, n - rim * 0.55 + (n2 - 0.5) * 0.36);   // clusters of leaves with gaps; the outline is eaten ragged, so no straight facet edge shows
@@ -758,6 +760,9 @@ function buildTrees(F, scene) {
             vec2 slim = vPor > 0.7 ? vec2(8.0, 1.05) : vec2(2.7, 1.5), lsc = vec2(20.0); float turn = 3.6, lw = fwidth(lp.x * 20.0) + fwidth(lp.y * 20.0);        // bare scrub shows thin twigs, not leaves
             #endif
             float nearL = 1.0 - smoothstep(0.18, 0.6, lw), dens = clamp(clump * 1.1, 0.0, 1.0);
+            #ifdef SPECIES
+            if(oak) dens = clamp(dens * 1.5 + 0.15 * clump, 0.0, 1.0);          // needles hang thick
+            #endif
             alpha = clump;
             if(nearL > 0.0){
               vec3 l1 = leafLayer(lp * lsc, 1.0, slim, dens, turn, 1.0, 0.0), l2 = leafLayer(lp * lsc * 1.37 + 3.7, 7.0, slim, dens, turn, 1.37, 3.7), l3 = leafLayer(lp * lsc * 0.83 + 9.2, 13.0, slim, dens * 0.8, turn, 0.83, 9.2);
@@ -779,7 +784,8 @@ function buildTrees(F, scene) {
             col *= mix(0.5 + 1.0 * n * n + 0.4 * (n2 - 0.5), 0.9 + 0.3 * n, nearL);
             col *= (0.7 + 0.45 * smoothstep(-0.3, 0.75, normalize(vN).y)) * (0.78 + 0.34 * smoothstep(vPor, vPor + 0.22, n));      // lit on top, dark underneath; the heart of each clump fuller than its ragged edge
             if(!gl_FrontFacing) col *= 0.72;                                 // the shaded inside of the crown seen through the gaps
-            col += vCol * 0.5 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim * (vSp > 0.5 && vSp < 1.5 ? 0.3 : 1.0);      // (she-oak needles are too fine to glow much)   // leaves glow when the sun is behind them
+            col += vCol * 0.5 * pow(max(dot(vDir, uLightDir), 0.0), 3.0) * rim * (vSp > 0.5 && vSp < 1.5 ? 0.0 : 1.0);
+            if(vSp > 0.5 && vSp < 1.5) col *= 1.0 - 0.6 * pow(max(dot(vDir, uLightDir), 0.0), 1.5);          // seen against the sun a she-oak is a dark veil, not a bright one      // (she-oak needles are too fine to glow much)   // leaves glow when the sun is behind them
             col = max(col, vec3(0.035, 0.06, 0.022) * (uLightCol * 0.12 + uAmbSky));        // a leaf in the shade is dark green, never black
           }
           #endif
@@ -878,7 +884,7 @@ function buildPalms(F, scene, occ) {
         p.xz += uWindDir * (lf * aUV.x * aUV.x * (0.25 + 0.2 * gust) + (1.0 - lf) * aUV.y * aUV.y * 0.05 * gust) * sc;
         vec3 wp = iPos.xyz + p;
         float far = 1.0 - smoothstep(3200.0, 4200.0, length(wp - cameraPosition));
-        float nl = mix(max(dot(n, uLightDir), 0.0), 0.35 + 0.5 * max(uLightDir.y, 0.0), lf * 0.6);
+        float nl = mix(dot(n, uLightDir) * 0.4 + 0.55, 0.35 + 0.5 * max(uLightDir.y, 0.0), lf * 0.6);
         vec3 c = mix(uWood * (0.8 + 0.3 * sin(aUV.y * 60.0)), uLeaf * (0.75 + 0.5 * iPar.y) * (0.75 + 0.45 * aUV.x), lf);
         float ao = mix(0.55 + 0.4 * aUV.y, 0.6 + 0.4 * aUV.x, lf);
         vCol = c * (uLightCol * nl * cloudShadow(wp) * ao + mix(uAmbGnd, uAmbSky, n.y * 0.5 + 0.5) * ao);
@@ -1229,7 +1235,7 @@ export function buildFeatures(scene, F, flyTo) {
   const occ = new Set(), g = new GB(), lights = makeLights(700);
   const casters = [];
   F.beach = beachRoutes();
-  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9], [-3, 0.8], [-8.5, 4.4], [1.8, 5.1]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.11 + wig) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // several sets of wheel ruts wandering along the sand
+  for (const r of F.beach) for (const [off, wig] of [[0, 0], [-6, 1.7], [-11, 2.6], [4, 3.9], [-3, 0.8], [-8.5, 4.4], [1.8, 5.1], [-1.5, 2.2], [-4.4, 3.1], [-7.3, 0.4], [-9.6, 5.7], [2.9, 1.1], [-13, 2.0]]) F.roads.push({ p: r.p.map((p, i) => [p[0] + r.side * (off + Math.sin(i * 0.37 + wig) * 1.5 + Math.sin(i * 0.11 + wig * 3) * 1.8 + Math.sin(i * 0.031 + wig * 2) * 2.5), p[1]]), c: 3, n: 'Beach' });      // many sets of wheel ruts wandering along the sand and crossing one another: the beaches are the island's roads (the owner's photo at Tangalooma)
   buildOverlay(F);
   buildBuildings(F, g, occ, casters, lights);
   buildRoads(F, scene, occ);

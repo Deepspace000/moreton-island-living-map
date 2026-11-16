@@ -40,6 +40,11 @@ function buildPeople(scene, list) {
         float len = max(distance(iA.xy, iA.zw), 1.0), f = fract(iB.x + uTime * iB.y / len * 0.5), tri = abs(2.0 * f - 1.0), walks = step(iB.z, 0.5);
         float along = smoothstep(0.03, 0.97, tri), moving = walks * smoothstep(0.0, 0.06, tri) * (1.0 - smoothstep(0.94, 1.0, tri));      // they slow and stop at each end before turning back
         vec2 p = mix(iA.xy, mix(iA.xy, iA.zw, along), walks);
+        if(iB.z > 0.5 && iB.z < 1.5){        // whoever is fishing follows the tide: they stand shin-deep at the water's edge, wherever it is just now
+          vec2 d0 = normalize(iA.zw - iA.xy + 1e-4); float wl = uSeaM * uVex - 0.3;
+          for(int i = 0; i < 8; i++){ if(groundY(p + d0 * 3.0) > wl) p += d0 * 3.0; }
+          for(int i = 0; i < 8; i++){ if(groundY(p) < wl) p -= d0 * 1.5; }
+        }
         vec2 dir = normalize(iA.zw - iA.xy + 1e-4) * mix(1.0, f < 0.5 ? -1.0 : 1.0, walks), side = vec2(-dir.y, dir.x);
         float part = aPS.x;
         // not everyone is the same build: women (narrower shoulders, wider hips, longer hair, a little shorter) and children (small, with a big head)
@@ -240,6 +245,7 @@ function buildCamps(scene, F, people, R, shade) {
       else stander(x + (R() - .5) * 10, z + (R() - .5) * 10);
     }
     if (R() < (big ? 1 : 0.65)) cars.push([x + (R() - .5) * 5, z + (R() < 0.5 ? -1 : 1) * (7 + R() * 4), R() * 6.283]);
+    { const ex = x + 2.9, ez = z + 1.2, ey = meshY(ex, ez); g.box(ex, ey, ez, 0.62 * 1.3, 0.34 * K, 0.36 * 1.3, [.16, .32, .55], [.9, .9, .88]); }      // the esky
     if (fires++ < 88) lights.add([x + 2, meshY(x + 2, z) + 0.8, z + 2], [1, .5, .15], -1, 1, R(), 1.5);
   };
   for (const c of F.camps) camp(c.p[0] + 12, c.p[1] + 8, true);
@@ -354,7 +360,7 @@ export function buildFolk(scene, F) {
   }
   { // people at home in the townships: someone hanging out the washing, someone by the car or the boat, a few just standing in the yard (see the yards in features.js)
     const H = rng(8088), yg = new GB(), at = (q, d, p) => { if (H() > p) return; const a = H() * 6.283, x = q[0] + Math.cos(a) * d, z = q[1] + Math.sin(a) * d; if (maskAt(x, z).land < 0.9) return; const sit = H() < 0.3, size = 1.25 + H() * 0.15; people.push(x, z, q[0], q[1], H(), 0, sit ? 3 : 2, size, ...shirt()); if (sit) campChair(yg, x, z, q[0], q[1], size, [[.12, .2, .32], [.14, .28, .18], [.42, .14, .12], [.3, .3, .32]][(H() * 4) | 0]);
-      if (H() < 0.35) { const b = a + 1.6, x2 = x + Math.cos(b) * 0.9, z2 = z + Math.sin(b) * 0.9; people.push(x2, z2, x, z, H(), 0, 2, 1.25 + H() * 0.15, ...shirt()); } };      // often two together, talking
+      if (H() < 0.35) { const b = a + 1.6, x2 = x + Math.cos(b) * 1.3, z2 = z + Math.sin(b) * 1.3; people.push(x2, z2, x, z, H(), 0, 2, 1.25 + H() * 0.15, ...shirt()); } };      // often two together, talking
     for (const q of F.hoists || []) at(q, 1.5, 0.3);
     for (const q of F.parked || []) at(q, 3.4, 0.16);
     for (const q of F.tinnies || []) at(q, 2.6, 0.22);
