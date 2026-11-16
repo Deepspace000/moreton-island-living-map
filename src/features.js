@@ -713,6 +713,7 @@ function buildTrees(F, scene) {
               vec3 ol = bc + q * sc * rb * (1.0 + 0.7 * (texture2D(uNoise, xz * 0.13 + bc.xz * 3.1 + q.xz * 0.33 + q.y * 0.21).g - 0.5));      // each clump billows unevenly: no ball, no facets
               lp = ol * H * s;
               c *= tint; if(sp > 0.5 && sp < 1.5) c = mix(c, vec3(dot(c, vec3(0.33))) * vec3(0.9, 1.0, 0.9), 0.2);
+              c = mix(c, vec3(0.078, 0.108, 0.05) * (0.8 + 0.35 * h2), 0.72 * rkR);          // the forest wall of the island's sides is dark, deep green (the owner's photographs from the ferry)
               ao = 0.58 + 0.42 * smoothstep(-0.9, 0.9, nrm.y + (ol.y - 0.75) * 1.6);
             }
             vObj = (aPart > 0.5 ? position : q + (aBlob + 1.0) * vec3(0.9, 0.4, 0.7)) * 2.6 + vec3(h1, h2, h3) * 9.0;
