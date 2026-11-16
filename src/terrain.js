@@ -141,6 +141,16 @@ export function buildTerrain(scene) {
       // The shade of the trees. Every tree of the near forest stands where a hash of its grid cell puts it (the same reckoning the trees themselves
       // use, see features.js), so each point of ground can ask: is there a crown, or a trunk, between me and the sun? The shadows swing round and
       // lengthen with the hour, and the light comes through the leaves in moving flecks.
+      // One fallen leaf in each cell of a grid, lying any way round, slim and a little curved.
+      // Returns x: how much of the pixel the leaf covers, y: a number that differs from leaf to leaf, z: where across the leaf (the midrib is at 0).
+      vec3 groundLeaf(vec2 p, float seed, float w){
+        vec2 id = floor(p), f = fract(p) - 0.5; float h = hash12(id + seed), h2 = fract(h * 13.7), a = h * 6.2832;
+        f += (vec2(h2, fract(h * 31.1)) - 0.5) * 0.5;
+        vec2 q = vec2(f.x * cos(a) - f.y * sin(a), f.x * sin(a) + f.y * cos(a));
+        q.x += q.y * q.y * (h2 - 0.5) * 1.6;
+        float d = length(q * vec2(4.2, 1.25));
+        return vec3(1.0 - smoothstep(0.5 - w, 0.5 + w, d), h2, q.x * 4.2);
+      }
       #define TREE_SHADE_FAR ${LOW ? '260.0' : '520.0'}
       float treeShade(vec3 P, vec3 L, float dist){
         if(L.y < 0.04 || dist > TREE_SHADE_FAR) return 0.0;
@@ -332,15 +342,34 @@ export function buildTerrain(scene) {
           }
           // The floor of the bush is sand, the same pale yellow sand as the beaches, with dark detritus lying on it:
           // drifts of dead leaves, bark and twigs under the trees, a scatter of single pieces between, and almost no grass.
-          if(floorK * close > 0.0){
+          // (scrub country: wherever the map is not open sand and the photograph is not bright with it, trees and bushes grow and their leaves lie under them,
+          //  even where the sand shows pale between the crowns from the air)
+          float leafK = max(floorK, (1.0 - smoothstep(0.12, 0.5, mk.g)) * (1.0 - smoothstep(0.40, 0.56, lum)) * step(0.92, mk.r) * (1.0 - smoothstep(0.4, 0.9, ov.g)) * (1.0 - headland) * (1.0 - wetK) * (1.0 - smoothstep(0.05, 0.12, ov.r)));
+          if(leafK * close > 0.0){
             float burnt = smoothstep(0.5, 0.62, texture2D(uNoise, vW.xz / 900.0).b);          // the same burnt country the trees know
             // (two samples at odd scales and angles, each pushed about by a third, so the pattern never lines up in rows)
             vec3 w1 = texture2D(uNoise, vW.xz / 2.3 + nE.rg * 0.9).rgb, w2 = texture2D(uNoise, (vW.xz * mat2(0.8, 0.6, -0.6, 0.8)) / 1.37 + nE.gb * 0.7 + 0.37).rgb;
-            float drift = smoothstep(0.38, 0.7, nE.r * 0.55 + w1.b * 0.35 + nB.r * 0.4 - 0.12);
-            vec3 det = mix(vec3(0.085, 0.06, 0.04), vec3(0.20, 0.13, 0.075), w2.r);            // dark brown leaves and twigs
+            // Under the scrub the ground is all but covered with fallen leaves: a brown carpet of them, old ones dark and matted underneath,
+            // newer ones lying singly on top in every shade from red-brown to pale tan, with only chinks of sand showing through.
+            float nearD = 1.0 - smoothstep(10.0, 45.0, dist);                                    // (further off the carpet is one mottled brown: its fine pattern would only show as rows)
+            vec3 det = mix(vec3(0.15, 0.108, 0.07) * (0.85 + 0.3 * nE.g), mix(vec3(0.10, 0.072, 0.05), vec3(0.205, 0.145, 0.09), w2.r) * (0.8 + 0.4 * w1.g), nearD);
             det = mix(det, vec3(0.03, 0.028, 0.026), smoothstep(0.55, 0.8, w2.b) * burnt);      // charcoal where it has burnt
-            float speck = smoothstep(0.5, 0.62, w1.r * 0.6 + w2.g * 0.5);                       // broken cover: single leaves round the edges of the drifts
-            vec3 lf = mix(sd, det, clamp(drift * (0.5 + 0.5 * speck) + (1.0 - drift) * speck * 0.22, 0.0, 1.0));
+            float thin = smoothstep(0.3, 0.62, nE.r * 0.55 + w1.b * 0.45), cover = mix(0.8, 0.95, thin);          // a little thinner in places, never bare
+            float lfw = fwidth(vW.x * 9.0) + fwidth(vW.z * 9.0), nearLf = 1.0 - smoothstep(0.3, 1.1, lfw), anyLeaf = 0.0;
+            vec3 top = det;
+            if(nearLf > 0.0){
+              for(int k = 0; k < 3; k++){
+                float fk = float(k), ang = 0.6 + fk * 1.1, lsz = k == 0 ? 9.0 : k == 1 ? 12.3 : 7.4;
+                vec2 pr = vec2(vW.x * cos(ang) - vW.z * sin(ang), vW.x * sin(ang) + vW.z * cos(ang)) * lsz + fk * 7.3;
+                vec3 Lf = groundLeaf(pr, 3.0 + fk * 5.0, lfw * lsz / 9.0 * 1.5 + 0.012);
+                vec3 lc = Lf.y < 0.3 ? vec3(0.17, 0.095, 0.05) : Lf.y < 0.55 ? vec3(0.25, 0.165, 0.085) : Lf.y < 0.75 ? vec3(0.115, 0.092, 0.072) : Lf.y < 0.9 ? vec3(0.31, 0.175, 0.07) : vec3(0.39, 0.31, 0.18);
+                lc *= (0.82 + 0.36 * fract(Lf.y * 5.3)) * (1.0 - 0.22 * smoothstep(0.1, 0.0, abs(Lf.z)));            // each leaf its own shade, a darker midrib
+                float on = Lf.x * step(fract(Lf.y * 7.7), cover);
+                top = mix(top, lc, on); anyLeaf = max(anyLeaf, on);
+              }
+            }
+            float chink = smoothstep(0.7, 0.8, w1.r * 0.6 + w2.g * 0.5) * (1.0 - thin * 0.7) * (1.0 - anyLeaf * nearLf) * nearD;   // the few places the sand shows
+            vec3 lf = mix(mix(det, top, nearLf), sd, chink * 0.85);
             float fine = 1.0 - smoothstep(8.0, 50.0, dist);
             // sticks and strips of bark, lying every way. (Each is a stretched sample of the noise; the stretch is kept wide and the rows are bent by a second
             // noise, or the texture's own repeat shows through as a regular hatching, which is what a critic saw here before.)
@@ -350,7 +379,7 @@ export function buildTerrain(scene) {
             lf = mix(lf, vec3(0.15, 0.105, 0.07), smoothstep(0.76, 0.8, s1) * fine * 0.8);
             lf = mix(lf, vec3(0.07, 0.055, 0.045), smoothstep(0.78, 0.82, s2) * fine * 0.8);
             lf = mix(lf, vec3(0.24, 0.16, 0.09), smoothstep(0.76, 0.8, s3) * fine * 0.75);
-            col = mix(col, lf, floorK * close * 0.97);
+            col = mix(col, lf, leafK * close * 0.97);
           }
           { // Whatever is still lawn-green close to the eye is really rough ground cover (sedge, low heath, dead fern): dull it toward straw and litter.
             float lawn = smoothstep(0.015, 0.08, col.g - max(col.r, col.b)) * close * (1.0 - sand), gl = dot(col, vec3(0.3, 0.55, 0.15));
@@ -360,7 +389,7 @@ export function buildTerrain(scene) {
         col = mix(col, vec3(0.05, 0.085, 0.03) * (0.75 + 0.5 * nC.g), wetK * (1.0 - close) * (1.0 - smoothstep(600.0, 3500.0, dist)) * 0.7);
         // farther off the same floor shows between the bushes as sand dulled by its litter
         // (but where the photograph is dark with forest the canopy is closed: from outside you see leaves, not the floor)
-        col = mix(col, mix(sd, vec3(0.12, 0.085, 0.055), 0.28 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));
+        col = mix(col, mix(sd, vec3(0.13, 0.09, 0.055), 0.62 + 0.3 * nC.r), floorK * (1.0 - close) * (1.0 - smoothstep(250.0, 1200.0, dist)) * 0.85 * (1.0 - 0.94 * smoothstep(0.40, 0.20, lum)));
         // seen from a distance, forest is its canopy: dark green, mottled with crowns
         // (wooded sandhills count too: from far off they show closed canopy, not the sand between the trees)
         float woodFar = max(1.0 - sand, smoothstep(0.52, 0.38, lum) * smoothstep(140.0, 600.0, dist) * smoothstep(3.0, 5.0, h));      // (bare sand is bright in the photograph; anything this dark, above the beach, has trees on it)
