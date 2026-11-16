@@ -5,7 +5,7 @@
 //   - where trees and big bushes stand close to a car (read back from a small picture of them drawn from above), so a car driven into one stops
 import * as THREE from 'three';
 import { U, VEX, makeMat, GLSL_COMMON, LOGV, LOGF, LOGF_PARS, rng, clamp } from './common.js';
-import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
+import { T, meshY, groundH, heightAt, maskAt, maskBi } from './terrain.js';
 
 export const carPace = { kmh: 40 };
 // The ground a wheel has just gone over: grass, ferns and whatever else stands there lie down (the shaders ask flatK, in common.js).
@@ -58,15 +58,57 @@ export function logsNear(x, z, r, out) {
 
 // ---------------------------------------------------------------- logs that are driven into
 // A log a car hits is taken out of the drawing of the driftwood (the shader skips the cells listed in logGone) and comes back as loose
-// pieces: a few lengths of the log knocked aside by the bumper, and some splinters. They fly, land, roll a little and lie where they stop.
+// pieces: lengths of the log, broken at random places so they come out all sizes, knocked aside by the bumper, and some splinters. They fly,
+// land, roll a little and lie where they stop. (The fallen trees on the beach break the same way: see below.)
 const GONE = 24;
 export const logGone = Array.from({ length: GONE }, () => new THREE.Vector2(1e9, 1e9));
 const goneKey = new Array(GONE).fill(''), goneSet = new Set(); let goneI = 0;
 // mark the log in cell i, j as broken; gives the slot its pieces use, or -1 if it was broken already
 export function breakLog(i, j) { const k = i + ',' + j; if (goneSet.has(k)) return -1; const s = goneI; goneI = (goneI + 1) % GONE; if (goneKey[s]) goneSet.delete(goneKey[s]); goneKey[s] = k; goneSet.add(k); logGone[s].set(i, j); return s; }
 export const logBroken = (i, j) => goneSet.has(i + ',' + j);
+
+// ---------------------------------------------------------------- the fallen trees on the beach
+// The big silver trees that lie where a dune has fallen away (drawn in life.js) are placed from a table too, so that a car can find the one in
+// its way and break it up. One cell of their grid is 12 m; a cell's entry is where in the cell the tree lies, which way it points, and how long
+// it is (nothing in two cells out of three). The rest is read from the map exactly as the shader reads it: only on the ragged ground between
+// the open beach and the bush, now and then out on the beach itself, never on the great sand blows or beside a building.
+export const SNAG_CS = 12;
+const snagTab = new Uint8Array(LOGN * LOGN * 4);
+{ const R = rng(4141); for (let i = 0; i < LOGN * LOGN; i++) { snagTab[i * 4] = (R() * 256) | 0; snagTab[i * 4 + 1] = (R() * 256) | 0; snagTab[i * 4 + 2] = (R() * 256) | 0; snagTab[i * 4 + 3] = R() < 0.3 ? 1 + ((R() * 255) | 0) : 0; } }
+let snagTex = null;
+export function snagTexture() { if (!snagTex) { snagTex = new THREE.DataTexture(snagTab, LOGN, LOGN, THREE.RGBAFormat); snagTex.wrapS = snagTex.wrapT = THREE.RepeatWrapping; snagTex.magFilter = snagTex.minFilter = THREE.NearestFilter; snagTex.needsUpdate = true; } return snagTex; }
+const SGONE = 12;
+export const snagGone = Array.from({ length: SGONE }, () => new THREE.Vector2(1e9, 1e9));
+const sKey = new Array(SGONE).fill(''), sSet = new Set(); let sI = 0;
+// mark the tree in cell i, j as broken; gives the slot its pieces use (after the logs' slots), or -1 if it was broken already
+export function breakSnag(i, j) { const k = i + ',' + j; if (sSet.has(k)) return -1; const n = sI; sI = (sI + 1) % SGONE; if (sKey[n]) sSet.delete(sKey[n]); sKey[n] = k; sSet.add(k); snagGone[n].set(i, j); return GONE + n; }
+export const SNAG_PRE = /* glsl */`vec4 lg = texture2D(uLogs, (cell + 0.5) / ${LOGN}.0); jt = lg.rg; h4 = lg.b; h2 = lg.a; h1 = texture2D(uLogs, (cell + vec2(77.5, 131.5)) / ${LOGN}.0).r; h3 = step(lg.a, 0.002);
+        for (int q = 0; q < ${SGONE}; q++) { vec2 dg = cell - uGone[q]; if (dot(dg, dg) < 0.25) h3 = 1.0; }          // (a tree a car has broken up is no longer drawn here: its pieces are)`;
+const noSnag = new Set();
+// no tree lies within about a hundred metres of a building (the shader keeps them out of the yards): told the buildings once, at the start
+export function snagKeepOut(list) { for (const b of list || []) { if (!b.p || !b.p[0]) continue; const gx = Math.floor(b.p[0][0] / 96), gz = Math.floor(b.p[0][1] / 96); for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) noSnag.add((gx + i) + ',' + (gz + j)); } }
+function snagLen(i, j, sx, sz, a) {            // how long the tree of cell i, j is, lying at sx, sz (0: none is drawn there)
+  const m = maskBi(sx, sz); if (m.land < 0.9) return 0; const h = heightAt(sx, sz); if (h < 0.7 || noSnag.has(Math.floor(sx / 96) + ',' + Math.floor(sz / 96))) return 0;
+  for (const b of U.uBlow.value) { const dx = sx - b.x, dz = sz - b.y - dx * 0.55; if (Math.hypot(dx / b.w, dz / b.z) < 1.3) return 0; }
+  const h1 = snagTab[(((j + 131) & 255) * LOGN + ((i + 77) & 255)) * 4] / 255;
+  const band = Math.max(sst(0.45, 0.58, m.sand) * (1 - sst(0.76, 0.87, m.sand)), h1 <= 0.07 ? sst(0.8, 0.9, m.sand) * sst(1.2, 1.8, h) * (1 - sst(3, 4.5, h)) : 0);
+  return (4.5 + 5.5 * a / 255) * band;
+}
+// the fallen trees within r of a place, as logsNear gives logs: x, z of the middle of the trunk, half its length along x and z, and its cell
+// (broken ones and little ones under 2.5 m left out). keep: add them to what is in out already.
+export function snagsNear(x, z, r, out, keep) {
+  if (!keep) out.length = 0;
+  const i0 = Math.floor((x - r) / SNAG_CS), i1 = Math.floor((x + r) / SNAG_CS), j0 = Math.floor((z - r) / SNAG_CS), j1 = Math.floor((z + r) / SNAG_CS);
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const q = ((j & 255) * LOGN + (i & 255)) * 4, a = snagTab[q + 3]; if (!a || sSet.has(i + ',' + j)) continue;
+    const sx = (i + snagTab[q] / 255) * SNAG_CS, sz = (j + snagTab[q + 1] / 255) * SNAG_CS, len = snagLen(i, j, sx, sz, a); if (len < 2.5) continue;
+    const ang = snagTab[q + 2] / 255 * 6.2832, c = Math.cos(ang), sn = Math.sin(ang);
+    out.push(sx + c * len * 0.03, sz + sn * len * 0.03, c * len * 0.53, sn * len * 0.53, i, j);          // (the trunk runs from 0.5 of its size behind the middle to 0.56 ahead)
+  }
+  return out;
+}
 export function buildLogBits(scene) {
-  const PER = 9, NP = GONE * PER, S = 6, VP = S * 2 + 2, pos = new Float32Array(NP * VP * 3).fill(-1e5), nrm = new Float32Array(NP * VP * 3), col = new Float32Array(NP * VP * 3), idx = [];
+  const PER = 14, NP = (GONE + SGONE) * PER, S = 6, VP = S * 2 + 2, pos = new Float32Array(NP * VP * 3).fill(-1e5), nrm = new Float32Array(NP * VP * 3), col = new Float32Array(NP * VP * 3), idx = [];
   for (let p = 0; p < NP; p++) { const b = p * VP; for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(b + i, b + S + i, b + j, b + j, b + S + i, b + S + j, b + S * 2, b + j, b + i, b + S * 2 + 1, b + S + i, b + S + j); } }
   const g = new THREE.BufferGeometry(), pa = new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage), na = new THREE.BufferAttribute(nrm, 3).setUsage(THREE.DynamicDrawUsage), ca = new THREE.BufferAttribute(col, 3);
   g.setAttribute('position', pa); g.setAttribute('normal', na); g.setAttribute('aCol', ca); g.setIndex(idx); g.boundingSphere = FARS;
@@ -85,17 +127,29 @@ export function buildLogBits(scene) {
       const q = o + (S * 2 + e) * 3; pos[q] = cx; pos[q + 1] = cy; pos[q + 2] = cz; nrm[q] = ax * (e ? 1 : -1); nrm[q + 1] = ay * (e ? 1 : -1) + 0.3; nrm[q + 2] = az * (e ? 1 : -1); }
   };
   return {
-    // the log at lx, lz (half its length along hx, hz) is hit by a car at cx, cz going vx, vz: slot is what breakLog gave
-    burst(slot, lx, lz, hx, hz, cx, cz, vx, vz) {
-      const L = Math.hypot(hx, hz) * 2 || 1, ax = hx * 2 / L, az = hz * 2 / L, sp = Math.hypot(vx, vz) || 1, fx = vx / sp, fz = vz / sp, n = Math.max(3, Math.min(5, Math.round(L / 1.1))), tone = 0.8 + Math.random() * 0.4, rad = 0.13 + Math.random() * 0.08;
+    // the log at lx, lz (half its length along hx, hz) is hit by a car at cx, cz going vx, vz: slot is what breakLog (or breakSnag) gave.
+    // opt, for a fallen tree: r0, r1 how thick it is at its two ends, tone its colour, limbs: some of the loose bits are its branches
+    burst(slot, lx, lz, hx, hz, cx, cz, vx, vz, opt = {}) {
+      const L = Math.hypot(hx, hz) * 2 || 1, ax = hx * 2 / L, az = hz * 2 / L, sp = Math.hypot(vx, vz) || 1, fx = vx / sp, fz = vz / sp, tone = 0.8 + Math.random() * 0.4, rad = 0.13 + Math.random() * 0.08;
+      const r0 = opt.r0 || rad * 1.15, r1 = opt.r1 || rad * 0.62, base = opt.tone || [0.46, 0.41, 0.35];
+      // Where it breaks: at places picked at random along its length, so the pieces come out all sizes (a long length here, two short ones
+      // beside it). Two breaks closer together than a hand's length count as one.
+      const cuts = []; for (let k = 2 + ((Math.random() * Math.min(6, 2 + L / 1.2)) | 0); k > 0; k--) cuts.push(0.04 + Math.random() * 0.92); cuts.sort((p, q) => p - q);
+      const ends = [0]; for (const c of cuts) if ((c - ends[ends.length - 1]) * L > 0.22 && (1 - c) * L > 0.22 && ends.length < PER - 4) ends.push(c); ends.push(1);
+      const n = ends.length - 1, nl = opt.limbs ? Math.min(4, PER - n - 2) : 0;
       for (let k = 0; k < PER; k++) {
-        const p = slot * PER + k, b = bits[p], chunk = k < n, t = chunk ? (k + 0.5) / n - 0.5 : Math.random() - 0.5;
-        b.on = true; b.len = chunk ? L / n * (0.72 + Math.random() * 0.2) : 0.25 + Math.random() * 0.45; b.r = chunk ? rad * (0.85 + Math.random() * 0.3) : 0.015 + Math.random() * 0.02;
-        b.x = lx + ax * t * L; b.z = lz + az * t * L; b.y = meshY(b.x, b.z) + b.r + (chunk ? 0 : 0.2); b.yaw = Math.atan2(az, ax) + (Math.random() - 0.5) * (chunk ? 0.3 : 2); b.tip = 0;
-        const side = ((b.x - cx) * -fz + (b.z - cz) * fx) >= 0 ? 1 : -1, out = (chunk ? 1.2 + Math.random() * 2.2 : 2 + Math.random() * 4) * Math.min(1.6, 0.5 + sp / 8);            // knocked to whichever side of the car it lay on
-        b.vx = fx * sp * (chunk ? 0.4 : 0.7) * (0.6 + Math.random() * 0.6) - fz * side * out; b.vz = fz * sp * (chunk ? 0.4 : 0.7) * (0.6 + Math.random() * 0.6) + fx * side * out; b.vy = (chunk ? 1.5 + Math.random() * 2 : 2.5 + Math.random() * 3.5) * Math.min(1.5, 0.4 + sp / 9) * VEX;
-        b.wy = (Math.random() - 0.5) * (chunk ? 5 : 14); b.wt = (Math.random() - 0.5) * (chunk ? 4 : 12);
-        const c = chunk ? [0.46 * tone, 0.41 * tone, 0.35 * tone] : [0.7, 0.6, 0.44], end = [0.74, 0.62, 0.42], o = p * VP * 3;            // weathered outside, pale new wood where it broke
+        const p = slot * PER + k, b = bits[p], chunk = k < n, limb = !chunk && k < n + nl;
+        if (k >= n + nl + 5) { b.on = false; pos.fill(-1e5, p * VP * 3, (p + 1) * VP * 3); continue; }          // (five splinters at most: the rest of the slot is not used this time)
+        const t = chunk ? (ends[k] + ends[k + 1]) / 2 - 0.5 : limb ? Math.random() * 0.55 - 0.08 : Math.random() - 0.5;          // (a fallen tree's branches are at its top end)
+        b.on = true;
+        b.len = chunk ? (ends[k + 1] - ends[k]) * L * (0.86 + Math.random() * 0.1) : limb ? 0.5 + Math.random() * 0.16 * L : 0.25 + Math.random() * 0.45;
+        b.r = chunk ? (r0 + (r1 - r0) * (t + 0.5)) * (0.9 + Math.random() * 0.2) : limb ? r1 * (0.7 + Math.random() * 0.9) : 0.015 + Math.random() * 0.02;
+        b.x = lx + ax * t * L; b.z = lz + az * t * L; b.y = meshY(b.x, b.z) + b.r + (chunk ? 0 : 0.2); b.yaw = Math.atan2(az, ax) + (Math.random() - 0.5) * (chunk ? 0.3 : limb ? 1.4 : 2); b.tip = 0;
+        const light = 1 - 0.6 * clamp((b.r - 0.12) / 0.3, 0, 1);            // (a thick length of trunk is heavy: it is shoved aside, not thrown)
+        const side = ((b.x - cx) * -fz + (b.z - cz) * fx) >= 0 ? 1 : -1, out = (chunk ? 1.2 + Math.random() * 2.2 : 2 + Math.random() * 4) * Math.min(1.6, 0.5 + sp / 8) * light;            // knocked to whichever side of the car it lay on
+        b.vx = fx * sp * (chunk ? 0.4 : 0.7) * (0.6 + Math.random() * 0.6) * light - fz * side * out; b.vz = fz * sp * (chunk ? 0.4 : 0.7) * (0.6 + Math.random() * 0.6) * light + fx * side * out; b.vy = (chunk ? 1.5 + Math.random() * 2 : 2.5 + Math.random() * 3.5) * Math.min(1.5, 0.4 + sp / 9) * VEX * light;
+        b.wy = (Math.random() - 0.5) * (chunk ? 5 : 14) * light; b.wt = (Math.random() - 0.5) * (chunk ? 4 : 12) * light;
+        const c = chunk || limb ? [base[0] * tone, base[1] * tone, base[2] * tone] : [0.7, 0.6, 0.44], end = [0.74, 0.62, 0.42], o = p * VP * 3;            // weathered outside, pale new wood where it broke
         for (let i = 0; i < VP; i++) { const q = o + i * 3, e = i >= S * 2 ? end : c, d = 0.85 + 0.3 * ((i * 7) % 5) / 5; col[q] = e[0] * d; col[q + 1] = e[1] * d; col[q + 2] = e[2] * d; }
         lay(b, p);
       }

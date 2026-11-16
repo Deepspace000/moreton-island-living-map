@@ -8,7 +8,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, FEATHER_GLSL, L
 const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
 import { T, meshY, groundH, heightAt, maskAt, narrowK } from './terrain.js';
 import { trackGraph } from './folk.js';
-import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, logGone, breakLog, buildLogBits, buildPuddles, buildRuts, pressGround, probe } from './drive.js';
+import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, logGone, breakLog, buildLogBits, snagTexture, SNAG_PRE, snagsNear, snagGone, breakSnag, snagKeepOut, buildPuddles, buildRuts, pressGround, probe } from './drive.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
@@ -28,18 +28,18 @@ const attr = (g, name, arr, n, inst) => g.setAttribute(name, inst ? new THREE.In
 
 // ---------------------------------------------------------------- things lying on the beach
 // One instance per grid cell around the viewer; the shader decides from the map what, if anything, lies there.
-function scatter(scene, n, cs, build, body, range, paint, pre) {
+function scatter(scene, n, cs, build, body, range, paint, pre, tab) {          // (pre, tab: the thing is placed from a table the cars read too; see the logs in drive.js)
   const cells = new Float32Array(n * n * 2); let k = 0;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
   const g = new THREE.InstancedBufferGeometry(); build(g);
   g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = FAR;
   const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
-  if (pre) { uni.uLogs = { value: logTexture() }; uni.uGone = { value: logGone }; }
+  if (pre) { uni.uLogs = { value: tab ? tab.tex : logTexture() }; uni.uGone = { value: tab ? tab.gone : logGone }; }
   const mat = makeMat({
     uniforms: uni, side: THREE.DoubleSide,
     vs: /* glsl */`
       attribute vec2 iCell; attribute float aK; uniform vec2 uCentre; uniform float uCS, uRange, uRain; varying vec3 vCol, vW;
-      ${pre ? 'uniform sampler2D uLogs; uniform vec2 uGone[24];' : ''}
+      ${pre ? 'uniform sampler2D uLogs; uniform vec2 uGone[' + (tab ? tab.gone.length : 24) + '];' : ''}
       ${paint ? 'varying vec3 vObj, vNo, vLight; varying float vK; varying vec4 vH;' : ''}
       void main(){
         vec2 cell = uCentre + iCell;
@@ -335,7 +335,7 @@ function profile(p, cum) {
 const logBuf = [];
 function dodge(c, cx, cz, tx, tz) {
   const ahead = clamp(c.v * 4.5, 28, 100), nx = tz, nz = -tx, taken = [];
-  logsNear(cx + tx * ahead / 2, cz + tz * ahead / 2, ahead / 2 + 8, logBuf);
+  logsNear(cx + tx * ahead / 2, cz + tz * ahead / 2, ahead / 2 + 8, logBuf); snagsNear(cx + tx * ahead / 2, cz + tz * ahead / 2, ahead / 2 + 12, logBuf, true);          // (and the big fallen trees)
   for (let q = 0; q < logBuf.length; q += 6) {
     const ox = logBuf[q] - cx, oz = logBuf[q + 1] - cz, hx = logBuf[q + 2], hz = logBuf[q + 3];
     const f0 = (ox - hx) * tx + (oz - hz) * tz, f1 = (ox + hx) * tx + (oz + hz) * tz; if (Math.max(f0, f1) < -5 || Math.min(f0, f1) > ahead) continue;
@@ -396,7 +396,7 @@ function buildCars(scene, F, lights) {
   });
   rideable.push(...cars);
   for (const c of cars) { c.k0 = c.sp / 11; c.v = c.sp; }          // each driver's own pace, as a share of the speed set in the Travel menu
-  const pools = buildPuddles(scene, F), bits = buildLogBits(scene), ruts = buildRuts(scene, F), hitBuf = [];
+  const pools = buildPuddles(scene, F), bits = buildLogBits(scene), ruts = buildRuts(scene, F), hitBuf = []; snagKeepOut(F.buildings);
   // taking the wheel and giving it back: a car left close to its beach run picks the run up again; one left elsewhere stays parked there
   for (const c of cars) c.setDrive = (on) => {
     if (on) { c.drive = { turn: 0, throttle: clamp(c.sp / 15, 0.2, 1), v: c.sp }; c.parked = false; return; }
@@ -551,7 +551,12 @@ function buildCars(scene, F, lights) {
         const bx = x + tx * 3.0, bz = z + tz * 3.0; logsNear(bx, bz, 4.6, hitBuf);
         for (let q = 0; q < hitBuf.length; q += 6) { const ax = hitBuf[q] - hitBuf[q + 2], az = hitBuf[q + 1] - hitBuf[q + 3], dx = hitBuf[q + 2] * 2, dz = hitBuf[q + 3] * 2, t = clamp(((bx - ax) * dx + (bz - az) * dz) / (dx * dx + dz * dz || 1), 0, 1);
           if (Math.hypot(ax + dx * t - bx, az + dz * t - bz) > 1.5) continue; const slot = breakLog(hitBuf[q + 4], hitBuf[q + 5]); if (slot < 0) continue;
-          bits.burst(slot, hitBuf[q], hitBuf[q + 1], hitBuf[q + 2], hitBuf[q + 3], x, z, tx * c.sp, tz * c.sp); sus[4] -= 0.5; sus[3] += 0.6; if (c.drive) c.drive.v *= 0.72; else c.v *= 0.8; } }
+          bits.burst(slot, hitBuf[q], hitBuf[q + 1], hitBuf[q + 2], hitBuf[q + 3], x, z, tx * c.sp, tz * c.sp); sus[4] -= 0.5; sus[3] += 0.6; if (c.drive) c.drive.v *= 0.72; else c.v *= 0.8; }
+        // one of the big silver fallen trees: it breaks up the same way, into lengths of trunk of all sizes and its branches, and costs the car more of its speed
+        if (Math.hypot(x - target.x, z - target.z) < (LOW ? 115 : 170)) { snagsNear(bx, bz, 7.5, hitBuf);
+          for (let q = 0; q < hitBuf.length; q += 6) { const ax = hitBuf[q] - hitBuf[q + 2], az = hitBuf[q + 1] - hitBuf[q + 3], dx = hitBuf[q + 2] * 2, dz = hitBuf[q + 3] * 2, t = clamp(((bx - ax) * dx + (bz - az) * dz) / (dx * dx + dz * dz || 1), 0, 1);
+            if (Math.hypot(ax + dx * t - bx, az + dz * t - bz) > 1.8) continue; const slot = breakSnag(hitBuf[q + 4], hitBuf[q + 5]); if (slot < 0) continue; const len = Math.hypot(dx, dz) / 1.06;
+            bits.burst(slot, hitBuf[q], hitBuf[q + 1], hitBuf[q + 2], hitBuf[q + 3], x, z, tx * c.sp, tz * c.sp, { r0: 0.046 * len, r1: 0.013 * len, tone: [0.62, 0.6, 0.56], limbs: true }); sus[4] -= 0.8; sus[3] += 0.9; if (c.drive) c.drive.v *= 0.55; else c.v *= 0.7; } } }
       const wet = pools.at(x, z), lean = Math.atan2(meshY(x - zx * ww, z - zz * ww) - meshY(x + zx * ww, z + zz * ww), 2 * ww);
       c.rl = (c.rl ?? lean) + (lean - (c.rl ?? lean)) * (1 - Math.exp(-dt * 5));
       const tg = [(bF + bB + bL + bR) / 4 * A - wet * 0.5, (bF - bB) * A / (2 * wl), (bR - bL) * A / (2 * ww)];
@@ -1013,7 +1018,7 @@ function buildSnags(scene) {
     parts.push({ kk: 1, st: [b, [b[0] + l * 0.2, b[1] + 0.05 + R() * 0.07, b[2] - out * 0.25, r0 * 0.4], [b[0] + l * 0.42, b[1] + 0.1 + R() * 0.1, b[2] - out * 0.5, 0.003]] });
   }
   const tb = tubes(parts, 5), build = (g) => { tb(g); g.computeVertexNormals(); };
-  return scatter(scene, LOW ? 28 : 44, 12, build, /* glsl */`
+  const snags = scatter(scene, LOW ? 28 : 44, 12, build, /* glsl */`
         // the map's sand value falls away gently from open beach (near 1) to bush (near 0): the ragged ground between is where the mid values are
         float edgeBand = max(smoothstep(0.45, 0.58, mk.g) * (1.0 - smoothstep(0.76, 0.87, mk.g)), smoothstep(0.8, 0.9, mk.g) * smoothstep(1.2, 1.8, hgt) * (1.0 - smoothstep(3.0, 4.5, hgt)) * step(h1, 0.07));     // ...and now and then one lies out on the open beach
         float here = step(0.9, mk.r) * step(0.7, hgt) * edgeBand * step(h3, 0.3) * (1.0 - smoothstep(0.02, 0.1, ov.r));        // (the whole beach counts as a track on the map, so only buildings keep them away)
@@ -1023,7 +1028,9 @@ function buildSnags(scene) {
         nrm = normal * vec3(1.0, 1.0, flip);
         float grain = texture2D(uNoise, vec2(position.x * 2.6 + h1, position.y * 11.0 + position.z * 9.0 + h2)).r, check = texture2D(uNoise, position.xz * 21.0 + h2).g;
         c = mix(vec3(0.64, 0.62, 0.58), vec3(0.34, 0.31, 0.28), smoothstep(0.42, 0.78, grain)) * (0.86 + 0.28 * check);     // silver wood, darker in the cracks
-        c *= aK > 1.5 ? 0.72 : 1.0; c *= 0.72 + 0.28 * smoothstep(-0.3, 0.5, normal.y);`, 520);
+        c *= aK > 1.5 ? 0.72 : 1.0; c *= 0.72 + 0.28 * smoothstep(-0.3, 0.5, normal.y);`, 520, undefined, SNAG_PRE, { tex: snagTexture(), gone: snagGone });          // (placed from a table, so a 4WD can find the one in its way and break it up)
+  probe.add(snags.m, { wp: 'vW', lo: 0.3, log: 1, cs: 12 });          // whoever walks goes round them, as round the other logs
+  return snags;
 }
 // wallabies in the scrub: mostly still, now and then a few hops along and back
 function buildWallabies(scene) {
