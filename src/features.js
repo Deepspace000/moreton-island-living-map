@@ -683,7 +683,8 @@ function buildTrees(F, scene) {
             rbK *= 1.0 + 0.45 * rkR; spread *= 1.0 + 0.25 * rkR; vPor -= 0.15 * rkR;          // in the forest wall of the island's sides the crowns are broad and full, and close up one into the next
             wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); arch *= 0.6; lean *= mix(0.42, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.25 * yard;
             { float gir = hash12(cell * 5.3 + 8.0); tr *= 0.62 + 0.9 * gir * gir; vSp = sp; if(NLIMB > 3.5) rbK *= 0.84; }            // saplings, grown trees and the odd old giant; with more clumps on a tree each is smaller            // no tree grows straight, but real trunks and limbs bend in long, easy curves
-            fork *= 0.85 + 0.3 * h3; H *= big * 1.25 * (1.0 + 0.4 * rkR * step(sp, 0.5));          // (the gums of the coastal wall are tall)                                  // trees share the relief's exaggeration
+            fork *= 0.85 + 0.3 * h3; if(yard > 0.5 && sp < 0.5) fork = max(fork, 0.42);          // a garden gum has a clear trunk to above the roof before it forks
+            H *= big * 1.25 * (1.0 + 0.4 * rkR * step(sp, 0.5));          // (the gums of the coastal wall are tall)                                  // trees share the relief's exaggeration
             if(swept > 0.5){ lean = 0.6; if(sp > 1.5){ vPor = 0.46; rbK = 0.26; H *= 1.2; } }          // dense dark crowns, trunks laid over to the north-west
             vec2 ld = (swept > 0.5 ? normalize(vec2(-0.8, -0.6) + (vec2(h2, h1) - 0.5) * 0.7) : vec2(cos(h2 * 6.2832), sin(h2 * 6.2832))) * lean * (0.4 + 0.6 * h3);
             float wph = h1 * 6.2832;
