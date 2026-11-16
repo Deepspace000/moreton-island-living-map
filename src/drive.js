@@ -8,6 +8,13 @@ import { U, VEX, makeMat, GLSL_COMMON, LOGV, LOGF, LOGF_PARS, rng, clamp } from 
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 
 export const carPace = { kmh: 40 };
+// The ground a wheel has just gone over: grass, ferns and whatever else stands there lie down (the shaders ask flatK, in common.js).
+// The last 24 places are kept, so about 60 m of track behind a car stays pressed.
+let flatI = 0;
+export function pressGround(x, z, r) {
+  const F = U.uFlat.value, C = U.uFlatC.value; F[flatI].set(x, z, 0, r); flatI = (flatI + 1) % F.length;
+  let sx = 0, sz = 0, n = 0; for (const p of F) if (p.w > 0) { sx += p.x; sz += p.y; n++; } sx /= n; sz /= n; let far = 0; for (const p of F) if (p.w > 0) far = Math.max(far, Math.hypot(p.x - sx, p.y - sz) + p.w); C.set(sx, sz, far, n);
+}
 export const OPT = { invX: 1, invY: 1 };          // -1 turns an axis of control round (Settings): left and right, up and down          // what a 4WD does on a clear straight (the Travel menu sets it)
 const sst = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const FARS = new THREE.Sphere(new THREE.Vector3(), 1e6);
@@ -33,19 +40,79 @@ let logTex = null;
 export function logTexture() { if (!logTex) { logTex = new THREE.DataTexture(logTab, LOGN, LOGN, THREE.RGBAFormat); logTex.wrapS = logTex.wrapT = THREE.RepeatWrapping; logTex.magFilter = logTex.minFilter = THREE.NearestFilter; logTex.needsUpdate = true; } return logTex; }
 // the shader lines that take a log's place, lie and length from the table (see the driftwood in life.js)
 export const LOG_PRE = /* glsl */`vec4 lg = texture2D(uLogs, (cell + 0.5) / ${LOGN}.0); float logK = step(0.002, lg.a);
+        for (int q = 0; q < 24; q++) { vec2 dg = cell - uGone[q]; if (dot(dg, dg) < 0.25) logK = 0.0; }          // (a log a car has broken up is no longer drawn here: its pieces are)
         if (logK > 0.5) { jt = lg.rg; h4 = lg.b; h1 = lg.a; }`;
-// the logs within r of a place, as x, z of the middle and the half-length along x and z, four numbers a log
+// the logs within r of a place: x, z of the middle, the half-length along x and z, and the cell it is in, six numbers a log (broken ones left out)
 export function logsNear(x, z, r, out) {
   out.length = 0;
   const i0 = Math.floor((x - r) / LOG_CS), i1 = Math.floor((x + r) / LOG_CS), j0 = Math.floor((z - r) / LOG_CS), j1 = Math.floor((z + r) / LOG_CS);
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-    const q = ((j & 255) * LOGN + (i & 255)) * 4, a = logTab[q + 3]; if (!a) continue;
+    const q = ((j & 255) * LOGN + (i & 255)) * 4, a = logTab[q + 3]; if (!a || logBroken(i, j)) continue;
     const lx = (i + logTab[q] / 255) * LOG_CS, lz = (j + logTab[q + 1] / 255) * LOG_CS, m = maskAt(lx, lz); if (m.land < 0.9) continue;
     const h = heightAt(lx, lz), s = sst(0.3, 0.65, m.sand) * sst(0.7, 1.1, h) * (1 - sst(2.5, 3.6, h)); if (s < 0.25) continue;
     const ang = logTab[q + 2] / 255 * 6.2832, half = (2.4 + 3.4 * a / 255) * s / 2;
-    out.push(lx, lz, Math.cos(ang) * half, Math.sin(ang) * half);
+    out.push(lx, lz, Math.cos(ang) * half, Math.sin(ang) * half, i, j);
   }
   return out;
+}
+
+// ---------------------------------------------------------------- logs that are driven into
+// A log a car hits is taken out of the drawing of the driftwood (the shader skips the cells listed in logGone) and comes back as loose
+// pieces: a few lengths of the log knocked aside by the bumper, and some splinters. They fly, land, roll a little and lie where they stop.
+const GONE = 24;
+export const logGone = Array.from({ length: GONE }, () => new THREE.Vector2(1e9, 1e9));
+const goneKey = new Array(GONE).fill(''), goneSet = new Set(); let goneI = 0;
+// mark the log in cell i, j as broken; gives the slot its pieces use, or -1 if it was broken already
+export function breakLog(i, j) { const k = i + ',' + j; if (goneSet.has(k)) return -1; const s = goneI; goneI = (goneI + 1) % GONE; if (goneKey[s]) goneSet.delete(goneKey[s]); goneKey[s] = k; goneSet.add(k); logGone[s].set(i, j); return s; }
+export const logBroken = (i, j) => goneSet.has(i + ',' + j);
+export function buildLogBits(scene) {
+  const PER = 9, NP = GONE * PER, S = 6, VP = S * 2 + 2, pos = new Float32Array(NP * VP * 3).fill(-1e5), nrm = new Float32Array(NP * VP * 3), col = new Float32Array(NP * VP * 3), idx = [];
+  for (let p = 0; p < NP; p++) { const b = p * VP; for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(b + i, b + S + i, b + j, b + j, b + S + i, b + S + j, b + S * 2, b + j, b + i, b + S * 2 + 1, b + S + i, b + S + j); } }
+  const g = new THREE.BufferGeometry(), pa = new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage), na = new THREE.BufferAttribute(nrm, 3).setUsage(THREE.DynamicDrawUsage), ca = new THREE.BufferAttribute(col, 3);
+  g.setAttribute('position', pa); g.setAttribute('normal', na); g.setAttribute('aCol', ca); g.setIndex(idx); g.boundingSphere = FARS;
+  const mesh = new THREE.Mesh(g, makeMat({ side: THREE.DoubleSide,
+    vs: /* glsl */`attribute vec3 aCol; varying vec3 vCol, vW; void main(){ vec3 nn = normalize(normal), wp = position;
+        vCol = aCol * (uLightCol * (max(dot(nn, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nn.y * 0.5 + 0.5)); vW = wp;
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0); ${LOGV} }`,
+    fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }` }));
+  mesh.name = 'logbits'; mesh.frustumCulled = false; scene.add(mesh);
+  const bits = Array.from({ length: NP }, () => ({ on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, tip: 0, wy: 0, wt: 0, len: 1, r: 0.1 }));
+  let live = 0;
+  const lay = (b, p) => {            // write one piece's corners where it is now
+    const ct = Math.cos(b.tip), ax = Math.cos(b.yaw) * ct, ay = Math.sin(b.tip), az = Math.sin(b.yaw) * ct, ux = -Math.sin(b.yaw), uz = Math.cos(b.yaw), wx = ay * uz, wy = az * ux - ax * uz, wz = -ay * ux, o = p * VP * 3;
+    for (let e = 0; e < 2; e++) { const h = (e ? 0.5 : -0.5) * b.len, cx = b.x + ax * h, cy = b.y + ay * h, cz = b.z + az * h;
+      for (let i = 0; i < S; i++) { const a = i / S * 6.2832, c = Math.cos(a), s = Math.sin(a), q = o + (e * S + i) * 3, rx = ux * c + wx * s, ry = wy * s, rz = uz * c + wz * s; pos[q] = cx + rx * b.r; pos[q + 1] = cy + ry * b.r; pos[q + 2] = cz + rz * b.r; nrm[q] = rx; nrm[q + 1] = ry; nrm[q + 2] = rz; }
+      const q = o + (S * 2 + e) * 3; pos[q] = cx; pos[q + 1] = cy; pos[q + 2] = cz; nrm[q] = ax * (e ? 1 : -1); nrm[q + 1] = ay * (e ? 1 : -1) + 0.3; nrm[q + 2] = az * (e ? 1 : -1); }
+  };
+  return {
+    // the log at lx, lz (half its length along hx, hz) is hit by a car at cx, cz going vx, vz: slot is what breakLog gave
+    burst(slot, lx, lz, hx, hz, cx, cz, vx, vz) {
+      const L = Math.hypot(hx, hz) * 2 || 1, ax = hx * 2 / L, az = hz * 2 / L, sp = Math.hypot(vx, vz) || 1, fx = vx / sp, fz = vz / sp, n = Math.max(3, Math.min(5, Math.round(L / 1.1))), tone = 0.8 + Math.random() * 0.4, rad = 0.13 + Math.random() * 0.08;
+      for (let k = 0; k < PER; k++) {
+        const p = slot * PER + k, b = bits[p], chunk = k < n, t = chunk ? (k + 0.5) / n - 0.5 : Math.random() - 0.5;
+        b.on = true; b.len = chunk ? L / n * (0.72 + Math.random() * 0.2) : 0.25 + Math.random() * 0.45; b.r = chunk ? rad * (0.85 + Math.random() * 0.3) : 0.015 + Math.random() * 0.02;
+        b.x = lx + ax * t * L; b.z = lz + az * t * L; b.y = meshY(b.x, b.z) + b.r + (chunk ? 0 : 0.2); b.yaw = Math.atan2(az, ax) + (Math.random() - 0.5) * (chunk ? 0.3 : 2); b.tip = 0;
+        const side = ((b.x - cx) * -fz + (b.z - cz) * fx) >= 0 ? 1 : -1, out = (chunk ? 1.2 + Math.random() * 2.2 : 2 + Math.random() * 4) * Math.min(1.6, 0.5 + sp / 8);            // knocked to whichever side of the car it lay on
+        b.vx = fx * sp * (chunk ? 0.4 : 0.7) * (0.6 + Math.random() * 0.6) - fz * side * out; b.vz = fz * sp * (chunk ? 0.4 : 0.7) * (0.6 + Math.random() * 0.6) + fx * side * out; b.vy = (chunk ? 1.5 + Math.random() * 2 : 2.5 + Math.random() * 3.5) * Math.min(1.5, 0.4 + sp / 9) * VEX;
+        b.wy = (Math.random() - 0.5) * (chunk ? 5 : 14); b.wt = (Math.random() - 0.5) * (chunk ? 4 : 12);
+        const c = chunk ? [0.46 * tone, 0.41 * tone, 0.35 * tone] : [0.7, 0.6, 0.44], end = [0.74, 0.62, 0.42], o = p * VP * 3;            // weathered outside, pale new wood where it broke
+        for (let i = 0; i < VP; i++) { const q = o + i * 3, e = i >= S * 2 ? end : c, d = 0.85 + 0.3 * ((i * 7) % 5) / 5; col[q] = e[0] * d; col[q + 1] = e[1] * d; col[q + 2] = e[2] * d; }
+        lay(b, p);
+      }
+      ca.needsUpdate = true; pa.needsUpdate = true; na.needsUpdate = true; live = 4;
+    },
+    update(dt) {
+      if (live <= 0) return; live -= dt; const h = Math.min(dt, 0.05);
+      for (let p = 0; p < NP; p++) { const b = bits[p]; if (!b.on) continue;
+        b.vy -= 9.8 * VEX * h; b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h; b.yaw += b.wy * h; b.tip += b.wt * h;
+        const gy = meshY(b.x, b.z) + b.r;
+        if (b.y <= gy) { b.y = gy; b.vy = b.vy < -2.5 ? -b.vy * 0.28 : 0; const f = Math.exp(-h * 5); b.vx *= f; b.vz *= f; b.wy *= f; b.wt = 0; b.tip *= Math.exp(-h * 9);            // down: it skids, turns a little and lies flat
+          if (Math.abs(b.vx) + Math.abs(b.vz) + Math.abs(b.vy) < 0.08 && Math.abs(b.tip) < 0.02) { b.on = false; b.tip = 0; } else live = Math.max(live, 0.5); }
+        else live = Math.max(live, 0.5);
+        lay(b, p); }
+      pa.needsUpdate = true; na.needsUpdate = true;
+    },
+  };
 }
 
 // ---------------------------------------------------------------- pools on the tracks, and potholes
@@ -109,14 +176,14 @@ export function buildPuddles(scene, F) {
   }));
   mesh.name = 'puddles'; mesh.userData.pools = pools; mesh.frustumCulled = false; mesh.renderOrder = 5; scene.add(mesh);          // (over the track's own ribbon, which is 4)
   // spray: drops thrown up and out from the wheels
-  const NP = 220, pp = new Float32Array(NP * 3).fill(-1e5), pa = new Float32Array(NP), pv = new Float32Array(NP * 3), pl = new Float32Array(NP); let pi = 0, live = 0;
+  const NP = 340, pk = new Float32Array(NP), pp = new Float32Array(NP * 3).fill(-1e5), pa = new Float32Array(NP), pv = new Float32Array(NP * 3), pl = new Float32Array(NP); let pi = 0, live = 0;
   const pg = new THREE.BufferGeometry(), ppa = new THREE.BufferAttribute(pp, 3).setUsage(THREE.DynamicDrawUsage), paa = new THREE.BufferAttribute(pa, 1).setUsage(THREE.DynamicDrawUsage);
-  pg.setAttribute('position', ppa); pg.setAttribute('aA', paa); pg.boundingSphere = FARS;
+  const pka = new THREE.BufferAttribute(pk, 1).setUsage(THREE.DynamicDrawUsage); pg.setAttribute('position', ppa); pg.setAttribute('aA', paa); pg.setAttribute('aK', pka); pg.boundingSphere = FARS;          // aK: 0 water, 1 dry sand
   const spray = new THREE.Points(pg, makeMat({
     transparent: true, depthWrite: false,
-    vs: /* glsl */`attribute float aA; varying float vA; varying vec3 vW; void main(){ vA = aA; vW = position; vec4 mv = viewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(150.0 * (0.6 + 0.8 * aA) / max(-mv.z, 0.5), 1.5, 40.0); ${LOGV} }`,
-    fs: /* glsl */`varying float vA; varying vec3 vW; void main(){ ${LOGF} float d = length(gl_PointCoord - 0.5) * 2.0; if (d > 1.0) discard;
-        vec3 c = vec3(0.62, 0.55, 0.44) * (uLightCol * (0.25 + 0.6 * max(uLightDir.y, 0.0)) + uAmbSky * 0.9); gl_FragColor = vec4(applyFog(c, vW), (1.0 - d * d) * vA * 0.75); }`,
+    vs: /* glsl */`attribute float aA, aK; varying float vA, vK; varying vec3 vW; void main(){ vA = aA; vK = aK; vW = position; vec4 mv = viewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(150.0 * (0.6 + 0.8 * aA) * (1.0 + 0.9 * aK * (1.0 - aA)) / max(-mv.z, 0.5), 1.5, 46.0); ${LOGV} }`,
+    fs: /* glsl */`varying float vA, vK; varying vec3 vW; void main(){ ${LOGF} float d = length(gl_PointCoord - 0.5) * 2.0; if (d > 1.0) discard;
+        vec3 c = mix(vec3(0.62, 0.55, 0.44), vec3(0.86, 0.78, 0.58), vK) * (uLightCol * (0.25 + 0.6 * max(uLightDir.y, 0.0)) + uAmbSky * 0.9); gl_FragColor = vec4(applyFog(c, vW), (1.0 - d * d) * vA * mix(0.75, 0.5, vK)); }`,
   }));
   spray.name = 'spray'; spray.frustumCulled = false; spray.renderOrder = 6; scene.add(spray);
   const near = (x, z) => grid.get(Math.floor(x / G) + ',' + Math.floor(z / G));
@@ -129,8 +196,15 @@ export function buildPuddles(scene, F) {
       rip[ripI].set(x, z, U.uTime.value, clamp(v / 6, 0.3, 1.4)); ripI = (ripI + 1) % 8;
       const n = Math.min(14, Math.round(2 + v * 1.2));
       for (let k = 0; k < n; k++) { const q = pi * 3, sd = k % 2 ? 1 : -1, out = (1.2 + Math.random() * 2.6) * Math.min(1.6, v / 5), up = (1.6 + Math.random() * 2.8) * Math.min(1.5, v / 5) * (0.6 + depth * 3);
-        pp[q] = x - tz * sd * 1.2; pp[q + 1] = y + 0.15; pp[q + 2] = z + tx * sd * 1.2; pv[q] = -tz * sd * out + tx * v * 0.35 + (Math.random() - 0.5); pv[q + 1] = up; pv[q + 2] = tx * sd * out + tz * v * 0.35 + (Math.random() - 0.5); pl[pi] = 0.75 + Math.random() * 0.5; pi = (pi + 1) % NP; }
-      live = 1.4;
+        pp[q] = x - tz * sd * 1.2; pp[q + 1] = y + 0.15; pp[q + 2] = z + tx * sd * 1.2; pv[q] = -tz * sd * out + tx * v * 0.35 + (Math.random() - 0.5); pv[q + 1] = up; pv[q + 2] = tx * sd * out + tz * v * 0.35 + (Math.random() - 0.5); pl[pi] = 0.75 + Math.random() * 0.5; pk[pi] = 0; pi = (pi + 1) % NP; }
+      live = 1.4; pka.needsUpdate = true;
+    },
+    // dry sand thrown up and back by the two rear wheels (soft: 0 packed sand, 1 loose)
+    dust(x, z, y, tx, tz, v, soft) {
+      const n = Math.min(6, Math.round((1 + v * 0.22) * (0.5 + soft)));
+      for (let k = 0; k < n; k++) { const q = pi * 3, sd = k % 2 ? 1 : -1, out = (0.3 + Math.random() * 1.1) * (0.6 + soft), up = (0.7 + Math.random() * 1.5) * Math.min(1.6, v / 6) * (0.6 + soft) * VEX;
+        pp[q] = x - tz * sd * 1.25 + (Math.random() - 0.5) * 0.3; pp[q + 1] = y + 0.1; pp[q + 2] = z + tx * sd * 1.25 + (Math.random() - 0.5) * 0.3; pv[q] = -tz * sd * out - tx * v * 0.12; pv[q + 1] = up; pv[q + 2] = tx * sd * out - tz * v * 0.12; pl[pi] = 0.45 + Math.random() * 0.5; pk[pi] = 1; pi = (pi + 1) % NP; }
+      live = 1.4; pka.needsUpdate = true;
     },
     update(dt) {
       if (live <= 0) return; live -= dt; const h = Math.min(dt, 0.05);

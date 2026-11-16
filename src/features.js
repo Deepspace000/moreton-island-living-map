@@ -649,6 +649,7 @@ function buildTrees(F, scene) {
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
           vec3 q = vec3(position.x * ca - position.z * sa, position.y, position.x * sa + position.z * ca);
+          if(uMode > 1.5 && uMode < 2.5) q.y *= 1.0 - 0.82 * flatK(xz);          // the low plants lie down where a wheel has just been
           vec3 nrm = normalize(vec3(normal.x * ca - normal.z * sa, normal.y, normal.x * sa + normal.z * ca));
           vec3 c = alb * 1.3 + vec3(0.002, 0.006, 0.0);
           c = mix(c, vec3(lum * 1.35, lum * 1.65, lum * 0.7), 0.28) * (0.9 + 0.5 * h2);

@@ -22,6 +22,7 @@ export const U = {
   uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0), uUnder: f(0),
   uMoonLit: f(1), uStarRot: f(0),
   uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
+  uFlat: { value: Array.from({ length: 24 }, () => new THREE.Vector4(1e9, 1e9, 0, 0)) }, uFlatC: { value: new THREE.Vector4(0, 0, 0, 0) },
   uHeight: { value: null }, uOver: { value: null }, uYard: { value: null }, uYardO: { value: new THREE.Vector4(0, 0, 1, 1) }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
   uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) }, uResort: { value: new THREE.Vector4(0, 0, 1, 0) }, uBlow: { value: [new THREE.Vector4(0, 0, 1, 1), new THREE.Vector4(0, 0, 1, 1)] },        // Cape Moreton headland: x, z, radius
@@ -38,6 +39,9 @@ uniform sampler2D uHeight, uMask, uAlbedo, uNoise, uWaterTex, uCloudTex, uOver, 
 uniform sampler2D uYard; uniform vec4 uYardO;      // one texel for each 11 m cell of the tree grid near houses: 1 where a garden tree may stand
 uniform vec4 uDetRect; uniform float uContour, uCirrus, uWalk;
 uniform vec4 uCarL[8];        // the headlamps of the eight nearest 4WDs: where the front of the car is (x, z) and the way it points (zero when its lamps are off)
+// where wheels have just pressed the ground down: x, z and how wide, for the last 24 places; uFlatC: the middle of them all and how far they reach
+uniform vec4 uFlat[24], uFlatC;
+float flatK(vec2 xz){ vec2 dc = xz - uFlatC.xy; if(dot(dc, dc) > uFlatC.z * uFlatC.z) return 0.0; float k = 0.0; for(int i = 0; i < 24; i++){ float r = uFlat[i].w; k = max(k, 1.0 - smoothstep(r * 0.55, r, length(xz - uFlat[i].xy))); } return k; }
 uniform vec4 uWorld, uCloudRect, uCape, uResort;      // uResort: Tangalooma resort's grounds: x, z, radius
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }

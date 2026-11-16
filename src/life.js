@@ -8,7 +8,7 @@ import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, FEATHER_GLSL, L
 const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
 import { T, meshY, groundH, heightAt, maskAt, narrowK } from './terrain.js';
 import { trackGraph } from './folk.js';
-import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, buildPuddles, probe } from './drive.js';
+import { carPace, roughAt, bumpAt, logTexture, LOG_PRE, logsNear, logGone, breakLog, buildLogBits, buildPuddles, pressGround, probe } from './drive.js';
 import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
@@ -34,12 +34,12 @@ function scatter(scene, n, cs, build, body, range, paint, pre) {
   const g = new THREE.InstancedBufferGeometry(); build(g);
   g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = FAR;
   const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
-  if (pre) uni.uLogs = { value: logTexture() };
+  if (pre) { uni.uLogs = { value: logTexture() }; uni.uGone = { value: logGone }; }
   const mat = makeMat({
     uniforms: uni, side: THREE.DoubleSide,
     vs: /* glsl */`
       attribute vec2 iCell; attribute float aK; uniform vec2 uCentre; uniform float uCS, uRange, uRain; varying vec3 vCol, vW;
-      ${pre ? 'uniform sampler2D uLogs;' : ''}
+      ${pre ? 'uniform sampler2D uLogs; uniform vec2 uGone[24];' : ''}
       ${paint ? 'varying vec3 vObj, vNo, vLight; varying float vK; varying vec4 vH;' : ''}
       void main(){
         vec2 cell = uCentre + iCell;
@@ -55,7 +55,7 @@ function scatter(scene, n, cs, build, body, range, paint, pre) {
         ${body}
         s *= 1.0 - sandBlow(xz);                      // nothing grows or lies on the open faces of the great sand blows
         vec3 wp = vec3(xz.x + (lp.x * ca - lp.z * sa) * s, 0.0, xz.y + (lp.x * sa + lp.z * ca) * s);
-        wp.y = groundY(wp.xz) + lp.y * s;
+        wp.y = groundY(wp.xz) + lp.y * s * (1.0 - 0.86 * flatK(xz));          // (grass, ferns and the rest lie down where a wheel has just been)
         nrm = normalize(vec3(nrm.x * ca - nrm.z * sa, nrm.y, nrm.x * sa + nrm.z * ca));
         vec3 light = uLightCol * (max(dot(nrm, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) + carLamps(wp) * 1.2;
         vCol = c * light;
@@ -336,7 +336,7 @@ const logBuf = [];
 function dodge(c, cx, cz, tx, tz) {
   const ahead = clamp(c.v * 4.5, 28, 100), nx = tz, nz = -tx, taken = [];
   logsNear(cx + tx * ahead / 2, cz + tz * ahead / 2, ahead / 2 + 8, logBuf);
-  for (let q = 0; q < logBuf.length; q += 4) {
+  for (let q = 0; q < logBuf.length; q += 6) {
     const ox = logBuf[q] - cx, oz = logBuf[q + 1] - cz, hx = logBuf[q + 2], hz = logBuf[q + 3];
     const f0 = (ox - hx) * tx + (oz - hz) * tz, f1 = (ox + hx) * tx + (oz + hz) * tz; if (Math.max(f0, f1) < -5 || Math.min(f0, f1) > ahead) continue;
     const l0 = (ox - hx) * nx + (oz - hz) * nz, l1 = (ox + hx) * nx + (oz + hz) * nz;
@@ -396,7 +396,7 @@ function buildCars(scene, F, lights) {
   });
   rideable.push(...cars);
   for (const c of cars) { c.k0 = c.sp / 11; c.v = c.sp; }          // each driver's own pace, as a share of the speed set in the Travel menu
-  const pools = buildPuddles(scene, F);
+  const pools = buildPuddles(scene, F), bits = buildLogBits(scene), hitBuf = [];
   // taking the wheel and giving it back: a car left close to its beach run picks the run up again; one left elsewhere stays parked there
   for (const c of cars) c.setDrive = (on) => {
     if (on) { c.drive = { turn: 0, throttle: clamp(c.sp / 15, 0.2, 1), v: c.sp }; c.parked = false; return; }
@@ -458,7 +458,7 @@ function buildCars(scene, F, lights) {
     }
   };
   return (dt, target, renderer) => {
-    shuttle(dt); pools.update(dt);
+    shuttle(dt); pools.update(dt); bits.update(dt);
     let laid = false;
     for (const c of cars) {
       let tx, tz, x, z;
@@ -473,6 +473,7 @@ function buildCars(scene, F, lights) {
         if (maskAt(x, z).sand < 0.3) dr.v = clamp(dr.v, -3, (5.5 + 5.5 * (1 - roughAt(x, z))) * (dr.pace ?? 1));
         // a tree trunk or a big bush in the way stops it dead (it can back out); see the probe in drive.js
         if (c.drive) { let hit = false; for (const o of [-1.1, 0, 1.1]) if (probe.hit(nx + tx * way * 3.1 - tz * o, nz + tz * way * 3.1 + tx * o, 0.35)) hit = true;
+          for (const q of cars) { if (q === c) continue; const rx = q.m.position.x - nx - tx * way * 2.6, rz = q.m.position.z - nz - tz * way * 2.6; if (rx * rx + rz * rz < 8.5) hit = true; }
           if (hit) { if (Math.abs(dr.v) > 1.5) (c.sus || (c.sus = [0, 0, 0, 0, 0, 0]))[4] -= way * Math.min(0.9, Math.abs(dr.v) * 0.12); dr.v = 0; dr.throttle = clamp(dr.throttle, -0.4, 0); } }
         if (dr.v !== 0 && rise < 0.42 && groundH(nx + tx * 2, nz + tz * 2) > U.uSeaM.value - 0.45 && Math.abs(nx) < T.sx / 2 - 200 && Math.abs(nz) < T.sz / 2 - 200) { x = nx; z = nz; } else dr.v *= 0.6;
         c.sp = Math.abs(dr.v); c.m.rotation.y = hd;
@@ -489,6 +490,16 @@ function buildCars(scene, F, lights) {
           if (c.dodge) want = Math.min(want, Math.max(4, cruise * 0.65));
           if (c.wetAhead) want = Math.min(want, 4.5);
         }
+        // Other 4WDs. One ahead going the same way: it keeps its distance. One coming at it, or standing in the way: it pulls over to pass,
+        // slowly. One crossing just ahead: it waits for it to go by.
+        c.carGoal = undefined;
+        if (!c.waiting) { const yw0 = c.m.rotation.y, fx0 = Math.cos(yw0), fz0 = -Math.sin(yw0), lx0 = -Math.sin(yw0), lz0 = -Math.cos(yw0), px0 = c.m.position.x, pz0 = c.m.position.z, reach = c.v * c.v / 5 + 18;
+          for (const q of cars) { if (q === c) continue; const rx = q.m.position.x - px0, rz = q.m.position.z - pz0; if (Math.abs(rx) > 80 || Math.abs(rz) > 80) continue;
+            const ah = rx * fx0 + rz * fz0, sd = rx * lx0 + rz * lz0; if (ah < 0.5 || ah > reach || Math.abs(sd) > 3.2) continue;
+            const same = Math.cos(q.m.rotation.y - yw0), still = q.sp < 0.4;
+            if (same > 0.5 && !still) want = Math.min(want, Math.max(0, q.sp - 0.3 + (ah - 9) * 0.5));
+            else if (Math.abs(same) > 0.5 || still) { c.carGoal = clamp((c.laneS ?? 0) + sd + (sd > 1.2 ? -3.4 : 3.4), -11, 11); want = Math.min(want, Math.max(3.5, cruise * 0.5)); }
+            else if (ah < 14 && !(still && c.k < q.k)) want = 0; } }
         c.v += clamp((want - c.v) * 1.6, -3.6, 1.8) * dt; if (want === 0 && c.v < 0.05) c.v = 0; c.sp = c.v;
         const sOld = c.s; c.s += c.sp * c.dir * dt;
         if (c.onAlt) {            // on an inland track round a beach the tide has shut: at its far end the car comes back onto the sand
@@ -513,7 +524,10 @@ function buildCars(scene, F, lights) {
         // driftwood ahead (only near the view, where it is drawn): it picks the nearest clear line past it and is on that line before it gets there
         const cx0 = a[0] + (b[0] - a[0]) * f, cz0 = a[1] + (b[1] - a[1]) * f;
         if (target && Math.hypot(cx0 - target.x, cz0 - target.z) < 230) { c.look = (c.look ?? c.k * 0.037) - dt; if (c.look <= 0) { c.look = 0.2; c.goal = dodge(c, cx0, cz0, tx, tz); c.wetAhead = pools.at(cx0 + tx * 9, cz0 + tz * 9) > 0 || pools.at(cx0 + tx * 3, cz0 + tz * 3) > 0; } } else { c.goal = undefined; c.wetAhead = false; }
-        const goal = c.goal ?? c.lane, l0 = c.laneS; c.dodge = c.goal !== undefined;
+        // On an inland track it stays on the track: near the middle, and no further over than the track's edge even to let another car by.
+        // (Only on the open beach does it have room to swing wide.) Off the road is for a driver, not for a car driving itself.
+        const lim = maskAt(cx0, cz0).sand < 0.3 ? (c.carGoal !== undefined ? 1.5 : 0.6) : 11;
+        const goal = clamp(c.carGoal ?? c.goal ?? c.lane, -lim, lim), l0 = c.laneS; c.dodge = c.goal !== undefined || c.carGoal !== undefined;
         c.laneS += (goal - c.laneS) * (1 - Math.exp(-dt * (c.dodge ? 1.7 : 0.9)));
         if (c.sp > 1.5 && dt > 0) { const ld = clamp((c.laneS - l0) / dt, -2.5, 2.5), ux = tx * c.sp + tz * ld, uz = tz * c.sp - tx * ld, ul = Math.hypot(ux, uz); tx = ux / ul; tz = uz / ul; }
         const yw = c.m.rotation.y; x = a[0] + (b[0] - a[0]) * f - Math.sin(yw) * c.laneS; z = a[1] + (b[1] - a[1]) * f - Math.cos(yw) * c.laneS;
@@ -529,10 +543,17 @@ function buildCars(scene, F, lights) {
       // soft sand, hardly at all on sand the tide has packed). Water on the track drags at it and is thrown up in spray.
       const sus = c.sus || (c.sus = [0, 0, 0, 0, 0, 0]), A = roughAt(x, z) * 0.55, wl = 1.9 * S, ww = 0.95 * S, zx = -tz, zz = tx;
       const bF = bumpAt(x + tx * wl, z + tz * wl), bB = bumpAt(x - tx * wl, z - tz * wl), bL = bumpAt(x + zx * ww, z + zz * ww), bR = bumpAt(x - zx * ww, z - zz * ww);
+      if (target && c.sp > 1.2 && Math.abs(x - target.x) < 170 && Math.abs(z - target.z) < 170) {            // a log under the bumper: it breaks up and is knocked aside
+        const bx = x + tx * 3.0, bz = z + tz * 3.0; logsNear(bx, bz, 4.6, hitBuf);
+        for (let q = 0; q < hitBuf.length; q += 6) { const ax = hitBuf[q] - hitBuf[q + 2], az = hitBuf[q + 1] - hitBuf[q + 3], dx = hitBuf[q + 2] * 2, dz = hitBuf[q + 3] * 2, t = clamp(((bx - ax) * dx + (bz - az) * dz) / (dx * dx + dz * dz || 1), 0, 1);
+          if (Math.hypot(ax + dx * t - bx, az + dz * t - bz) > 1.5) continue; const slot = breakLog(hitBuf[q + 4], hitBuf[q + 5]); if (slot < 0) continue;
+          bits.burst(slot, hitBuf[q], hitBuf[q + 1], hitBuf[q + 2], hitBuf[q + 3], x, z, tx * c.sp, tz * c.sp); sus[4] -= 0.5; sus[3] += 0.6; if (c.drive) c.drive.v *= 0.72; else c.v *= 0.8; } }
       const wet = pools.at(x, z), lean = Math.atan2(meshY(x - zx * ww, z - zz * ww) - meshY(x + zx * ww, z + zz * ww), 2 * ww);
       c.rl = (c.rl ?? lean) + (lean - (c.rl ?? lean)) * (1 - Math.exp(-dt * 5));
       const tg = [(bF + bB + bL + bR) / 4 * A - wet * 0.5, (bF - bB) * A / (2 * wl), (bR - bL) * A / (2 * ww)];
       for (let n = Math.max(1, Math.min(4, Math.ceil(dt / 0.02))), h = Math.min(dt, 0.08) / n, q = 0; q < n; q++) for (let k = 0; k < 3; k++) { sus[k + 3] += ((tg[k] - sus[k]) * 80 - sus[k + 3] * 7.5) * h; sus[k] += sus[k + 3] * h; }
+      // dry sand: the rear wheels throw it up and back, more of it where it is loose
+      if (!(wet > 0) && c.sp > 2.5 && target && Math.abs(x - target.x) < 140 && Math.abs(z - target.z) < 140) { c.dustT = (c.dustT || 0) - dt; if (c.dustT <= 0) { c.dustT = 0.1; if (maskAt(x, z).sand > 0.5) pools.dust(x - tx * 2.3, z - tz * 2.3, c.y, tx, tz, c.sp, clamp((A / 0.55 - 0.1) * 2.2, 0, 1)); } }
       if (wet > 0 && c.sp > 1) { if (c.drive) c.drive.v *= Math.exp(-dt * wet * 3.5); c.wetT = (c.wetT || 0) - dt; if (c.wetT <= 0) { c.wetT = 0.09; pools.splash(x + tx * wl, z + tz * wl, c.y, tx, tz, c.sp, wet); } }
       c.m.position.y = c.y + sus[0] * VEX;
       c.m.rotation.set(c.rl + sus[2], c.drive ? hd : c.m.rotation.y + clamp(c.w * dt, -Math.abs(d), Math.abs(d)), c.pt + sus[1]);
@@ -541,6 +562,7 @@ function buildCars(scene, F, lights) {
       lights.move(c.li[0], fx - tz * 0.9, ly, fz + tx * 0.9); lights.move(c.li[1], fx + tz * 0.9, ly, fz - tx * 0.9);
       const step = Math.hypot(x - c.lx, z - c.lz);
       if (step > 1.4) {               // another length of track under the back wheels
+        if (target && Math.abs(x - target.x) < 90 && Math.abs(z - target.z) < 90 && step < 30 && ((c.fl = (c.fl || 0) + 1) & 1)) pressGround(x - tx * 1.2, z - tz * 1.2, 2.1);          // near the view: what grows there is pressed flat
         const o = c.k * NT * 12; tp.copyWithin(o + 12, o, o + (NT - 1) * 12); td.copyWithin(o + 12, o, o + (NT - 1) * 12);
         const jump = step > 30; c.run += jump ? 0 : step; c.lx = x; c.lz = z;
         const bx = x - tx * 1.5 * S, bz = z - tz * 1.5 * S, now = jump ? -1e6 : U.uTime.value;
