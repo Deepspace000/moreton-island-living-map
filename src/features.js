@@ -1227,7 +1227,7 @@ function beachRoutes() {
     for (let z = -T.sz / 2 + 500; z < T.sz / 2 - 500; z += 45) {
       let x = side * (T.sx / 2 - 150), hit = null;
       for (let i = 0; i < 2400 && Math.abs(x) < T.sx / 2; i++, x -= side * 9) if (groundH(x, z) > 0.9) { hit = x; break; }
-      const bx = hit === null ? 0 : hit - side * 14, m = hit === null ? null : { sand: Math.max(maskAt(hit, z).sand, maskAt(hit + side * 10, z).sand, maskAt(hit - side * 10, z).sand) };      // the route runs along the berm, just above the highest tide; the sand is judged across the open beach (the map of it is patchy, so the best of three spots counts)
+      const bx = hit === null ? 0 : hit - side * 22, m = hit === null ? null : { sand: Math.max(maskAt(hit - side * 12, z).sand, maskAt(hit - side * 24, z).sand, maskAt(hit - side * 36, z).sand) };      // the route runs along the berm, just above the highest tide; the sand is judged across the open beach (the map of it is patchy, so the best of three spots counts)
       // keep only real beach: sand, open ground behind it, and no jump sideways from the last point (headlands, creek mouths, offshore banks)
       if (!m || m.sand < 0.45 || groundH(hit - side * 70, z) < 1.2 || (run.length && Math.abs(bx - run[run.length - 1][0]) > 60)) { close(); continue; }
       run.push([bx, z]);

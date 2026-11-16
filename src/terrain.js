@@ -62,22 +62,45 @@ export async function loadTerrainData(F, progress) {
 // natural slope. Ground already lower than this is left alone, so wide natural beaches and flats are unchanged; the rocky cape keeps its cliffs;
 // and the ground under buildings on the beachfront is kept above the tide.
 function shapeBeaches(h, W, H, mpp, mask, F) {
-  const d = new Float32Array(W * H), BIG = 1e6, D = 1.4142;
-  for (let i = 0; i < W * H; i++) d[i] = h[i] <= 0 && mask[i * 4 + 2] <= 130 ? 0 : BIG;        // the sea (not a hollow inland)
-  for (let z = 1; z < H; z++) for (let x = 1, i = z * W + 1; x < W - 1; x++, i++) { let v = d[i]; if (v === 0) continue; v = Math.min(v, d[i - 1] + 1, d[i - W] + 1, d[i - W - 1] + D, d[i - W + 1] + D); d[i] = v; }
-  for (let z = H - 2; z >= 0; z--) for (let x = W - 2, i = z * W + W - 2; x > 0; x--, i--) { let v = d[i]; if (v === 0) continue; v = Math.min(v, d[i + 1] + 1, d[i + W] + 1, d[i + W + 1] + D, d[i + W - 1] + D); d[i] = v; }
-  // height allowed at m metres from the water: the tide zone (to 28 m), the berm (to 60 m), then the dune face
-  const cap = (m) => m < 12 ? 0.52 * m / 12 : m < 28 ? 0.52 + 0.73 * (m - 12) / 16 : m < 60 ? 1.25 + 0.55 * (m - 28) / 32 : 1.8 + (m - 60) * 0.35;
-  const keep = new Uint8Array(W * H);                    // under and beside buildings
+  const N = W * H, BIG = 1e6, D = 1.4142;
+  // distance (in cells) from the nearest cell where d starts at 0; with src, each cell also learns WHICH cell that was
+  const chamfer = (d, src) => {
+    const relax = (i, j, c) => { const v = d[j] + c; if (v < d[i]) { d[i] = v; if (src) src[i] = src[j]; } };
+    for (let z = 1; z < H; z++) for (let x = 1, i = z * W + 1; x < W - 1; x++, i++) { if (d[i] === 0) continue; relax(i, i - 1, 1); relax(i, i - W, 1); relax(i, i - W - 1, D); relax(i, i - W + 1, D); }
+    for (let z = H - 2; z >= 0; z--) for (let x = W - 2, i = z * W + W - 2; x > 0; x--, i--) { if (d[i] === 0) continue; relax(i, i + 1, 1); relax(i, i + W, 1); relax(i, i + W + 1, D); relax(i, i + W - 1, D); }
+    return d;
+  };
+  const sea = (i) => h[i] <= 0 && mask[i * 4 + 2] <= 130;                                  // the sea (not a hollow inland)
+  const dL = new Float32Array(N), dS = new Float32Array(N);
+  for (let i = 0; i < N; i++) { const s = sea(i); dL[i] = s ? 0 : BIG; dS[i] = !s && (mask[i * 4] >= 235 || mask[i * 4 + 2] >= 124) ? 0 : BIG; }      // dL: how far inland a point is; dS: how far out to sea from the island itself (sandbanks do not count)
+  chamfer(dL); chamfer(dS);
+  // The beach lies in FRONT of the land the map knows: the towns stand back from the sea behind it, as they really do. OUT metres seaward of the
+  // mapped shoreline the sand comes up through the tide zone; the highest tide stops about at the mapped shoreline; the berm runs inland from there.
+  const OUT = 30;
+  // height at a metres up the beach: below the lowest tides a gentle sea bed (a < 0), the tide zone (to 28 m), the berm (to 60 m), then the dune face
+  const prof = (a) => a < 0 ? a * 0.03 : a < 12 ? 0.52 * a / 12 : a < 28 ? 0.52 + 0.73 * (a - 12) / 16 : a < 60 ? 1.25 + 0.55 * (a - 28) / 32 : 1.8 + (a - 60) * 0.35;
+  const keep = new Uint8Array(N);                        // under and beside buildings
   for (const b of F.buildings || []) { if (b.k === 'ship' || !b.p) continue; for (const q of b.p) { const cx = Math.round((q[0] / (W * mpp) + 0.5) * W - 0.5), cz = Math.round((q[1] / (H * mpp) + 0.5) * H - 0.5); for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) { const x = cx + k, z = cz + j; if (x >= 0 && x < W && z >= 0 && z < H) keep[z * W + x] = 1; } } }
   const cape = (F.lights || []).find(l => /Cape/.test(l.n || ''))?.p;
+  const seaward = (OUT + 16) / mpp + 0.5, capeK = (x, z) => { if (!cape) return 1; const r = Math.hypot((x + 0.5 - W / 2) * mpp - cape[0], (z + 0.5 - H / 2) * mpp - cape[1]); return Math.min(1, Math.max(0, (r - 700) / 400)); };
+  // first the land: nothing near the shore stands higher than the beach allows
   for (let z = 0; z < H; z++) for (let x = 0, i = z * W; x < W; x++, i++) {
-    const v = d[i]; if (v === 0 || v > 40 || h[i] <= 0) continue;
-    const c = cap(Math.max(0, v * mpp - mpp * 0.5)); if (h[i] <= c) continue;
-    let k = 1; if (cape) { const r = Math.hypot((x + 0.5 - W / 2) * mpp - cape[0], (z + 0.5 - H / 2) * mpp - cape[1]); k = Math.min(1, Math.max(0, (r - 700) / 400)); }
-    let n = h[i] + (c - h[i]) * k; if (keep[i]) n = Math.max(n, Math.min(h[i], 1.55));
+    if (dL[i] === 0 || dL[i] > 40 || h[i] <= 0) continue;
+    const c = prof(dL[i] * mpp - mpp * 0.5 + OUT); if (h[i] <= c) continue;
+    let n = h[i] + (c - h[i]) * capeK(x, z); if (keep[i]) n = Math.max(n, Math.min(h[i], 1.55));
     h[i] = n;
   }
+  // then the beach is built out in front: the sea bed, and any low ground right at the water's edge, come up to the beach's profile, but never
+  // higher than the shore that stands behind them (the highest ground within some 35 m), so a low flat shore gets no bar across its front
+  const idx = [], val = [];
+  for (let z = 3; z < H - 3; z++) for (let x = 3, i = z * W + 3; x < W - 3; x++, i++) {
+    const isSea = dL[i] === 0; if (isSea ? dS[i] > seaward : dL[i] > 3.2) continue;
+    const c0 = prof((isSea ? -(dS[i] * mpp - mpp * 0.5) : dL[i] * mpp - mpp * 0.5) + OUT); if (h[i] >= c0) continue;
+    let R = 0; for (let j = -3; j <= 3; j++) for (let k = -3, q = i + j * W - 3; k <= 3; k++, q++) if (dL[q] !== 0 && h[q] > R) R = h[q];
+    const c = Math.min(c0, R); if (h[i] >= c) continue;
+    idx.push(i); val.push(h[i] + (c - h[i]) * capeK(x, z));
+  }
+  for (let k = 0; k < idx.length; k++) h[idx[k]] = val[k];
 }
 
 // --- sampling helpers (world metres, x east, z south) ---
