@@ -2,7 +2,7 @@
 // edges), given curved fins, and painted per pixel: countershading, scales, bars and spots, an eye, fin rays, the
 // dancing light of the surface on its back, and the colour of the water it is seen through.
 import * as THREE from 'three';
-import { makeMat, LOGV, LOGF } from './common.js';
+import { makeMat, nearOnly, byPlace, LOGV, LOGF } from './common.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6), PI = Math.PI;
 const cr = (a, b, c, d, t) => 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t * t * t);
@@ -305,13 +305,17 @@ export const PAINT = {
 // Each animal swims a wobbly loop around a home point. list: [cx, cz, radius, depth, phase, speed, size, seed] per animal.
 // o: mesh, paint, colA (back), colB (belly), colC (fins), eye [x, y, radius], amp and rate of the swimming beat, vertical (beats up and down),
 // bottom (lies on the sand), tidal, min (water it needs), rise [how far out of the water, how often], see (how far away it is drawn).
-export function swimmers(scene, o, list) {
+// (They are drawn as one batch for each part of the map they live in, all sharing one shape and one material: a batch that is out of view,
+// or too far off to be seen, is then skipped whole.)
+export function swimmers(scene, o, all) { let first = null; for (const list of byPlace(all, 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
+function swimmersAt(scene, o, list) {
   const g = new THREE.InstancedBufferGeometry(), n = list.length / 8, a = new Float32Array(n * 4), b = new Float32Array(n * 4), F = (arr, k) => new THREE.Float32BufferAttribute(arr, k), P = o.paint || {};
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
-  g.setAttribute('position', F(o.pos, 3)); g.setAttribute('normal', F(o.nrm, 3)); g.setAttribute('aUV', F(o.uv, 2)); g.setAttribute('aFlex', F(o.flex, 1)); g.setAttribute('aPart', F(o.part, 1)); g.setIndex(o.idx);
+  const S = o.shape || (o.shape = { position: F(o.pos, 3), normal: F(o.nrm, 3), aUV: F(o.uv, 2), aFlex: F(o.flex, 1), aPart: F(o.part, 1) });
+  for (const k in S) g.setAttribute(k, S[k]); if (o.index) g.index = o.index; else { g.setIndex(o.idx); o.index = g.index; }
   g.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 4)); g.instanceCount = n; g.boundingSphere = FAR;
   const V3 = (c) => new THREE.Vector3(...c), sh = P.shade || [0.2, 0.66], eye = o.eye || [0.37, 0.035, 0.03];
-  const mat = makeMat({
+  const mat = o.mat || (o.mat = makeMat({
     side: THREE.DoubleSide,
     uniforms: { uFlap: { value: new THREE.Vector4(o.vertical ? 1 : 0, o.amp, o.rate, o.bottom ? 1 : 0) }, uColA: { value: V3(o.colA) }, uColB: { value: V3(o.colB) }, uColC: { value: V3(o.colC || o.colA) }, uSee: { value: o.see }, uNeed: { value: new THREE.Vector2(o.min ?? 0.9, o.tidal ? 1 : 0) }, uRise: { value: new THREE.Vector2(...(o.rise || [0, 0])) }, uEye: { value: V3(eye) } },
     vs: /* glsl */`
@@ -389,7 +393,8 @@ export function swimmers(scene, o, list) {
         if(dw > 0.0){ vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * dw * 2.3); col = col * Tm + vec3(0.012, 0.20, 0.18) * (uLightCol * 0.3 + uAmbSky * 0.8) * (1.0 - Tm); }
         gl_FragColor = vec4(applyFog(col, vW), 1.0);
       }`,
-  });
+  }));
   const m = new THREE.Mesh(g, mat); m.name = o.name; m.frustumCulled = false; scene.add(m);
+  { let reach = 0; for (let i = 0; i < n; i++) reach = Math.max(reach, list[i * 8 + 2] * 1.6 + list[i * 8 + 6] * 2); nearOnly(m, list, 8, o.see, reach + 20, 20); }          // not drawn at all while none of them is within sight
   return m;
 }

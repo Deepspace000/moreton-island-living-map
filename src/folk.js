@@ -2,7 +2,7 @@
 // camps dotted behind the beaches (tent, 4WD, a fire at night), name signs on the tracks and at the towns,
 // and, out in deeper water, patches of reef: rocks, weed and sea cucumbers.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, makeMat, objectMat, blobShadowMat, LOGV, LOGF, rng } from './common.js';
+import { U, VEX, MOBILE, dq, makeMat, objectMat, blobShadowMat, nearOnly, byPlace, LOGV, LOGF, rng } from './common.js';
 import { T, meshY, groundH, heightAt, maskAt } from './terrain.js';
 import { GB, makeLights } from './geo.js';
 import { fourWD, carShadow } from './life.js';
@@ -25,10 +25,15 @@ const TOWNS = [[/^Tangalooma/, 26, 650], [/Bulwer/, 14, 520], [/Kooringal/, 16, 
 // One rounded figure, drawn many times. Parts: 0 shirt, 1 trousers, 2 skin, 3 hat, 4 fishing rod.
 // swing says how far a point of a leg or arm moves in the stride (legs and arms on opposite sides swing together).
 export function figure() { return human(); }
-function buildPeople(scene, list) {
-  const f = figure(), n = list.length / 11, g = new THREE.InstancedBufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(f.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(f.nrm, 3));
-  g.setAttribute('aPS', new THREE.Float32BufferAttribute(f.part.flatMap((p, i) => [p, f.swing[i]]), 2)); g.setIndex(f.idx);
+// (The people are drawn as one batch for each part of the map, all sharing one body and one material: a batch that is out of view, or
+// too far off to be seen, is then skipped whole.)
+function buildPeople(scene, all) { const K = {}; for (const list of byPlace(all, 11, 400)) buildPeopleAt(scene, list, K); }
+function buildPeopleAt(scene, list, K) {
+  const n = list.length / 11, g = new THREE.InstancedBufferGeometry();
+  if (!K.body) { const f = figure(), s = K.body = new THREE.BufferGeometry();
+    s.setAttribute('position', new THREE.Float32BufferAttribute(f.pos, 3)); s.setAttribute('normal', new THREE.Float32BufferAttribute(f.nrm, 3));
+    s.setAttribute('aPS', new THREE.Float32BufferAttribute(f.part.flatMap((p, i) => [p, f.swing[i]]), 2)); s.setIndex(f.idx); }
+  g.index = K.body.index; for (const [k, v] of Object.entries(K.body.attributes)) g.setAttribute(k, v);
   const a = new Float32Array(n * 4), b = new Float32Array(n * 4), c = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 11, i * 11 + 4), i * 4); b.set(list.slice(i * 11 + 4, i * 11 + 8), i * 4); c.set(list.slice(i * 11 + 8, i * 11 + 11), i * 3); }
   g.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 4)); g.setAttribute('iC', new THREE.InstancedBufferAttribute(c, 3)); g.instanceCount = n; g.boundingSphere = FAR;
@@ -72,11 +77,14 @@ function buildPeople(scene, list) {
         gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV}
       }`;
-  const mat = makeMat({ side: THREE.DoubleSide, vs: PVS, fs: PERSON_FS });
+  const mat = K.mat || (K.mat = makeMat({ side: THREE.DoubleSide, vs: PVS, fs: PERSON_FS }));
   const m = new THREE.Mesh(g, mat); m.name = 'people'; m.frustumCulled = false; scene.add(m);
+  // not drawn at all while nobody is within sight (each is listed by both ends of the beat they walk; whoever is fishing follows the tide out)
+  const ends = [], beat = { len: 0 }; for (let i = 0; i < n; i++) { ends.push(a[i * 4], a[i * 4 + 1], a[i * 4 + 2], a[i * 4 + 3]); beat.len = Math.max(beat.len, Math.hypot(a[i * 4 + 2] - a[i * 4], a[i * 4 + 3] - a[i * 4 + 1])); }
+  nearOnly(m, ends, 2, 1000, beat.len / 2 + 40);
   { // Everyone's shadow is their own shape: the same body, in the same pose and stride, laid flat on the ground away from the sun.
     // It is short at noon and long in the evening. The stencil buffer darkens each pixel once, and not at all where a building's shadow already lies.
-    const sm = makeMat({
+    const sm = K.sm || (K.sm = makeMat({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
       stencilWrite: true, stencilFunc: THREE.EqualStencilFunc, stencilRef: 0, stencilZPass: THREE.IncrementStencilOp,
       vs: PVS.replace('//SHADOW', `{ float up = wp.y - gy; wp.xz -= uLightDir.xz / max(uLightDir.y, 0.2) * up; wp.y = max(groundY(wp.xz), uSeaM * uVex) + 0.06; vW = wp;
@@ -86,8 +94,8 @@ function buildPeople(scene, list) {
           float a = 0.5 * clamp(uLightDir.y * 5.0, 0.0, 1.0) * clamp(dot(uLightCol, vec3(0.2)), 0.0, 1.0) * cloudShadow(vW) * (1.0 - uNight);
           if(a < 0.01) discard;
           gl_FragColor = vec4(applyFog(vec3(0.04, 0.05, 0.085) * (uAmbSky + 0.15), vW), a); }`,
-    });
-    const sh = new THREE.Mesh(g, sm); sh.name = 'peopleShade'; sh.frustumCulled = false; sh.renderOrder = 4; scene.add(sh);
+    }));
+    const sh = new THREE.Mesh(g, sm); sh.name = 'peopleShade'; sh.frustumCulled = false; sh.renderOrder = 4; scene.add(sh); nearOnly(sh, ends, 2, 400, beat.len / 2 + 60);
   }
 }
 
@@ -335,7 +343,7 @@ function buildReefs(scene, R) {
 }
 
 export function buildFolk(scene, F) {
-  const R = rng(8642), K = MOBILE ? 0.6 : 1, people = [];
+  const R = rng(8642), K = MOBILE ? 0.6 : dq(0.6, 0.8, 1), people = [];
     // what people wear at the beach: mostly white, navy, grey, khaki and faded blues, with the odd bright shirt
   const SHIRTS = [[.88, .86, .82], [.13, .2, .36], [.42, .44, .46], [.62, .56, .42], [.36, .56, .72], [.9, .85, .8], [.7, .22, .18], [.2, .45, .36], [.86, .68, .25], [.16, .16, .18], [.78, .48, .58], [.3, .62, .68], [.55, .6, .38], [.84, .5, .3]];
   const SR = rng(515), shirt = () => SHIRTS[(SR() * SHIRTS.length) | 0];

@@ -10,7 +10,18 @@ export const Q = new URLSearchParams(location.search);
 function weakGPU() {
   try { const g = document.createElement('canvas').getContext('webgl2'), e = g.getExtension('WEBGL_debug_renderer_info'); const r = e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : ''; g.getExtension('WEBGL_lose_context')?.loseContext(); return /Intel|UHD|Iris|Mali|Adreno|PowerVR|Apple|SwiftShader|llvmpipe/i.test(r) && !/Arc|RTX|GTX|Radeon RX/i.test(r); } catch (e) { return false; }
 }
-export const LOW = Q.get('q') === 'low' || (Q.get('q') !== 'high' && (MOBILE || weakGPU()));
+// How much is drawn: 0 low, 1 medium, 2 high. It is the level picked in the Settings window (remembered between visits), or ?q= in the
+// address; if neither, low on phones, tablets and built-in graphics and high on everything else. The scene is built to it, so a new
+// level takes a reload.
+export const DETAIL_NAMES = ['low', 'med', 'high'];
+export const DETAIL = (() => {
+  const of = (v) => DETAIL_NAMES.indexOf(v === 'medium' ? 'med' : v);
+  let k = of(Q.get('q'));
+  if (k < 0) try { k = of(localStorage.getItem('detail')); } catch (e) { /* storage can be blocked */ }
+  return k >= 0 ? k : (MOBILE || weakGPU()) ? 0 : 2;
+})();
+export const LOW = DETAIL === 0;
+export const dq = (low, med, high) => (DETAIL === 0 ? low : DETAIL === 1 ? med : high);          // a number for each level of detail
 
 const v3 = (x = 0, y = 0, z = 0) => ({ value: new THREE.Vector3(x, y, z) });
 const f = (x = 0) => ({ value: x });
@@ -526,3 +537,71 @@ export const lerp = (a, b, t) => a + (b - a) * t;
 export const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 export const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 export function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+// ---------------------------------------------------------------- not drawing what cannot be seen
+// Nearly everything alive on the map is placed and faded out by its own vertex shader, so the graphics card still works out every corner
+// of every tree, fish and person each frame, even the ones behind the viewer or kilometres beyond where their shader stops drawing them.
+// The two helpers below switch such things off as whole draws when nothing of them can be in the picture. Neither changes what is seen.
+
+// 1. Things that stand at fixed spots (fish, people, birds on the sand) and are only drawn within `far` metres of the eye.
+//    pts holds x, z at the start of every `stride` numbers (zAt: where z is, if not next to x); pad: how far one can stray from its spot;
+//    top: the highest any of them stands.
+const SPOTS = [];
+export function nearOnly(mesh, pts, stride, far, pad = 0, top = 560, zAt = 1) {
+  const n = Math.floor(pts.length / stride), xz = new Float32Array(n * 2); let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (let i = 0; i < n; i++) { const x = pts[i * stride], z = pts[i * stride + zAt]; xz[i * 2] = x; xz[i * 2 + 1] = z; x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  SPOTS.push({ mesh, xz, n, far: far + pad, top, x0, x1, z0, z1, box: new THREE.Box3(new THREE.Vector3(x0 - pad, -80, z0 - pad), new THREE.Vector3(x1 + pad, top + 30, z1 + pad)) });
+  return mesh;
+}
+// A list of such things, cut up by where on the map they are (squares `size` metres across), so that each part can be its own draw.
+export function byPlace(list, stride, size = 500, zAt = 1) {
+  const parts = new Map();
+  for (let i = 0; i + stride <= list.length; i += stride) { const key = Math.floor(list[i] / size) + ',' + Math.floor(list[i + zAt] / size); let p = parts.get(key); if (!p) parts.set(key, p = []); for (let k = 0; k < stride; k++) p.push(list[i + k]); }
+  return [...parts.values()];
+}
+// 2. Grids of instances that follow the viewer (trees, shrubs, shells, grass...): the grid is cut into square blocks, each its own draw,
+//    and a block is drawn only when its part of the ground is in view. geo: the one thing to draw, without its iCell attribute; the
+//    material carries uCentre (the cell at the middle of the grid) and uCS (the size of a cell). pad: how far, in metres, a thing can
+//    reach outside its own cell. Returns { m (the first block's mesh), blocks, on }: set on = false to hide the whole grid.
+const GRIDS = [], FARBALL = new THREE.Sphere(new THREE.Vector3(), 1e6);
+export function gridBlocks(scene, geo, mat, n, cs, pad) {
+  const nb = clamp(Math.round(n / 14), Math.min(4, Math.floor(n / 5)), 10), blocks = [];          // blocks some 14 cells across; a small grid is still cut in four each way
+  for (let bj = 0; bj < nb; bj++) for (let bi = 0; bi < nb; bi++) {
+    const i0 = Math.floor(bi * n / nb), i1 = Math.floor((bi + 1) * n / nb), j0 = Math.floor(bj * n / nb), j1 = Math.floor((bj + 1) * n / nb);
+    const cells = new Float32Array((i1 - i0) * (j1 - j0) * 2); let k = 0;
+    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
+    const g = new THREE.InstancedBufferGeometry(); g.index = geo.index;
+    for (const [name, a] of Object.entries(geo.attributes)) g.setAttribute(name, a);          // (the blocks share one copy of the shape)
+    g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = k / 2; g.boundingSphere = FARBALL;
+    const m = new THREE.Mesh(g, mat); m.frustumCulled = false; scene.add(m);
+    blocks.push({ m, x0: i0 - n / 2, x1: i1 - n / 2, z0: j0 - n / 2, z1: j1 - n / 2 });
+  }
+  const grid = { m: blocks[0].m, blocks, mat, cs, pad, on: true };
+  GRIDS.push(grid); return grid;
+}
+// Called once a frame, after the eye has been put where it will be drawn from.
+const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), box = new THREE.Box3();
+export const CULL = { on: Q.get('cull') !== '0' };          // (?cull=0 draws everything, to compare)
+export function cullUnseen(camera) {
+  camera.updateMatrixWorld(); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+  frustum.setFromProjectionMatrix(pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const e = camera.position;
+  for (const s of SPOTS) {
+    let vis = !CULL.on;
+    if (!vis) {
+      const dy = Math.max(0, e.y - s.top), r2 = s.far * s.far - dy * dy;
+      const bx = Math.max(s.x0 - e.x, 0, e.x - s.x1), bz = Math.max(s.z0 - e.z, 0, e.z - s.z1);
+      if (r2 > 0 && bx * bx + bz * bz < r2) { const a = s.xz; for (let i = 0; i < s.n; i++) { const dx = a[i * 2] - e.x, dz = a[i * 2 + 1] - e.z; if (dx * dx + dz * dz < r2) { vis = true; break; } } }
+      vis = vis && frustum.intersectsBox(s.box);          // near enough, but is their part of the map in the picture?
+    }
+    if (s.mesh.visible !== vis) s.mesh.visible = vis;
+  }
+  for (const g of GRIDS) {
+    const c = g.mat.uniforms.uCentre.value, cs = g.cs, p = g.pad;
+    for (const b of g.blocks) {
+      let vis = g.on;
+      if (vis && CULL.on) { box.min.set((c.x + b.x0) * cs - p, -40, (c.y + b.z0) * cs - p); box.max.set((c.x + b.x1) * cs + p, 620, (c.y + b.z1) * cs + p); vis = frustum.intersectsBox(box); }
+      if (b.m.visible !== vis) b.m.visible = vis;
+    }
+  }
+}

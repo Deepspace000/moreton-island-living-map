@@ -3,7 +3,7 @@
 // The ground is one smooth surface (groundH: a cubic B-spline through the height grid). A coarse mesh
 // covers the whole island; finer grids follow the view and blend into it, so dunes stay rounded up close.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, Q, makeMat, LOGV, LOGF, getBlob } from './common.js';
+import { U, VEX, MOBILE, LOW, dq, Q, makeMat, LOGV, LOGF, getBlob } from './common.js';
 
 export const T = { W: 0, H: 0, mpp: 17, sx: 0, sz: 0, hgt: null, expo: null, mask: null, step: 2, alb: null, albW: 0, albH: 0 };
 
@@ -52,7 +52,7 @@ export async function loadTerrainData(F, progress) {
   U.uWaterTex.value = tex(wp.bmp, false, true);
   U.uWorld.value.set(1 / T.sx, 1 / T.sz, T.sx, T.sz);
   U.uHTex.value.set(1 / W, 1 / H); U.uMpp.value = F.mpp;
-  T.step = +(Q.get('step') || (MOBILE ? 6 : LOW ? 4 : 2));
+  T.step = +(Q.get('step') || (MOBILE ? 6 : dq(4, 3, 2)));
 }
 
 // Beaches. In the height data the land often steps up two or three metres within a cell or two of the water (at Tangalooma, 2.7 m in 15 m),
@@ -172,15 +172,22 @@ export function buildTerrain(scene) {
     pos[k++] = meshY(pos[k - 2], z);
     pos[k++] = z;
   }
-  const idx = new Uint32Array(nx * nz * 6); k = 0;
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
-    idx[k++] = a; idx[k++] = c; idx[k++] = b; idx[k++] = b; idx[k++] = c; idx[k++] = d;
+  // The ground is drawn as squares of about 120 cells a side (all sharing the one list of points), each knowing how much room it takes
+  // up, so that the squares out of view are skipped instead of the whole island being worked through every frame.
+  const posAttr = new THREE.BufferAttribute(pos, 3), CH = 120, geos = [];
+  for (let j0 = 0; j0 < nz; j0 += CH) for (let i0 = 0; i0 < nx; i0 += CH) {
+    const i1 = Math.min(nx, i0 + CH), j1 = Math.min(nz, j0 + CH), idx = new Uint32Array((i1 - i0) * (j1 - j0) * 6); k = 0;
+    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+      const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+      idx[k++] = a; idx[k++] = c; idx[k++] = b; idx[k++] = b; idx[k++] = c; idx[k++] = d;
+    }
+    let y0 = 1e9, y1 = -1e9; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const y = pos[(j * (nx + 1) + i) * 3 + 1]; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    const a = j0 * (nx + 1) + i0, d = j1 * (nx + 1) + i1, g = new THREE.BufferGeometry();
+    g.setAttribute('position', posAttr); g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.boundingBox = new THREE.Box3(new THREE.Vector3(pos[a * 3], y0, pos[a * 3 + 2]), new THREE.Vector3(pos[d * 3], y1, pos[d * 3 + 2]));
+    g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere()); g.boundingSphere.radius += 2;
+    geos.push(g);
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setIndex(new THREE.BufferAttribute(idx, 1));
-  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 60000);
 
   const terrainMat = (uniforms, defines = {}) => makeMat({
     uniforms, defines,
@@ -225,7 +232,7 @@ export function buildTerrain(scene) {
         float d = length(q * vec2(4.2, 1.25));
         return vec3(1.0 - smoothstep(0.5 - w, 0.5 + w, d), h2, q.x * 4.2);
       }
-      #define TREE_SHADE_FAR ${LOW ? '260.0' : '520.0'}
+      #define TREE_SHADE_FAR ${dq('260.0', '380.0', '520.0')}
       float treeShade(vec3 P, vec3 L, float dist){
         if(L.y < 0.04 || dist > TREE_SHADE_FAR) return 0.0;
         float ll = length(L.xz) + 1e-4, lit = 1.0, fade = 1.0 - smoothstep(TREE_SHADE_FAR * 0.62, TREE_SHADE_FAR, dist), close = 1.0 - smoothstep(25.0, 90.0, dist);
@@ -596,12 +603,13 @@ export function buildTerrain(scene) {
   });
   const hole = () => ({ value: new THREE.Vector4(0, 0, 0, 0) });
   const mat = terrainMat({ uHole: hole() });
-  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.matrixAutoUpdate = false;
+  const mesh = new THREE.Group(); mesh.matrixAutoUpdate = false;
+  for (const g of geos) { const m = new THREE.Mesh(g, mat); m.matrixAutoUpdate = false; mesh.add(m); }          // (each square is left out by three.js itself when it is out of view)
   scene.add(mesh);
 
   // finer grids that follow the view: each has half the spacing of the one before, down to about 3 to 4 m
   const D = [s * T.sx / (T.W - 1), s * T.sz / (T.H - 1)];              // spacing of the island mesh
-  const K = +(Q.get('lod') ?? Math.max(1, Math.round(Math.log2(D[0] / 3.5)))), n = MOBILE || LOW ? 192 : 256, hn = n / 2;
+  const K = +(Q.get('lod') ?? Math.max(1, Math.round(Math.log2(D[0] / 3.5)))), n = MOBILE ? 192 : dq(192, 224, 256), hn = n / 2;
   const gp = new Float32Array((n + 1) * (n + 1) * 3), gi = new Uint32Array(n * n * 6); k = 0;
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) { gp[k++] = i - hn; gp[k++] = 0; gp[k++] = j - hn; }
   k = 0;

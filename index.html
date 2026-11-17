@@ -11,9 +11,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=123">
+<link rel="stylesheet" href="style.css?v=124">
 <!-- every script file carries the release number, so a browser never mixes a new file with an old one it had kept -->
-<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/", "./src/avatar.js": "./src/avatar.js?v=123", "./src/boats.js": "./src/boats.js?v=123", "./src/bodies.js": "./src/bodies.js?v=123", "./src/clouds.js": "./src/clouds.js?v=123", "./src/common.js": "./src/common.js?v=123", "./src/creatures.js": "./src/creatures.js?v=123", "./src/detail.js": "./src/detail.js?v=123", "./src/dive.js": "./src/dive.js?v=123", "./src/drive.js": "./src/drive.js?v=123", "./src/features.js": "./src/features.js?v=123", "./src/folk.js": "./src/folk.js?v=123", "./src/geo.js": "./src/geo.js?v=123", "./src/life.js": "./src/life.js?v=123", "./src/menu.js": "./src/menu.js?v=123", "./src/minimap.js": "./src/minimap.js?v=123", "./src/pack.js": "./src/pack.js?v=123", "./src/plane.js": "./src/plane.js?v=123", "./src/ride.js": "./src/ride.js?v=123", "./src/seabed.js": "./src/seabed.js?v=123", "./src/sky.js": "./src/sky.js?v=123", "./src/sound.js": "./src/sound.js?v=123", "./src/terrain.js": "./src/terrain.js?v=123", "./src/traveller.js": "./src/traveller.js?v=123", "./src/walk.js": "./src/walk.js?v=123", "./src/water.js": "./src/water.js?v=123", "./src/windows.js": "./src/windows.js?v=123", "./src/weather.js": "./src/weather.js?v=123" } }</script>
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/", "./src/avatar.js": "./src/avatar.js?v=124", "./src/boats.js": "./src/boats.js?v=124", "./src/bodies.js": "./src/bodies.js?v=124", "./src/clouds.js": "./src/clouds.js?v=124", "./src/common.js": "./src/common.js?v=124", "./src/creatures.js": "./src/creatures.js?v=124", "./src/detail.js": "./src/detail.js?v=124", "./src/dive.js": "./src/dive.js?v=124", "./src/drive.js": "./src/drive.js?v=124", "./src/features.js": "./src/features.js?v=124", "./src/folk.js": "./src/folk.js?v=124", "./src/geo.js": "./src/geo.js?v=124", "./src/life.js": "./src/life.js?v=124", "./src/menu.js": "./src/menu.js?v=124", "./src/minimap.js": "./src/minimap.js?v=124", "./src/pack.js": "./src/pack.js?v=124", "./src/plane.js": "./src/plane.js?v=124", "./src/ride.js": "./src/ride.js?v=124", "./src/seabed.js": "./src/seabed.js?v=124", "./src/sky.js": "./src/sky.js?v=124", "./src/sound.js": "./src/sound.js?v=124", "./src/terrain.js": "./src/terrain.js?v=124", "./src/traveller.js": "./src/traveller.js?v=124", "./src/walk.js": "./src/walk.js?v=124", "./src/water.js": "./src/water.js?v=124", "./src/windows.js": "./src/windows.js?v=124", "./src/weather.js": "./src/weather.js?v=124" } }</script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -88,6 +88,8 @@
 </nav>
 <aside id="settings" class="glass win" data-win="Settings" data-min="1">
   <label title="How many picture points are drawn. Lower is faster, higher is sharper."><span>Resolution</span><output id="stScaleO"></output><input type="range" id="stScale" min="30" max="300" step="5"></label>
+  <div class="st-head" title="How much is drawn: fewer or more trees, plants, clouds and animals, coarser or finer ground and edges. Low is fastest. The map loads again when you change it."><span>Detail</span><small>reloads the map</small></div>
+  <div class="seg" id="stDetail"><button data-q="low">Low</button><button data-q="med">Med</button><button data-q="high">High</button></div>
   <div class="st-row"><button id="stAuto" class="pill" title="Set the resolution back to the screen's own sharpness">Automatic resolution</button><button id="stFull" class="pill" title="Fill the whole screen, or go back to the window">Full screen</button></div>
   <label class="chk"><input type="checkbox" id="stInvY"><span>Invert vertical axis (up/down: looking, and climbing when flying)</span></label>
   <label class="chk"><input type="checkbox" id="stInvX"><span>Invert horizontal axis (left/right: looking, and steering)</span></label>
@@ -123,6 +125,6 @@
 <div id="stick"><i></i></div>
 <div id="credit">Imagery: Sentinel-2 cloudless by <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX</a> (Copernicus data 2016) · Aerial photos and elevation: © State of Queensland (Dept of Natural Resources and Mines, Manufacturing and Regional and Rural Development) · Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></div>
 
-<script type="module" src="src/main.js?v=123"></script>
+<script type="module" src="src/main.js?v=124"></script>
 </body>
 </html>

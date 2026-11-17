@@ -1,7 +1,7 @@
 // Everything that sits on the island: buildings, tracks and walking paths, trees,
 // the wrecks, lighthouses, jetty, navigation marks, lakes and the name labels.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
+import { U, VEX, MOBILE, LOW, dq, Q, makeMat, objectMat, gridBlocks, nearOnly, LOGV, LOGF, rng, clamp } from './common.js';
 import { T, meshY, groundH, heightAt, maskAt, albedoAt, tideLimit } from './terrain.js';
 import { probe } from './drive.js';
 import { GB, makeLights } from './geo.js';
@@ -504,7 +504,7 @@ function buildGrassTrees(scene) {
   const pos = [], col = [], pt = [], idx = [], R = rng(606);
   for (let k = 0; k <= 4; k++) for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, r = 0.15 - 0.04 * k / 4; pos.push(Math.cos(a) * r, k / 4, Math.sin(a) * r); col.push(0.035, 0.033, 0.035); pt.push(0, k / 4); }
   for (let k = 0; k < 4; k++) for (let i = 0; i < 5; i++) { const j = (i + 1) % 5, q = k * 5; idx.push(q + i, q + 5 + i, q + j, q + j, q + 5 + i, q + 5 + j); }
-  const NB = LOW ? 48 : 90;                       // a grass tree's head is a ball of a hundred or more wiry leaves, each no wider than a finger
+  const NB = dq(48, 68, 90);                       // a grass tree's head is a ball of a hundred or more wiry leaves, each no wider than a finger
   for (let i = 0; i < NB; i++) {
     const az = i * 2.39996, el = 1.4 - 2.6 * Math.pow(i / (NB - 1), 0.85) + (R() - 0.5) * 0.25, L = 0.85 + 0.45 * R(), dead = el < -0.15, base = pos.length / 3;
     const g = dead ? [0.40 + R() * 0.1, 0.29 + R() * 0.06, 0.17] : [0.17 + R() * 0.06, 0.30 + R() * 0.08, 0.15];
@@ -517,11 +517,9 @@ function buildGrassTrees(scene) {
   const sb = pos.length / 3;
   for (const [y, r] of [[0.1, 0.02], [1.5, 0.02], [1.55, 0.045], [3.1, 0.035], [3.2, 0.0]]) for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; pos.push(Math.cos(a) * r, y, Math.sin(a) * r); col.push(...(y > 1.5 ? [0.17, 0.12, 0.08] : [0.33, 0.36, 0.2])); pt.push(2, y / 3.2); }
   for (let k = 0; k < 4; k++) for (let i = 0; i < 3; i++) { const j = (i + 1) % 3, q = sb + k * 3; idx.push(q + i, q + 3 + i, q + j, q + j, q + 3 + i, q + 3 + j); }
-  const n = LOW ? 44 : 64, cs = 6.5, cells = new Float32Array(n * n * 2); let k = 0;
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-  const g = new THREE.InstancedBufferGeometry();
+  const n = dq(44, 54, 64), cs = 6.5;
+  const g = new THREE.InstancedBufferGeometry();          // (one grass tree; gridBlocks below lays the grid of them out)
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aPT', new THREE.Float32BufferAttribute(pt, 2)); g.setIndex(idx);
-  g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
   const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
   const mat = makeMat({
     uniforms: uni, side: THREE.DoubleSide,
@@ -554,16 +552,13 @@ function buildGrassTrees(scene) {
       }`,
     fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`,
   });
-  const m = new THREE.Mesh(g, mat); m.name = 'grassTrees'; m.frustumCulled = false; scene.add(m);
-  return (target, camDist) => { m.visible = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
+  const grid = gridBlocks(scene, g, mat, n, cs, 12); for (const b of grid.blocks) b.m.name = 'grassTrees';
+  return (target, camDist) => { grid.on = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
 }
 function buildTrees(F, scene) {
   const rings = [];
   const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy, mode = 0) => {
-    const cells = new Float32Array(n * n * 2); let k = 0;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
-    geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); geo.instanceCount = n * n; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx);          // (one tree or bush; gridBlocks below lays the grid of them out) geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
     const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 }, uForceSp: { value: -1 } };       // (scrub sets its own porosity per bush)
     const mat = makeMat({
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
@@ -850,17 +845,18 @@ function buildTrees(F, scene) {
         }`,
     });
     mat.alphaToCoverage = !!leafy;
-    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
+    // drawn in blocks, so that those out of view are skipped; and not at all once the eye is further off than the shader draws any of it
+    const grid = gridBlocks(scene, geo, mat, n, cs, rmax * 4 + 6), m = grid.m; rings.push({ g: grid, m, uni, cs, mode, far: dmax + 1.42 * (n / 2 + 1) * cs + 600 });
     if (mode === 0 || mode === 3) probe.add(m, { trunkOnly: mode === 0, cs });          // trunks and the big bushes are in the way of cars and walkers (see drive.js)
   };
-  const n = +(Q.get('trees') || (LOW ? 108 : 164));
-  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 11, LOW ? 2 : 4), true);          // single trees close to the view, each its own kind
+  const n = +(Q.get('trees') || dq(108, 136, 164));
+  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(dq(5, 8, 11), dq(2, 3, 4)), true);          // single trees close to the view, each its own kind
   ring(n, 30, 6.5, 12, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
-  ring(LOW ? 90 : 150, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
-  ring(LOW ? 70 : 104, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
+  ring(dq(90, 120, 150), 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
+  ring(dq(70, 88, 104), 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
   const grass = buildGrassTrees(scene);
   return (target, camDist) => {
-    for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; if (r.mode === 3) r.m.visible = camDist < 1400; }
+    for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); r.g.on = r.mode === 2 ? camDist < 420 : r.mode === 3 ? camDist < 1400 : camDist < r.far; }
     grass(target, camDist);
   };
 }
@@ -957,7 +953,7 @@ function buildPalms(F, scene, occ) {
     const n = list.length / 6, a = new Float32Array(n * 4), b = new Float32Array(n * 2);
     for (let i = 0; i < n; i++) { a.set(list.slice(i * 6, i * 6 + 4), i * 4); b[i * 2] = list[i * 6 + 4]; b[i * 2 + 1] = list[i * 6 + 5]; }
     g.setAttribute('iPos', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iPar', new THREE.InstancedBufferAttribute(b, 2)); g.instanceCount = n;
-    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
+    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh); nearOnly(mesh, list, 6, 4200, 30, 560, 2);          // (palms and pandanus are not drawn from further off than that)
   };
   // coconut palm: a tall, slightly curved ringed trunk and a head of long arching fronds
   add(frondPlant({ h: 9.5, r: 0.17, bend: 0.14, rings: 5, heads: [{ at: [0, 0, 0], n: 12, L: 4.2, W: 0.62, up: 1.05, down: -0.35, droop: 0.75, seg: 5, vee: 0.25 }] }), palms, mat(16, [0.17, 0.27, 0.075], [0.50, 0.45, 0.38]));

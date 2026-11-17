@@ -5,7 +5,7 @@
 //   - schools of very small fish, close in, and stingrays over the sand beside the wrecks
 // The things that do not move are one drawing per stretch of sea (so what is out of view costs nothing); crabs and octopuses are moved in the shader.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, makeMat, LOGV, LOGF, rng } from './common.js';
+import { U, VEX, MOBILE, dq, makeMat, LOGV, LOGF, rng } from './common.js';
 import { T, meshY, heightAt, maskAt } from './terrain.js';
 import { swimmers, SLIM, DAMSEL, RAY, PAINT } from './creatures.js';
 
@@ -16,7 +16,7 @@ const LIT = /* glsl */`(uLightCol * (0.25 + 0.55 * max(uLightDir.y, 0.0)) * (0.4
 const FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
 
 export function buildSeabed(scene, F, o) {
-  const R = rng(8088), K = MOBILE ? 0.5 : 1, depth = (x, z) => -heightAt(x, z), CH = 2600, chunks = new Map();
+  const R = rng(8088), K = MOBILE ? 0.5 : dq(0.5, 0.75, 1), depth = (x, z) => -heightAt(x, z), CH = 2600, chunks = new Map();
   const ICO1 = new THREE.IcosahedronGeometry(1, 1).attributes.position, ICO0 = new THREE.IcosahedronGeometry(1, 0).attributes.position;
   let A = null;            // the stretch of sea being added to
   const at = (x, z) => { const k = Math.floor(x / CH) + ',' + Math.floor(z / CH); A = chunks.get(k); if (!A) chunks.set(k, A = { pos: [], nrm: [], col: [], sway: [], idx: [], cx: (Math.floor(x / CH) + 0.5) * CH, cz: (Math.floor(z / CH) + 0.5) * CH }); };

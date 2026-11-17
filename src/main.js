@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { U, VEX, MOBILE, Q, TZ_HOURS, clamp, lerp, expect, getBlob } from './common.js';
+import { U, VEX, MOBILE, Q, TZ_HOURS, DETAIL, DETAIL_NAMES, dq, cullUnseen, clamp, lerp, expect, getBlob } from './common.js';
 import { loadTerrainData, buildTerrain, followTerrain, meshY, heightAt, T } from './terrain.js';
 import { buildWater } from './water.js';
 import { buildSky, updateSky, sunPos, sky } from './sky.js';
@@ -45,7 +45,7 @@ const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, logarithmicDepthBuffer: true, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
 const OPTS = { scale: 0, invX: false, invY: false, dot: false };          // what the Settings window holds (remembered between visits)
 try { Object.assign(OPTS, JSON.parse(localStorage.getItem('opts') || '{}')); } catch (e) { /* storage can be blocked */ }
-const DPR = Math.min(window.devicePixelRatio || 1, +(Q.get('dpr') || (MOBILE ? 1.5 : 2)));
+const DPR = Math.min(window.devicePixelRatio || 1, +(Q.get('dpr') || (MOBILE ? 1.5 : dq(1, 1.5, 2))));          // (the level of detail caps how sharp "automatic" is)
 const pixelRatio = () => (OPTS.scale > 0 && !Q.has('dpr') ? clamp(OPTS.scale, 0.3, 3) : DPR);          // the Settings window can set how many picture points are drawn for each point of the screen
 renderer.setPixelRatio(DPR);
 const TM = { aces: THREE.ACESFilmicToneMapping, neutral: THREE.NeutralToneMapping, agx: THREE.AgXToneMapping }[Q.get('tm') || 'neutral'];
@@ -63,7 +63,7 @@ controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGH
 controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
 controls.rotateSpeed = 0.55; controls.zoomSpeed = 1.1; controls.autoRotateSpeed = 0.35;
 
-const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: MOBILE ? 2 : 4, stencilBuffer: true });
+const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: MOBILE ? 2 : dq(2, 4, 4), stencilBuffer: true });
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
 // one bad pixel (NaN / runaway highlight) would be smeared into big blocks by the bloom: clean the frame first
@@ -445,6 +445,15 @@ $('stScale').oninput = (e) => { OPTS.scale = +e.target.value / 100; applyOpts(tr
 $('stAuto').onclick = () => { OPTS.scale = 0; applyOpts(true); };
 $('stInvX').onchange = (e) => { OPTS.invX = e.target.checked; applyOpts(true); }; $('stInvY').onchange = (e) => { OPTS.invY = e.target.checked; applyOpts(true); };
 $('stDot').onchange = (e) => { OPTS.dot = e.target.checked; applyOpts(true); };
+// the level of detail: the scene is built to it, so picking another one loads the map again, and comes back to the same view
+for (const b of $('stDetail').children) {
+  b.classList.toggle('on', b.dataset.q === DETAIL_NAMES[DETAIL]);
+  b.onclick = () => {
+    if (b.dataset.q === DETAIL_NAMES[DETAIL] && !Q.has('q')) return;
+    try { localStorage.setItem('detail', b.dataset.q); sessionStorage.setItem('view', JSON.stringify([...camera.position.toArray(), ...controls.target.toArray()].map(v => Math.round(v)))); } catch (e) { /* not remembered then */ }
+    if (Q.has('q')) { const u = new URL(location.href); u.searchParams.delete('q'); location.replace(u.href); } else location.reload();
+  };
+}
 function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }          // (older Safari knows the whole screen under its own name)
 { const d = document.documentElement, ask = d.requestFullscreen || d.webkitRequestFullscreen, leave = document.exitFullscreen || document.webkitExitFullscreen;
   if (!ask || navigator.standalone) $('stFull').hidden = true;          // an iPhone has no full screen, and the map opened from the home screen already fills it
@@ -563,6 +572,7 @@ async function boot() {
   const P = features.places;
   for (const p of P) { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => goPlace(p); $('places').appendChild(b); }
   if (Q.has('cam')) { const c = Q.get('cam').split(',').map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); }
+  else try { const c = JSON.parse(sessionStorage.getItem('view') || 'null'); sessionStorage.removeItem('view'); if (c && c.length === 6 && c.every(Number.isFinite)) { camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); } } catch (e) { /* the usual view then */ }          // back where it was before the level of detail was changed
   if (Q.has('go')) { const p = P.find(p => p.n.toLowerCase().startsWith(Q.get('go').toLowerCase())); if (p) flyTo(p.x, p.z, p.d, p.az, p.pol, 0.01); }
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
@@ -633,6 +643,7 @@ function frame() {
   const e = sky.sunEl;
   { const k = clamp((e + 10) / 16, 0, 1); renderer.toneMappingExposure = lerp(1.7, EXPO, k * k * (3 - 2 * k)); }
   bloom.strength = lerp(0.5, 0.2, sky.day);
+  cullUnseen(camera);          // whatever is out of view or too far off to be drawn is skipped whole
   composer.render();
   mini.update(dt);
 

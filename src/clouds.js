@@ -1,11 +1,11 @@
 // Drifting cumulus built from soft sprites, their shadows on land and sea, and rain.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, makeMat, LOGV, LOGF, rng, clamp, smooth } from './common.js';
+import { U, VEX, MOBILE, dq, makeMat, LOGV, LOGF, rng, clamp, smooth } from './common.js';
 import { wx } from './weather.js';
 
 const DX = 66000, DZ = 88000, BASE = 1150 * VEX;
 export function buildClouds(scene, renderer) {
-  const R = rng(4242), NC = MOBILE ? 70 : 150;
+  const R = rng(4242), NC = MOBILE ? 70 : dq(90, 120, 150);
   const clouds = [], puffs = [];
   const banks = Array.from({ length: 9 }, () => [(R() - .5) * DX, (R() - .5) * DZ, 5000 + R() * 9000, R() * Math.PI]);
   for (let i = 0; i < NC; i++) {
@@ -105,7 +105,7 @@ export function buildClouds(scene, renderer) {
   const ocam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   // rain streaks in a box that follows the view
-  const RN = MOBILE ? 3500 : 12000, rp = new Float32Array(RN * 6), rs = new Float32Array(RN * 2);
+  const RN = MOBILE ? 3500 : dq(5000, 8000, 12000), rp = new Float32Array(RN * 6), rs = new Float32Array(RN * 2);
   const RR = rng(99);
   for (let i = 0; i < RN; i++) { const x = RR(), y = RR(), z = RR(); rp.set([x, y, z, x, y, z], i * 6); rs[i * 2] = 0; rs[i * 2 + 1] = 1; }
   const rg = new THREE.BufferGeometry();
