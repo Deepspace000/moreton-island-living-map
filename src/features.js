@@ -558,7 +558,7 @@ function buildGrassTrees(scene) {
 function buildTrees(F, scene) {
   const rings = [];
   const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy, mode = 0) => {
-    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx);          // (one tree or bush; gridBlocks below lays the grid of them out) geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
+    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);          /* (one tree or bush; gridBlocks below lays the grid of them out) */
     const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 }, uForceSp: { value: -1 } };       // (scrub sets its own porosity per bush)
     const mat = makeMat({
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
@@ -718,7 +718,7 @@ function buildTrees(F, scene) {
             } else if(aPart > 0.5){          // trunk
               float t = position.y;
               lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.52, t) * (1.0 + 0.3 * (1.0 - t) * (1.0 - t) * (1.0 - t))) * H * s;
-              c = bark * (0.75 + 0.5 * h2) * mix(1.0, 0.5, smoothstep(250.0, 700.0, dc0)); ao = 0.5 + 0.35 * t;      // (far off, pale trunks sink into the shade of the forest instead of sparkling) vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));
+              c = bark * (0.75 + 0.5 * h2) * mix(1.0, 0.5, smoothstep(250.0, 700.0, dc0)); ao = 0.5 + 0.35 * t; vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));      // (far off, pale trunks sink into the shade of the forest instead of sparkling)
             } else {                         // clump of leaves
               float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16)) * (1.0 - deadTree);
               vLs = max(rb * H * s, 0.5);                 // the clump's size in metres, so its leaves can be drawn at their true size

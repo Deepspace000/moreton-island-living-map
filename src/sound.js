@@ -33,7 +33,7 @@ export function makeSound() {
     L.rain = gain(); chain(noise(), filt('highpass', 1800), L.rain, out);
     L.thunder = gain(); chain(noise(), filt('lowpass', 110), L.thunder, out);
     // cicadas: two narrow bands of noise, chopped a hundred times a second, swelling and fading as a chorus
-    L.cic = gain(); L.cicSwell = gain(0.84); lfo(0.07, 0.16, L.cicSwell.gain);          // (the chorus rises and falls a little, but never dies away) L.cic.connect(L.cicSwell); L.cicSwell.connect(out);
+    L.cic = gain(); L.cicSwell = gain(0.84); lfo(0.07, 0.16, L.cicSwell.gain); L.cic.connect(L.cicSwell); L.cicSwell.connect(out);          // (the chorus rises and falls a little, but never dies away)
     for (const [f, rate] of [[4400, 92], [6100, 118]]) { const chop = gain(0.5); lfo(rate, 0.5, chop.gain, 'square'); chain(noise(), filt('bandpass', f, 11), chop, L.cic); }
     // crickets: a pure tone in short trills
     L.crk = gain(); const tone = ctx.createOscillator(); tone.frequency.value = 4700; tone.start();
