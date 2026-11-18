@@ -217,6 +217,8 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   };
   // the hands on the wheel: applied before the vehicles move this frame
   R.control = (dt) => {
+    if (R.helm) lookK = tiltK = 0;
+    else if (lookK || tiltK) { const tight = R.car && R.zoom < 1; R.look += lookK * dt * 1.5; R.look -= Math.PI * 2 * Math.round(R.look / (Math.PI * 2)); R.tilt = clamp(R.tilt + tiltK * dt * 0.8, tight ? -0.2 : -0.6, tight ? 0.16 : 0.5); }
     // held keys change the pace of whatever you are in control of: Shift up to nearly twice as fast, S down to half; let go and it eases back
     pace += ((!R.helm ? 1 : fast ? 1.8 : slow ? 0.5 : 1) - pace) * (1 - Math.exp(-dt * 2.2));
     { const h = R.car ? R.car.drive : R.bird ? R.bird.ctl : R.boat ? R.boat.helm : null; if (h) h.pace = pace; }
@@ -341,9 +343,10 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   $('rideOut').onclick = () => R.zoomBy(1.6); $('rideIn').onclick = () => R.zoomBy(1 / 1.6);
   const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], ArrowDown: [0, -1] };          // (in a car or a boat S brakes, stops and backs, as the down arrow does; flying or on foot it is the slow key, below)
   const vehicle = () => R.helm && (R.car || R.boat);
-  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = true; if (e.code === 'KeyS') { if (vehicle()) gas = -1; else slow = true; if (R.helm) e.preventDefault(); } if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
-  addEventListener('blur', () => { fast = slow = false; });
-  addEventListener('keyup', (e) => { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = false; if (e.code === 'KeyS') { slow = false; if (gas < 0) gas = 0; } const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
+  let lookK = 0, tiltK = 0;          // riding along without the controls, the same keys turn your head: A D look left and right, W S up and down
+  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = true; if (e.code === 'KeyS') { if (vehicle()) gas = -1; else slow = true; if (R.helm) e.preventDefault(); } if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } else if (!R.helm) { if (k && k[0]) lookK = k[0]; if (k && k[1]) tiltK = k[1]; if (e.code === 'KeyS') tiltK = -1; if (k) e.preventDefault(); } });
+  addEventListener('blur', () => { fast = slow = false; lookK = tiltK = 0; });
+  addEventListener('keyup', (e) => { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = false; if (e.code === 'KeyS') { slow = false; if (gas < 0) gas = 0; } const k = KEY[e.code]; if (k) { if (k[0]) { steer = 0; lookK = 0; } if (k[1]) { gas = 0; tiltK = 0; } } if (e.code === 'KeyS') tiltK = 0; });
   $('rideExit').onclick = () => R.onExit && R.onExit();
   R.take = take; R.canSteer = canSteer;
   return R;

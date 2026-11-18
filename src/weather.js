@@ -40,7 +40,7 @@ const tideAt = (ms) => {
 export const tideLevel = () => tideManual ? custom.tide : clamp(tideAt(tideDate), -1.15, 1.05);
 export const tideOn = (ms) => tideManual ? custom.tide : clamp(tideAt(ms), -1.15, 1.05);          // the tide at another moment (for the tide panel); a tide held by hand stays where it is put
 export const tideHeld = () => tideManual;
-export let mode = 'live';
+export let mode = 'drift';
 // hand-set weather (the sliders)
 export const custom = { sun: 85, cloud: 25, ctype: 'cumulus', wind: 14, windDir: 120, rain: 0, fog: 5, swell: 0.9, tide: 0, storm: 0 };
 export const TYPES = {
@@ -61,7 +61,36 @@ export function seedCustom() {          // start the sliders from what is showin
   if (mode !== 'live') return;
   Object.assign(custom, { sun: Math.round((1 - liveOvercast(live)) * 100), cloud: Math.round(live.cloud), wind: Math.round(live.wind), windDir: Math.round(live.windDir), rain: Math.round(clamp(live.rain / 6, 0, 1) * 100), fog: (live.code === 45 || live.code === 48) ? 80 : 5, swell: Math.round(live.wave * 10) / 10, tide: Math.round(live.tide * 10) / 10, storm: live.code >= 95 ? 1 : 0, ctype: live.code >= 95 ? 'storm' : live.rain > 1 ? 'towering' : live.cloud > 92 ? 'stratus' : 'cumulus' });
 }
-export function setMode(m) { if (m !== 'live' && PRESETS[m]) { seedCustom(); Object.assign(custom, PRESETS[m]); } tideManual = false; mode = m; apply(); }
+export function setMode(m) { if (m === 'drift') { seedCustom(); driftNext(); } else if (m !== 'live' && PRESETS[m]) { seedCustom(); Object.assign(custom, PRESETS[m]); } tideManual = false; mode = m; apply(); }
+// Drifting weather: the sliders move by themselves, slowly and for ever. Every few minutes a new aim is picked (a fair day, a build-up, a grey spell, now and
+// then a blow, a swell or a storm) and the sliders ease towards it, so the sky, the wind and the sea are always changing a little.
+const aim = {}; let aimT = 0, aimSeed = Math.random() * 1000;
+const rnd = () => { aimSeed = (aimSeed * 9301 + 49297) % 233280; return aimSeed / 233280; };
+function driftNext() {
+  const r = rnd(), kind = r < 0.38 ? 'fair' : r < 0.62 ? 'build' : r < 0.84 ? 'grey' : r < 0.94 ? 'blow' : 'storm';
+  const P = { fair: { cloud: [4, 35], wind: [6, 16], swell: [0.4, 1.0], rain: [0, 0], fog: [2, 6], ctype: 'cumulus', storm: 0 },
+    build: { cloud: [35, 70], wind: [12, 24], swell: [0.9, 1.7], rain: [0, 4], fog: [3, 8], ctype: 'towering', storm: 0 },
+    grey: { cloud: [75, 100], wind: [10, 22], swell: [1.0, 1.8], rain: [0, 35], fog: [6, 30], ctype: 'stratus', storm: 0 },
+    blow: { cloud: [30, 75], wind: [30, 46], swell: [1.8, 3.2], rain: [0, 10], fog: [3, 8], ctype: 'cumulus', storm: 0 },
+    storm: { cloud: [88, 100], wind: [34, 54], swell: [2.4, 3.6], rain: [55, 100], fog: [12, 26], ctype: 'storm', storm: 1 } }[kind];
+  const pick = ([a, b]) => a + (b - a) * rnd();
+  aim.cloud = pick(P.cloud); aim.wind = pick(P.wind); aim.swell = pick(P.swell); aim.rain = pick(P.rain); aim.fog = pick(P.fog); aim.ctype = P.ctype; aim.storm = P.storm;
+  aim.sun = clamp(100 - aim.cloud * 0.92 - aim.rain * 0.2, 4, 100); aim.windDir = (custom.windDir + (rnd() - 0.5) * 120 + 360) % 360;
+  aimT = 150 + rnd() * 180;
+}
+let driftAcc = 0;
+function driftStep(dt) {
+  if ((aimT -= dt) < 0) driftNext();
+  const k = 1 - Math.exp(-dt / 70);          // a change takes a few minutes to arrive
+  for (const q of ['sun', 'cloud', 'wind', 'rain', 'fog', 'swell']) custom[q] += (aim[q] - custom[q]) * k;
+  const dd = ((aim.windDir - custom.windDir + 540) % 360) - 180; custom.windDir = (custom.windDir + dd * k + 360) % 360;
+  if (aim.ctype !== custom.ctype && aimT < 120) custom.ctype = aim.ctype;
+  custom.storm = aim.storm && custom.rain > 40 ? 1 : 0;
+  if ((driftAcc += dt) > 1) { driftAcc = 0; apply(); }
+}
+export const drifting = () => mode === 'drift';
+driftNext(); aimT = 20;          // (the map starts in drifting weather, from a fair day)
+Object.assign(custom, { cloud: 22, sun: 82, wind: 11, swell: 0.7, rain: 0 }); Object.assign(aim, { cloud: 30, sun: 78, wind: 12, swell: 0.8, rain: 0, ctype: 'cumulus', storm: 0 });
 // changing the time of day hands the tide back to the clock (if the Tide slider had been holding it)
 export function freeTide() { if (tideManual) { tideManual = false; custom.tide = Math.round(tideLevel() * 10) / 10; apply(); } }
 export function setCustom(key, val) { seedCustom(); if (key === 'tide') tideManual = true; else if (!tideManual) custom.tide = Math.round(tideLevel() * 10) / 10; custom[key] = val; mode = 'custom'; apply(); }
@@ -97,10 +126,11 @@ function apply() {
   const dir = (a, off) => ({ dx: Math.sin(a + off), dz: -Math.cos(a + off) });
   const sl = clamp(c.swellPeriod * c.swellPeriod * 1.56 * 0.55, 45, 190);
   const ww = Math.max(c.windWave, c.wind * 0.012);
+  const big = c.swell * (1 + 0.45 * Math.max(0, c.swell - 1));          // a big swell is more than proportionally big: at 3 m the waves are about twice what a straight scaling gives
   setWaves([
-    { ...dir(sd, 0), amp: c.swell * 0.33, len: sl, swell: true },
-    { ...dir(sd, 0.22), amp: c.swell * 0.2, len: sl * 0.62, swell: true },
-    { ...dir(sd, -0.31), amp: c.swell * 0.13, len: sl * 0.4, swell: true },
+    { ...dir(sd, 0), amp: big * 0.33, len: sl, swell: true },
+    { ...dir(sd, 0.22), amp: big * 0.2, len: sl * 0.62, swell: true },
+    { ...dir(sd, -0.31), amp: big * 0.13, len: sl * 0.4, swell: true },
     { ...dir(wd, 0.12), amp: ww * 0.3, len: 34 },
     { ...dir(wd, -0.4), amp: ww * 0.22, len: 21 },
     { ...dir(wd, 0.55), amp: ww * 0.15, len: 13 },
@@ -108,6 +138,7 @@ function apply() {
 }
 
 export function stepWeather(dt) {
+  if (mode === 'drift') driftStep(dt);
   target.tide = tideLevel();
   const k = 1 - Math.exp(-dt * (mode === 'live' ? 0.6 : 1.6));
   for (const key of ['overcast', 'haze', 'turb', 'cloud', 'wind', 'rain', 'storm', 'wave', 'tide', 'cy', 'cs', 'calt', 'cirrus', 'low', 'dark']) wx[key] = lerp(wx[key], target[key], k);
@@ -115,7 +146,7 @@ export function stepWeather(dt) {
   const a = (wx.windDir + 180) * Math.PI / 180;
   U.uWindDir.value.set(Math.sin(a), -Math.cos(a));
   U.uChop.value = clamp(0.16 + wx.wind / 50, 0.16, 1.1);
-  U.uSurf.value = clamp(0.5 + wx.wave * 1.25, 0.5, 5);
+  U.uSurf.value = clamp(0.5 + wx.wave * 1.25 + Math.max(0, wx.wave - 1.2) * 1.5, 0.5, 8);          // a big swell builds a much wider surf zone: the breakers stand further out and the white water runs much further in
   U.uWhitecap.value = smooth(17, 55, wx.wind);
   U.uRain.value = wx.rain;
   U.uSeaM.value = wx.tide;

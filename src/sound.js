@@ -60,6 +60,44 @@ export function makeSound() {
       for (let i = 0; i < 7; i++) { voice('sine', u, 0.085, v * 0.8, p, [[0, 1700 + i * 170], [1, 2300 + i * 190]], 0.3); u += 0.1; }
       return 1.8;
     },
+    curlew(t, v, p) {          // far eastern curlew: the rising, bubbling "cur-lew", then a few falling whistles
+      voice('sine', t, 0.32, v * 0.9, p, [[0, 1250], [1, 2050]], 0.3); voice('sine', t + 0.36, 0.5, v, p, [[0, 1900], [0.4, 2250], [1, 1500]], 0.25); let u = t + 1.0;
+      for (let i = 0; i < 3; i++) { voice('sine', u, 0.22, v * 0.6, p, [[0, 2100], [1, 1550]], 0.25); u += 0.3; }
+      return u - t;
+    },
+    godwit(t, v, p) {          // bar-tailed godwit: a short nasal bark, "kirrick", repeated
+      let u = t; const n = 2 + (Math.random() * 3 | 0);
+      for (let i = 0; i < n; i++) { voice('sawtooth', u, 0.13, v * 0.5, p, [[0, 1400], [1, 1800]], 0.3, 70); u += 0.22; }
+      return u - t;
+    },
+    stonecurlew(t, v, p) {     // beach stone-curlew: the night wail, "wee-loo", rising and then falling, faster and faster
+      let u = t, gap = 0.75; const n = 4 + (Math.random() * 4 | 0);
+      for (let i = 0; i < n; i++) { voice('sine', u, 0.55, v * 1.1, p, [[0, 900], [0.45, 1750], [1, 1100]], 0.35); voice('sine', u + 0.05, 0.55, v * 0.4, p, [[0, 1800], [0.45, 3500], [1, 2200]], 0.35); u += gap; gap = Math.max(0.38, gap * 0.88); }
+      return u - t;
+    },
+    swan(t, v, p) {            // black swan: a soft trumpeting, two notes, the second lower and quavering
+      voice('sawtooth', t, 0.35, v * 0.5, p, [[0, 520], [1, 470]], 0.3, 22); voice('sawtooth', t + 0.42, 0.6, v * 0.55, p, [[0, 430], [0.5, 380], [1, 330]], 0.3, 30);
+      return 1.2;
+    },
+    seaeagle(t, v, p) {        // white-bellied sea eagle: loud goose-like honks, "kong kong kong", slowing and falling
+      let u = t, gap = 0.3; const n = 4 + (Math.random() * 4 | 0);
+      for (let i = 0; i < n; i++) { voice('sawtooth', u, 0.2, v * 0.75, p, [[0, 820 - i * 25], [1, 600 - i * 25]], 0.2, 40); u += gap; gap *= 1.07; }
+      return u - t;
+    },
+    osprey(t, v, p) {          // osprey: a run of shrill, rising whistles, "chew chew chew"
+      let u = t; const n = 3 + (Math.random() * 4 | 0);
+      for (let i = 0; i < n; i++) { voice('sine', u, 0.17, v * 0.8, p, [[0, 2300], [1, 3100]], 0.3); u += 0.23; }
+      return u - t;
+    },
+    brahminy(t, v, p) {        // brahminy kite: a thin, mewing whistle that wavers and falls
+      voice('sine', t, 0.8, v * 0.7, p, [[0, 2400], [0.2, 2900], [0.5, 2500], [1, 1700]], 0.25); voice('sine', t + 0.85, 0.35, v * 0.5, p, [[0, 2200], [1, 1500]], 0.25);
+      return 1.3;
+    },
+    peregrine(t, v, p) {       // peregrine falcon: a fast, hard, chattering "kek kek kek kek"
+      let u = t; const n = 6 + (Math.random() * 6 | 0);
+      for (let i = 0; i < n; i++) { voice('sawtooth', u, 0.07, v * 0.6, p, [[0, 1900], [1, 1500]], 0.2, 90); u += 0.12; }
+      return u - t;
+    },
     whipbird(t, v, p) {        // eastern whipbird: a long thin note, the whip crack, and the mate's two-note answer
       voice('sine', t, 1.1, v * 0.7, p, [[0, 1500], [1, 1750]], 0.6); voice('sine', t + 1.1, 0.14, v * 1.3, p, [[0, 1800], [0.8, 7200], [1, 6000]], 0.5);
       voice('sine', t + 1.4, 0.13, v * 0.8, -p, [[0, 2600], [1, 2200]], 0.2); voice('sine', t + 1.58, 0.13, v * 0.8, -p, [[0, 2600], [1, 2200]], 0.2);
@@ -172,10 +210,11 @@ export function makeSound() {
       const calm = smooth(0.7, 0.1, s.rain) * smooth(60, 25, s.wind) * local;
       if (birdT < 0 && calm > 0.05) {
         const pool = [];
-        if (night > 0.75) { if (env.wood > 0.3) pool.push('boobook'); }
+        if (night > 0.75) { if (env.wood > 0.3) pool.push('boobook'); if (env.beach > 0.2 || !env.land) pool.push('stonecurlew', 'stonecurlew'); }
         else if (day > 0.3) {
           if (env.beach > 0.35 || !env.land) pool.push('gull', 'gull', 'oystercatcher', 'tern');
           if (env.wood > 0.3) pool.push('whipbird', 'honeyeater', 'honeyeater', 'honeyeater', 'coucal', 'crow', 'kookaburra');
+          if (env.beach > 0.35 || !env.land) pool.push('curlew', 'godwit', 'swan', 'seaeagle', 'osprey', 'brahminy', 'peregrine');
           pool.push('kite');
         }
         if (pool.length) { const name = pool[Math.random() * pool.length | 0], far = 0.25 + Math.random() * 0.75; birdT = CALLS[name](t + 0.05, 0.09 * far * calm, Math.random() * 1.6 - 0.8) + (1.5 + Math.random() * 6) * (night > 0.75 ? 4 : 1); }

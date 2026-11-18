@@ -108,7 +108,7 @@ function refreshWeatherUI() {
   const c = current();
   $('wxTemp').textContent = `${Math.round(c.temp)}°`;
   $('wxDesc').textContent = describe(c.code);
-  $('wxSrc').textContent = mode === 'live' ? (live.ok ? `Live · feels ${Math.round(c.feels)}°` : 'Typical day (offline)') : mode === 'custom' ? 'Your weather' : 'Preset weather';
+  $('wxSrc').textContent = mode === 'drift' ? 'Drifting weather' : mode === 'live' ? (live.ok ? `Live · feels ${Math.round(c.feels)}°` : 'Typical day (offline)') : mode === 'custom' ? 'Your weather' : 'Preset weather';
   $('wxWind').textContent = `${Math.round(c.wind)} ${compass(c.windDir)}`;
   $('wxArrow').style.transform = `rotate(${c.windDir + 180}deg)`;
   $('wxWave').textContent = c.wave.toFixed(1);
@@ -276,7 +276,7 @@ function syncHelp() {
     const out = canOut ? ' · G to get out' : '';
     if (touch && k === 'person') t = 'Hold a finger on the view to walk · hold it towards the left or the right to turn that way · the box at the bottom left has Forward, Left, Right, Stop and three speeds · pinch to see yourself from outside · double-tap a vehicle to get in';
     else if (touch) t = ride.helm ? 'In control · steer and change speed with the buttons at the bottom left · drag to look around · pinch to see it from outside' : 'Watching · drag to look around · pinch to see it from outside · the button at the bottom left gives you control';
-    else if (!ride.helm) t = 'Watching · drag to look around · scroll to see it from outside · H to take control' + out + ' · M for the map';
+    else if (!ride.helm) t = 'Watching · drag, or W A S D, to look around · scroll to see it from outside · H to take control' + out + ' · M for the map';
     else if (k === 'car') t = 'A D steer · W faster · S or down arrow brakes, stops, then reverses · hold Shift to go faster · H to let it drive itself' + out + ' · M for the map';
     else if (k === 'boat') t = 'A D steer · W faster · S or down arrow slows it to a stop · hold Shift to go faster · H to let it go on by itself' + out + ' · M for the map';
     else if (k === 'walker') t = 'A D turn · W faster · down arrow slower · hold Shift to run, S to slow down · H to let them walk on · M for the map';
@@ -284,7 +284,7 @@ function syncHelp() {
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
   } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
-  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu · drag any panel to move it, its corner to resize it' : 'Drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu · drag any panel to move it, its corner to resize it';
+  else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu · drag any panel to move it, its corner to resize it' : 'W A S D or the arrow keys move the view, Q E turn it, Shift goes faster · drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu · drag any panel to move it, its corner to resize it';
   $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
 }
 function syncTravel() {
@@ -516,6 +516,30 @@ function goPlace(p) {
 }
 // ---------- camera flights ----------
 let fly = null;
+// W A S D (and the arrow keys) move the view over the map, the way they move you on foot or steer what you drive: W and S forward and back the way
+// you are looking, A and D to the left and right, Q and E turn the view round, Shift goes faster. The further out you are, the further a key takes you.
+const viewKeys = new Set(), VIEW_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+addEventListener('keydown', (e) => {
+  if (walk.active || ride.active || menu.open || e.ctrlKey || e.metaKey || e.altKey || !VIEW_KEYS.has(e.code)) return;
+  const el = e.target; if (el && (el.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName))) return;          // (typing in a box, or moving a slider with the arrows)
+  viewKeys.add(e.code); if (e.code.startsWith('Arrow')) e.preventDefault();
+});
+addEventListener('keyup', (e) => viewKeys.delete(e.code));
+addEventListener('blur', () => viewKeys.clear());
+const viewFwd = new THREE.Vector3();
+function moveView(dt) {
+  const K = (c) => viewKeys.has(c) ? 1 : 0;
+  const f = K('KeyW') + K('ArrowUp') - K('KeyS') - K('ArrowDown'), r = K('KeyD') + K('ArrowRight') - K('KeyA') - K('ArrowLeft'), turn = K('KeyE') - K('KeyQ');
+  if (!f && !r && !turn) return;
+  fly = null; controls.autoRotate = false; $('btSpin').classList.remove('on');
+  const t = controls.target, dist = camera.position.distanceTo(t), v = Math.max(dist * 0.85, 25) * (K('ShiftLeft') || K('ShiftRight') ? 2.6 : 1) * dt;
+  viewFwd.subVectors(t, camera.position); viewFwd.y = 0; if (viewFwd.lengthSq() < 1e-6) viewFwd.set(0, 0, -1); viewFwd.normalize();
+  let dx = (viewFwd.x * f - viewFwd.z * r) * v, dz = (viewFwd.z * f + viewFwd.x * r) * v;
+  const lim = (a, h) => Math.max(-h, Math.min(h, a)), nx = lim(t.x + dx, T.sx / 2 - 100), nz = lim(t.z + dz, T.sz / 2 - 100); dx = nx - t.x; dz = nz - t.z;
+  const dy = (Math.max(meshY(nx, nz), 0) - t.y) * Math.min(1, dt * 6);          // the view keeps to the ground as the land rises and falls under it
+  t.x = nx; t.z = nz; t.y += dy; camera.position.x += dx; camera.position.z += dz; camera.position.y += dy;
+  if (turn) { off.copy(camera.position).sub(t).applyAxisAngle(camera.up, -turn * dt * 1.3); camera.position.copy(t).add(off); }
+}
 const sph = new THREE.Spherical(), off = new THREE.Vector3();
 function flyTo(x, z, dist, azDeg, polarDeg, dur = 2.4) {
   off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
@@ -615,6 +639,8 @@ function frame() {
   acc += dt; U.uTime.value = acc;
   if (st.live) st.date = Date.now(); else if (st.play) st.date += dt * 1000 * st.speed;
   setTideDate(st.date); stepWeather(dt);
+  if (mode === 'drift' && (condTick % 40) === 1) { try { syncWeatherUI(); } catch (e) { /* panel not ready */ } }
+  if (viewKeys.size) { if (walk.active || ride.active) viewKeys.clear(); else moveView(dt); }
   updateSky(st.date, wx);
   // lightning
   if (wx.storm > 0.5 && sky.day < 2) { flashT -= dt; if (flashT < 0) { flashT = 2 + Math.random() * 9; U.uFlash.value = 1; } }
