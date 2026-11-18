@@ -8,14 +8,24 @@ export function spotAt(id, list, stride, see, o = {}) {
   const n = Math.floor(list.length / stride); if (!n || !id) return;
   const xz = new Float32Array(n * 2), rad = new Float32Array(n), xAt = o.xAt ?? 0, zAt = o.zAt ?? 1;
   for (let i = 0; i < n; i++) { xz[i * 2] = list[i * stride + xAt]; xz[i * 2 + 1] = list[i * stride + zAt]; rad[i] = o.radAt != null ? Math.min(Math.abs(list[i * stride + o.radAt]) || 0, 400) : (o.rad || 10); }
-  SPOT.src.push({ id, xz, rad, n, see });
+  SPOT.src.push({ id, xz, rad, n, see, data: Float32Array.from(list), stride, move: o.move || 'home' });
+}
+
+// where one of them is right now (the same motion the shaders give it), for the frame and the turn of the view: t is the map's clock, sea the water level in
+// world metres, ground(x, z) the world height of the ground, out a THREE.Vector3
+export function entryPos(s, i, t, sea, vex, ground, out) {
+  const d = s.data, k = i * s.stride, x = d[k], z = d[k + 1];
+  if (s.move === 'swim') { const r0 = d[k + 2], b = d[k + 7], way = b < 0.5 ? 1 : -1, ang = d[k + 4] + t * d[k + 5] / r0 * way, rr = r0 * (1 + 0.25 * Math.sin(ang * 3 + b * 9)); return out.set(x + Math.cos(ang) * rr, sea - d[k + 3] * vex, z + Math.sin(ang) * rr); }
+  if (s.move === 'afloat') { const r = d[k + 2], w = d[k + 3], ang = w * 40 + t * 0.22 / r * (w < 0.5 ? 1 : -1); return out.set(x + Math.cos(ang) * r, sea + 0.4, z + Math.sin(ang) * r); }
+  if (s.move === 'fly8') { const ang = d[k + 4] + t * d[k + 5] / d[k + 3]; return out.set(x + Math.cos(ang) * d[k + 3], d[k + 1] + Math.sin(ang * 2 + d[k + 4]) * d[k + 3] * 0.06, d[k + 2] + Math.sin(ang) * d[k + 3] * 0.8); }          // (x, alt, z, radius, phase, speed)
+  return out.set(x, ground(x, z) + 0.4, z);
 }
 
 // swimmers (creatures.js swimmers): by the name the map gives each school; [x, z, swim circle, ...] per animal
 const SWIM = { bream: 'bream', blue: 'baitfish', stripey: 'sergeant', neon: 'neon', humbug: 'humbug', small: 'hardyhead', whiting: 'whiting', flathead: 'flathead', turtles: 'greenturtle', rays: 'maskray', wreckrays: 'maskray', shovelnose: 'shovelnose', bigsharks: 'tigershark', sharks: 'whaler', dolphins: 'dolphin', dugongs: 'dugong', whales: 'humpback',
   tailor: 'tailor', dart: 'dart', trevally: 'trevally', jewfish: 'jewfish', longtom: 'longtom', tarwhine: 'tarwhine', snapper: 'snapper', squire: 'squire', sweetlip: 'sweetlip', cod: 'cod', moses: 'moses', tuskfish: 'tusk', morwong: 'morwong', moray: 'moray', fry: 'baitfish', chromis: 'neon', sergeants: 'sergeant', reefbream: 'bream' };
 const SEE_SWIM = { baitfish: 30, hardyhead: 25, whiting: 25, neon: 25, humbug: 25, sergeant: 30, dart: 30, longtom: 35, bream: 45, tailor: 45, tarwhine: 40, squire: 35, moses: 40, flathead: 30, tusk: 40, morwong: 40, moray: 30, sweetlip: 50, cod: 45, trevally: 60, jewfish: 70, snapper: 60, greenturtle: 110, maskray: 70, shovelnose: 80, whaler: 130, tigershark: 160, dolphin: 260, dugong: 220, humpback: 900 };
-export function spotSwim(name, list, stride) { const id = SWIM[name]; if (id) spotAt(id, list, stride, SEE_SWIM[id] || 50, { radAt: 2 }); }
+export function spotSwim(name, list, stride) { const id = SWIM[name]; if (id) spotAt(id, list, stride, SEE_SWIM[id] || 50, { radAt: 2, move: 'swim' }); }
 
 // birds on foot (wildbirds.js walkers): [x, z, turn, phase]
 const WALK = { oystercatchers: ['oystercatcher', 140], curlews: ['curlew', 220], godwits: ['godwit', 200], stonecurlews: ['stonecurlew', 120], cormorants: ['greatcormorant', 180], cormorantsdry: ['greatcormorant', 180] };

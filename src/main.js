@@ -590,7 +590,7 @@ async function boot() {
   aboard = buildAboard(scene, { cars: rideable, boats: () => boats.boats, planes: () => air.planes, ride });
   seabed = buildSeabed(scene, F, { wrecks: features.wrecks, plates: features.bulwerPlates, reefs: folk.reefs });
   spotSeabed(seabed.lists.crabs, seabed.lists.octos);
-  spotter = makeSpotting({ camera, F, state: () => ({ walking: walk.active, riding: ride.active }), openGuide: (id) => guide.open(id) });
+  spotter = makeSpotting({ camera, controls, walk, F, state: () => ({ walking: walk.active, riding: ride.active }), openGuide: (id) => guide.open(id) });
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   mini = buildMinimap(F, {

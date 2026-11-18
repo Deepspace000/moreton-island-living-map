@@ -813,7 +813,7 @@ function buildBirds(scene, F) {
   add(0, 110, 0, 140, 9, 1.6, 1, 0.08, [.55, .25, .12], [.5, .22, .1]);
   { const by = { pelican: [], cormorant: [], cresttern: [], silvergull: [] };          // (for the guide's spotting: the birds that circle a fixed place; those that follow the viewer are always about)
     for (let i = 0; i < list.length; i += 8) { if (list[i + 7] >= 1) continue; const sz = list[i + 6]; by[sz > 2 ? 'pelican' : sz > 1.05 ? 'cormorant' : sz < 0.9 ? 'cresttern' : 'silvergull'].push(...list.slice(i, i + 8)); }
-    for (const [id, l] of Object.entries(by)) spotAt(id, l, 8, id === 'pelican' ? 450 : 300, { xAt: 0, zAt: 2, radAt: 3 }); }
+    for (const [id, l] of Object.entries(by)) spotAt(id, l, 8, id === 'pelican' ? 450 : 300, { xAt: 0, zAt: 2, radAt: 3, move: 'fly8' }); }
   const n = list.length / 8, g = new THREE.InstancedBufferGeometry(), a = new Float32Array(n * 4), b = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
   attr(g, 'position', BIRD.pos, 3); attr(g, 'aWing', BIRD.wing, 1); attr(g, 'aTone', BIRD.tone, 1); g.setIndex(BIRD.idx);
@@ -893,7 +893,7 @@ function buildBirds(scene, F) {
     const fg = new THREE.InstancedBufferGeometry(), ip = [];
     fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color); fg.setAttribute('aFx', geo2.attributes.aFx);
     for (const [p, n] of spots) for (let i = 0, t = 0; i < n * per && t < 400; t++) { const x = p[0] - 40 - R() * 160, z = p[1] + (R() - .5) * 260; if (wet(x, z)) { ip.push(x, z, 3 + R() * 9, R()); i++; } }
-    spotAt(id, ip, 4, see, { radAt: 2 }); fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
+    spotAt(id, ip, 4, see, { radAt: 2, move: 'afloat' }); fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
     const fm = new THREE.Mesh(fg, fmat); fm.name = 'afloat'; fm.frustumCulled = false; scene.add(fm); nearOnly(fm, ip, 4, 1200, 30, 40);
   };
   const fmat = makeMat({
