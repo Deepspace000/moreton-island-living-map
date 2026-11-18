@@ -22,5 +22,8 @@ F11 switches full screen on and off, F5 loads the map again. The links in the cr
 ## Things to know
 
 - The programs are not signed, so the first time one is started Windows SmartScreen may say it does not know the publisher: choose "More info", then "Run anyway".
-- A built program holds the map as it was when it was built. After changing the map, run `npm run dist` again. (To use a newer map without building: `MORETON_MAP_DIR=<folder of the map>`.)
+- A built program holds the map as it was when it was built, but it **updates itself**: 15 seconds after start (and every 4 hours) it reads `update.json` from https://deepspace000.github.io/moreton-island-living-map/, and if that release is newer it downloads only the files that differ into `<data folder>/updates/<release>`, checks each one's hash, and asks "Load it now / Later". Later means the next start uses it. Offline or mid-publish, it just skips. A newer installed program beats an older download.
+- **To release an update:** bump `?v=` in `index.html`, then `node desktop/prepare.js` (writes `update.json` at the repo root and into the build), commit `update.json` with the rest, and push to `main` so Pages serves it. Rebuild and re-upload the Windows build only when `main.js` itself changes.
+- Testing the updater: serve a changed copy of the map folder (with its own `update.json`) on a local port and start the built program with `MORETON_UPDATE_URL=http://localhost:PORT/ MORETON_UPDATE_DELAY=2000 MORETON_UPDATE_AUTO=1` and a throwaway `MORETON_USERDATA`; it prints `UPDATE release N downloaded` and `AFTER-RELOAD ver ...`.
+- To use a newer map without building: `MORETON_MAP_DIR=<folder of the map>` (this also switches updates off).
 - The version of the program is the `version` in `package.json`; the map's own release number is shown under its title.

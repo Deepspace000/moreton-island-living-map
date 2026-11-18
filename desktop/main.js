@@ -1,15 +1,37 @@
 // Windows wrapper for the Moreton Island living map. It serves the map's own files through a private app:// address, so the
 // map runs exactly as it does on the web (script modules, fetch and images all work, with no server), and everything but the
 // live weather works offline. The web version is untouched.
-const { app, BrowserWindow, protocol, net, Menu, shell } = require('electron');
+const { app, BrowserWindow, protocol, net, Menu, shell, dialog } = require('electron');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 const SMOKE = !!process.env.MORETON_SMOKETEST;          // test run: open the map, wait until it is drawn, print a short report and quit
 // in development the map is the folder above; in a built app it is copied into resources/map by prepare.js
-const MAP_DIR = process.env.MORETON_MAP_DIR ? path.resolve(process.env.MORETON_MAP_DIR) : app.isPackaged ? path.join(process.resourcesPath, 'map') : path.resolve(__dirname, '..');
+const BUNDLED = process.env.MORETON_MAP_DIR ? path.resolve(process.env.MORETON_MAP_DIR) : app.isPackaged ? path.join(process.resourcesPath, 'map') : path.resolve(__dirname, '..');
 if (process.env.MORETON_USERDATA) app.setPath('userData', path.resolve(process.env.MORETON_USERDATA));
+
+// Updates. A built program holds the map as it was built; at each start it also looks at the map's own website for a newer
+// release (update.json: the release number and a hash for every file), downloads only the files that differ into
+// <data folder>/updates/<release>, and offers to load it. The newest release found, bundled or downloaded, is the one shown.
+const UPDATE_URL = (process.env.MORETON_UPDATE_URL || 'https://deepspace000.github.io/moreton-island-living-map/').replace(/\/?$/, '/');
+const UPDATES = path.join(app.getPath('userData'), 'updates');
+const readManifest = (dir) => { try { const m = JSON.parse(fs.readFileSync(path.join(dir, 'update.json'), 'utf8')); return m && m.release && m.files ? m : null; } catch (e) { return null; } };
+const hashOf = (buf) => crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16);
+function pickMapDir() {
+  if (process.env.MORETON_MAP_DIR || !app.isPackaged) return BUNDLED;
+  let best = BUNDLED, rel = (readManifest(BUNDLED) || {}).release || 0;
+  try {
+    for (const d of fs.readdirSync(UPDATES)) {
+      const dir = path.join(UPDATES, d), m = readManifest(dir);
+      if (m && m.release > rel && !fs.existsSync(path.join(dir, '.partial'))) { best = dir; rel = m.release; }
+    }
+    for (const d of fs.readdirSync(UPDATES)) { const dir = path.join(UPDATES, d); if (dir !== best) fs.rmSync(dir, { recursive: true, force: true }); }          // older or half-finished downloads
+  } catch (e) { /* no updates folder yet */ }
+  return best;
+}
+let MAP_DIR = pickMapDir();
 const HOME = 'app://map/';
 
 // a laptop with two graphics chips would otherwise draw the map on the weak one
@@ -28,7 +50,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 720, minHeight: 480,
     backgroundColor: '#06202e', title: 'Moreton Island · Living Map', autoHideMenuBar: true, show: false,
-    icon: path.join(MAP_DIR, 'icon-512.png'),
+    icon: path.join(BUNDLED, 'icon-512.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: !SMOKE },          // (a self-test window behind others must still be drawn, for its picture)
   });
   Menu.setApplicationMenu(null);
@@ -71,9 +93,48 @@ function smoke(w) {
   });
 }
 
+let ready = null, busy = false;          // ready: the folder of a downloaded release that is waiting to be loaded
+async function getBuf(url) { const r = await net.fetch(url, { signal: AbortSignal.timeout(60000), headers: { 'cache-control': 'no-cache' } }); if (!r.ok) throw new Error(url + ' ' + r.status); return Buffer.from(await r.arrayBuffer()); }
+async function checkForUpdate() {
+  if (busy || ready || process.env.MORETON_MAP_DIR || (!app.isPackaged && !process.env.MORETON_UPDATE_URL)) return;
+  busy = true;
+  try {
+    const have = readManifest(MAP_DIR);
+    if (!have) return;
+    const want = JSON.parse((await getBuf(UPDATE_URL + 'update.json?t=' + Date.now())).toString('utf8'));
+    if (!want || !(want.release > have.release) || !want.files) return;
+    const dir = path.join(UPDATES, String(want.release));
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, '.partial'), '');          // until every file is in, a start must not use this folder
+    let fetched = 0;
+    for (const [rel, [size, h]] of Object.entries(want.files)) {
+      const dest = path.resolve(dir, rel);
+      if (!dest.startsWith(dir + path.sep)) throw new Error('bad path ' + rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      const old = have.files[rel];
+      if (old && old[1] === h && old[0] === size) { try { fs.copyFileSync(path.join(MAP_DIR, rel), dest); if (hashOf(fs.readFileSync(dest)) === h) continue; } catch (e) { /* fall through and download it */ } }
+      const buf = await getBuf(UPDATE_URL + rel.split('/').map(encodeURIComponent).join('/'));
+      if (buf.length !== size || hashOf(buf) !== h) throw new Error('wrong file ' + rel);
+      fs.writeFileSync(dest, buf); fetched++;
+    }
+    fs.writeFileSync(path.join(dir, 'update.json'), JSON.stringify(want));
+    fs.rmSync(path.join(dir, '.partial'));
+    ready = dir;
+    console.log(`UPDATE release ${want.release} downloaded (${fetched} new files)`);
+    if (process.env.MORETON_UPDATE_AUTO) {          // self-test: load it at once, report the release shown, quit
+      MAP_DIR = ready; ready = null; win.webContents.once('did-finish-load', async () => { await new Promise(r => setTimeout(r, 3000)); console.log('AFTER-RELOAD ver', await win.webContents.executeJavaScript(`(document.getElementById('ver')||{}).textContent`)); app.quit(); }); win.webContents.reloadIgnoringCache(); return;
+    }
+    if (SMOKE) return;
+    const r = await dialog.showMessageBox(win, { type: 'info', buttons: ['Load it now', 'Later'], defaultId: 0, cancelId: 1, title: 'Moreton Island', message: `A newer map is ready (release ${want.release}).`, detail: 'Load it now, or it opens the next time you start the program. Your settings are kept.' });
+    if (r.response === 0 && win) { MAP_DIR = ready; ready = null; win.webContents.reloadIgnoringCache(); }
+  } catch (e) { console.log('UPDATE skipped:', e.message); }          // offline, or the site is mid-publish: try again later
+  finally { busy = false; }
+}
+
 app.whenReady().then(() => {
-  const root = path.resolve(MAP_DIR) + path.sep;
   protocol.handle('app', (req) => {
+    const root = path.resolve(MAP_DIR) + path.sep;
     const u = new URL(req.url);
     let rel = decodeURIComponent(u.pathname).replace(/^\/+/, '');
     if (rel === '') rel = 'index.html';
@@ -83,6 +144,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(file).toString());
   });
   createWindow();
+  setTimeout(checkForUpdate, Number(process.env.MORETON_UPDATE_DELAY) || 15000); setInterval(checkForUpdate, 4 * 3600 * 1000);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
