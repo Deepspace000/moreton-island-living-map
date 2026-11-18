@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { U, VEX, MOBILE, dq, makeMat, LOGV, LOGF, rng } from './common.js';
 import { T, meshY, heightAt, maskAt } from './terrain.js';
-import { swimmers, SLIM, DAMSEL, RAY, PAINT } from './creatures.js';
+import { swimmers, SLIM, DAMSEL, BREAM, RAY, PAINT } from './creatures.js';
 
 const SEEN = 420;          // metres: beyond this none of it is drawn
 // the colour of something under water: the red goes first, and the water's own colour comes in with depth
@@ -102,11 +102,11 @@ export function buildSeabed(scene, F, o) {
     }
   };
   // ---- the moving ones: where each lives ----
-  const crabs = [], octos = [], fry = [], chromis = [], rays = [];
+  const crabs = [], octos = [], fry = [], chromis = [], rays = [], sergeants = [], bream = [];
   const school = (out, x, z, d, n, r0, size) => { const ph = R() * 6.283, sp = 0.35 + R() * 0.4, way = R() < 0.5 ? 0.2 : 0.8; for (let i = 0; i < n; i++) out.push(x + (R() - .5) * 1.6, z + (R() - .5) * 1.6, r0 + R() * 1.2, Math.min(d - 0.25, Math.max(0.3, d - 0.3 - R() * 1.4)), ph + i * 0.07 + R() * 0.15, sp, size * (0.8 + R() * 0.4), way + R() * 0.1); };
   const ROCKS = [[0.2, 0.18, 0.15], [0.26, 0.23, 0.18], [0.16, 0.16, 0.15], [0.3, 0.25, 0.19]];
-  // one place on the sea bed, rad metres across, k how much of everything
-  const site = (x, z, rad, k, rich) => {
+  // one place on the sea bed, rad metres across, k how much of everything; wreck: it is at a wreck (which has its own reef fish: see life.js)
+  const site = (x, z, rad, k, rich, wreck = false) => {
     const spot = (r0 = 0, r1 = rad) => { for (let t = 0; t < 6; t++) { const a = R() * 6.283, r = r0 + Math.sqrt(R()) * (r1 - r0), px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (Math.abs(px) < T.sx / 2 - 200 && Math.abs(pz) < T.sz / 2 - 200 && depth(px, pz) > 0.35) return [px, pz]; } return null; };
     const n = (a, b) => Math.round((a + R() * (b - a)) * k * K), tone = pick(ROCKS), rocks = [];
     for (let i = n(2, 5); i > 0; i--) { const p = spot(); if (!p) continue; at(p[0], p[1]); const rk = rock(p[0], p[1], 0.22 + R() * R() * 1.0, tone); rocks.push(rk);
@@ -122,21 +122,39 @@ export function buildSeabed(scene, F, o) {
     for (let i = n(2, 4); i > 0; i--) { const p = spot(); if (p) crabs.push(p[0], p[1], R() * 6.283, 0.09 + R() * 0.11, R() * 6.283, 0.5 + R() * 1.6, 0.25 + R() * 0.35, R()); }
     if (R() < 0.45 * k) { const rk = rocks.length ? pick(rocks) : null, p = rk ? [rk.x + rk.r * 1.5 + 0.6, rk.z + rk.r * 0.5] : spot(); if (p && depth(p[0], p[1]) > 0.7) octos.push(p[0], p[1], R() * 6.283, 0.3 + R() * 0.2, R() * 6.283, 0.25 + R() * 0.35, 0.6 + R() * 0.8, R()); }          // beside its rock, never far from it
     for (let i = rich ? 2 : R() < 0.3 * k ? 1 : 0; i > 0; i--) { const p = spot(0, rad * 0.8); if (!p) continue; const d = depth(p[0], p[1]); if (d < 0.7) continue; school(R() < 0.6 ? fry : chromis, p[0], p[1], d, Math.round((10 + R() * 10) * K), 0.8 + R() * 1.6, 0.09 + R() * 0.06); }
+    // away from the wrecks, reef fish round the rocks too: a school of sergeant majors close over them, and a few bream cruising wider
+    if (!wreck) { const p = spot(0, rad * 0.7), d = p ? depth(p[0], p[1]) : 0;
+      if (p && d > 1.0 && (rich || R() < 0.6)) school(sergeants, p[0], p[1], d, Math.round((6 + R() * 9) * (rich ? 1.6 : 1) * K), 1.5 + R() * 2.5, 0.7);
+      if (p && d > 1.2 && (rich || R() < 0.35)) school(bream, p[0] + (R() - 0.5) * rad, p[1] + (R() - 0.5) * rad, d, Math.round((3 + R() * 5) * K), 4 + R() * 5, 1.0); }
     if (rich || R() < 0.2) for (let i = rich ? 2 : 1; i > 0; i--) { const p = spot(rad * 0.5, rad * 1.6); if (p && depth(p[0], p[1]) > 0.6) rays.push(p[0], p[1], 4 + R() * 9, 0, R() * 6.283, 0.25 + R() * 0.3, 0.7 + R() * 0.7, R()); }
   };
   // ---- the wrecks: barnacles and weed on the plating between the sea bed and the high-water mark, and a rich patch of bed round each ----
   for (const w of o.wrecks || []) {
     if (w.hull) { at(w.x, w.z);
-      const surf = () => { const q = w.hull(0.03 + R() * 0.94, 0.04 + R() * 0.7, R() < 0.5 ? -1 : 1); return q[1] < 0.55 * VEX ? [q[0] + q[3] * 0.02, q[1], q[2] + q[4] * 0.02, q[3], 0.15, q[4]] : null; };
+      const surf = () => { const q = w.hull(0.03 + R() * 0.94, 0.04 + R() * 0.56, R() < 0.5 ? -1 : 1);          /* (never up into the top third of the side, which the rust eats away unevenly: see RUST in common.js) */ return q[1] < 0.55 * VEX ? [q[0] + q[3] * 0.02, q[1], q[2] + q[4] * 0.02, q[3], 0.15, q[4]] : null; };
       for (let c = Math.round(55 * K); c > 0; c--) { const p0 = surf(); if (!p0) continue; barnacle(p0, 0.05 + R() * 0.05); for (let j = 3 + ((R() * 6) | 0); j > 0; j--) barnacle([p0[0] - p0[5] * (R() - 0.5) * 0.5, p0[1] + (R() - 0.5) * 0.4, p0[2] + p0[3] * (R() - 0.5) * 0.5, p0[3], p0[4], p0[5]], 0.03 + R() * 0.05); }
       for (let c = Math.round(60 * K); c > 0; c--) { const q = surf(); if (q && q[1] < 0.15 * VEX) tuft(q[0], q[1], q[2], (0.15 + R() * 0.35) * VEX, q[3] * 0.9, q[5] * 0.9); } }
-    if (depth(w.x, w.z) > 0.2) for (const u of [0.2, 0.8]) { const q = w.hull ? w.hull(u, 0, 1) : [w.x, 0, w.z]; site(q[0], q[2], 10, 1.7, true); }          // close in, at each end of the hull
+    if (depth(w.x, w.z) > 0.2) for (const u of [0.2, 0.8]) { const q = w.hull ? w.hull(u, 0, 1) : [w.x, 0, w.z]; site(q[0], q[2], 10, 1.7, true, true); }          // close in, at each end of the hull
   }
-  // the Bulwer hulks: along the foot of each wall, inside and out
-  for (const b of F.buildings) { if (b.k !== 'ship' || b.p.length < 3) continue; at(b.p[0][0], b.p[0][1]); let mx = 0, mz = 0; for (const p of b.p) { mx += p[0] / b.p.length; mz += p[1] / b.p.length; }
-    for (let c = Math.round(110 * K); c > 0; c--) { const i = (R() * b.p.length) | 0, p = b.p[i], q = b.p[(i + 1) % b.p.length], f = R(), x = p[0] + (q[0] - p[0]) * f, z = p[1] + (q[1] - p[1]) * f, ex = q[0] - p[0], ez = q[1] - p[1], el = Math.hypot(ex, ez) || 1; let nx = ez / el, nz = -ex / el; if ((x - mx) * nx + (z - mz) * nz < 0) { nx = -nx; nz = -nz; } if (R() < 0.4) { nx = -nx; nz = -nz; }
-      const y = meshY(x, z) + (0.08 + R() * 1.1) * VEX; if (y > 0.55 * VEX) continue; const p0 = [x + nx * 0.12, y, z + nz * 0.12, nx, 0.15, nz]; if (c % 3) { barnacle(p0, 0.05 + R() * 0.05); barnacle([p0[0] - nz * 0.12, y + 0.08, p0[2] + nx * 0.12, nx, 0.15, nz], 0.04 + R() * 0.04); } else tuft(p0[0], y, p0[2], (0.15 + R() * 0.3) * VEX, nx, nz); }
-    if (depth(mx, mz) > 0.2) site(mx, mz, 11, 1.6, true); }
+  // The Bulwer hulks: barnacles and weed only on the panels of plating that still stand (features.js lists them), between the sand and the
+  // high-water mark, on the outer face or the inner. Where the plating has rusted away there is nothing for them to grow on.
+  const plates = o.plates || [];
+  const onPlate = (pl, inner) => {          // a point on a panel's face, under water at high tide and above the sand, and the way the face looks there
+    const { a, b, lo, th } = pl, f = R(), x0 = a.x + (b.x - a.x) * f, z0 = a.z + (b.z - a.z) * f, t = a.t + (b.t - a.t) * f;
+    let nx = a.nx + (b.nx - a.nx) * f, nz = a.nz + (b.nz - a.nz) * f; const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;          // (into the hull)
+    const gy = meshY(x0 + nx * 0.25, z0 + nz * 0.25), y0 = Math.max(gy + 0.04, lo), y1 = Math.min(t - 0.15, 0.55 * VEX);
+    if (y1 <= y0) return null;
+    const y = y0 + R() * (y1 - y0), k = (y - lo) / (t - lo), inset = 0.5 * (1 - k) + (inner ? th + 0.015 : -0.015), sd = inner ? 1 : -1;
+    return [x0 + nx * inset, y, z0 + nz * inset, nx * sd, 0.15, nz * sd, gy];
+  };
+  const shipBy = new Map();          // which hull each panel belongs to, for a rich patch of sea bed round each hull
+  for (const b of F.buildings) { if (b.k !== 'ship' || b.p.length < 3) continue; let mx = 0, mz = 0; for (const p of b.p) { mx += p[0] / b.p.length; mz += p[1] / b.p.length; } shipBy.set(b, [mx, mz]); }
+  if (plates.length) for (let c = Math.round(110 * K * shipBy.size); c > 0; c--) {
+    const pl = plates[(R() * plates.length) | 0], q = onPlate(pl, R() < 0.4); if (!q) continue; at(q[0], q[2]);
+    if (c % 3) { barnacle(q, 0.05 + R() * 0.05); const q2 = onPlate(pl, q[3] * pl.a.nx + q[5] * pl.a.nz > 0); if (q2) barnacle(q2, 0.04 + R() * 0.04); }
+    else tuft(q[0], Math.max(q[6], pl.lo), q[2], (0.15 + R() * 0.3) * VEX, q[3], q[5]);          // weed from the foot of the plate
+  }
+  for (const [, c] of shipBy) if (depth(c[0], c[1]) > 0.2) site(c[0], c[1], 11, 1.6, true, true);
   for (const s of o.reefs || []) site(s[0], s[1], 9, 1.3, true);
   // and many smaller places in the shallows all round the island
   for (let t = 0, made = 0; t < 9000 && made < 120 * K; t++) { const x = (R() - 0.5) * (T.sx - 1200), z = (R() - 0.5) * (T.sz - 1200), d = depth(x, z); if (d < 0.7 || d > 7 || maskAt(x, z).shore < -900) continue; made++; site(x, z, 3.5 + R() * 4, 0.5 + R() * 0.5, false); }
@@ -199,7 +217,10 @@ export function buildSeabed(scene, F, o) {
   // very small fish in tight groups, and rays on the sand by the wrecks
   if (fry.length) swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'fry', amp: 0.18, rate: 17, colA: [0.36, 0.44, 0.34], colB: [0.92, 0.94, 0.9], colC: [0.6, 0.66, 0.56], eye: [0.39, 0.012, 0.02], see: 150, min: 0.3 }, fry);
   if (chromis.length) swimmers(scene, { ...DAMSEL, paint: PAINT.neon, name: 'chromis', amp: 0.16, rate: 16, colA: [0.1, 0.62, 0.55], colB: [0.5, 0.9, 0.7], colC: [0.1, 0.5, 0.6], see: 150, min: 0.3 }, chromis);
+  // the reef fish of the rocky patches and reefs away from the wrecks: yellow-barred sergeant majors and silver bream
+  if (sergeants.length) swimmers(scene, { ...DAMSEL, paint: PAINT.sergeant, name: 'sergeants', amp: 0.13, rate: 10, colA: [0.74, 0.72, 0.36], colB: [0.92, 0.92, 0.84], colC: [0.6, 0.62, 0.42], see: 320, min: 0.6 }, sergeants);
+  if (bream.length) swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'reefbream', amp: 0.13, rate: 8, colA: [0.36, 0.4, 0.38], colB: [0.86, 0.89, 0.9], colC: [0.46, 0.48, 0.43], see: 420, min: 0.8 }, bream);
   if (rays.length) swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'wreckrays', vertical: 1, bottom: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 600, min: 0.25 }, rays);
-  return { meshes, lists: { crabs, octos }, count: { verts, crabs: crabs.length / 8, octopus: octos.length / 8, fry: fry.length / 8, chromis: chromis.length / 8, rays: rays.length / 8, chunks: chunks.size },
+  return { meshes, lists: { crabs, octos }, count: { verts, sergeants: sergeants.length / 8, bream: bream.length / 8, crabs: crabs.length / 8, octopus: octos.length / 8, fry: fry.length / 8, chromis: chromis.length / 8, rays: rays.length / 8, chunks: chunks.size },
     update(camDist) { const on = camDist < 1600; for (const m of meshes) if (m.visible !== on) m.visible = on; } };
 }

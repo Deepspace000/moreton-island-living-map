@@ -975,6 +975,7 @@ function buildPalms(F, scene, occ) {
 // a leaning plate and a few frames standing clear.
 const BULWER = [-2450.8, -11947.1];
 function buildBulwerWrecks(F, g) {
+  const plates = [];          // every panel of plating that still stands: the barnacles and weed are put on these, and nowhere else (seabed.js)
   const TONES = [[.60, .29, .16], [.47, .21, .11], [.70, .36, .18], [.54, .24, .12]];
   const tone = (R, k = 1) => { const b = TONES[(R() * TONES.length) | 0], f = (0.85 + R() * 0.3) * k; return [b[0] * f, b[1] * f, b[2] * f]; };
   // Stand a rusted hull wall along an outline. top: height of the upper edge above mean sea level (m); show: least height
@@ -1000,6 +1001,7 @@ function buildBulwerWrecks(F, g) {
         const A = [a.x + a.nx * 0.5, lo, a.z + a.nz * 0.5], B = [b.x + b.nx * 0.5, lo, b.z + b.nz * 0.5], C = [b.x, b.t, b.z], D = [a.x, a.t, a.z];
         const Ai = [A[0] + a.nx * TH, lo, A[2] + a.nz * TH], Bi = [B[0] + b.nx * TH, lo, B[2] + b.nz * TH], Ci = [b.x + b.nx * TH, b.t - 0.05, b.z + b.nz * TH], Di = [a.x + a.nx * TH, a.t - 0.05, a.z + a.nz * TH];
         g.quad(A, B, C, D, col); g.quad(Bi, Ai, Di, Ci, inner); g.quad(D, C, Ci, Di, [col[0] * 1.12, col[1] * 1.08, col[2]]);
+        plates.push({ a, b, lo, th: TH });          // (its outer face leans in from the outline at the top to half a metre inside it at lo)
       }
       // a frame at each station: where the plating has gone, the bare rib is all that stands
       if (R() < o.ribs) { const h = Math.max(a.t, (o.top - 0.7 + R() * 1.0) * VEX); if (h > a.gy + 0.3) g.box(a.x + a.nx * 0.34, a.gy - 0.8, a.z + a.nz * 0.34, 0.24, h - a.gy + 0.8, 0.24, tone(R, 0.8)); }
@@ -1022,13 +1024,14 @@ function buildBulwerWrecks(F, g) {
     else if (wide < 40) shell(b.p, seed, { top: 2.3, show: 1.3, gaps: 0.07, rag: 0.7, ribs: 0.9 });                 // the northern hull, the most complete
     else shell(b.p, seed, { top: 1.8, show: 1.0, gaps: 0.26, rag: 1.0, ribs: 0.9, sag: 0.5 });                      // the southern hull: long, low and broken
   }
-  if (!hulls.length) return;
+  if (!hulls.length) return plates;
   // the pieces of the third hull that still show: its boiler, a leaning plate, a clump of frames
   const R = rng(75), y0 = (x, z) => meshY(x, z);
   g.at(new THREE.Matrix4().makeRotationZ(Math.PI / 2).setPosition(-2455.5, y0(-2457.3, -11962.0) + 1.7, -11962.0)); g.cyl(0, 0, 0, 1.7, 1.7, 3.6, 12, tone(R), tone(R, 0.8)); g.at(null);
   g.at(new THREE.Matrix4().makeRotationY(-1.35).multiply(new THREE.Matrix4().makeRotationX(0.5)).setPosition(-2455.5, y0(-2455.5, -11946.1) - 0.3, -11946.1)); g.box(0, 0, 0, 6.2, 2.4 * VEX, 0.14, tone(R)); g.at(null);
   for (let i = 0; i < 5; i++) { const x = -2452.6 + (R() - .5) * 1.2, z = -11936.6 + i * 1.1; g.box(x, y0(x, z) - 0.5, z, 0.2, (1.6 + R() * 1.0) * VEX + 0.5, 0.26, tone(R, 0.85)); }
   g.at(new THREE.Matrix4().makeRotationY(-1.3).multiply(new THREE.Matrix4().makeRotationX(-0.35)).setPosition(-2451.6, y0(-2451.6, -11922.5) - 0.3, -11922.5)); g.box(0, 0, 0, 5.5, 1.9 * VEX, 0.14, tone(R)); g.at(null);
+  return plates;
 }
 
 // ---------------------------------------------------------------- wrecks
@@ -1394,7 +1397,7 @@ export function buildFeatures(scene, F, flyTo) {
   const solid = new THREE.Mesh(g.build(), objectMat({ side: THREE.DoubleSide, defines: { WINDOWS: 1 } })); solid.frustumCulled = false; scene.add(solid);
   const gw = new GB(); const wrecks = buildWrecks(F, gw);
   const wm = new THREE.Mesh(gw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1 } })); wm.frustumCulled = false; scene.add(wm);
-  const gbw = new GB(); buildBulwerWrecks(F, gbw);
+  const gbw = new GB(), bulwerPlates = buildBulwerWrecks(F, gbw);
   const bwm = new THREE.Mesh(gbw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1, DRYRUST: 1 } })); bwm.name = 'bulwerWrecks'; bwm.frustumCulled = false; scene.add(bwm);
   const fl = buildFloaters(st.floaters, scene, lights);
   buildLakes(F, scene);
@@ -1423,7 +1426,7 @@ export function buildFeatures(scene, F, flyTo) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   lights.pts.material.uniforms.uPx.value = dpr;
   return {
-    places, wrecks,
+    places, wrecks, bulwerPlates,
     update(dt, t, camera, showLabels, target) {
       for (const b of st.beamGroups) b.rotation.y = t * 0.55;
       const sy = seaY();

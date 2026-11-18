@@ -558,7 +558,7 @@ async function boot() {
   air = buildPlanes(scene, F);
   trek = buildTraveller(scene, F);
   aboard = buildAboard(scene, { cars: rideable, boats: () => boats.boats, planes: () => air.planes, ride });
-  seabed = buildSeabed(scene, F, { wrecks: features.wrecks, reefs: folk.reefs });
+  seabed = buildSeabed(scene, F, { wrecks: features.wrecks, plates: features.bulwerPlates, reefs: folk.reefs });
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   mini = buildMinimap(F, {
@@ -596,8 +596,21 @@ async function boot() {
   if (Q.has('shot')) $('loading').remove(); else { $('loading').style.opacity = 0; $('loading').style.pointerEvents = 'none'; setTimeout(() => $('loading')?.remove(), 1600); }
 }
 
+// ---------- "Loading": the first time a click brings something new into view (walking, a ride, a storm, a far place), the graphics card
+// first has to get it ready, and the picture stops for a moment. So every click on a button (or double-click on the map) puts up a
+// small box saying so: the next frame is skipped, so that the box is on screen before the slow one starts, and it goes once the
+// frames come quickly again. It only fades in after a tenth of a second, so a click that sets off nothing slow never shows it.
+const busy = document.createElement('div'); busy.id = 'busy'; busy.className = 'glass'; busy.innerHTML = '<i></i><span>Loading…</span>'; document.body.appendChild(busy);
+const BUSY = { hold: 0, frames: 0, calm: 0, last: 0, typ: 20 };
+function showBusy() { if (!busy.classList.contains('on')) { busy.classList.add('on'); BUSY.hold = 1; } BUSY.frames = 0; BUSY.calm = 0; }
+addEventListener('click', (e) => { if (e.target.closest && e.target.closest('button')) showBusy(); }, true);
+canvas.addEventListener('dblclick', showBusy, true);
 let acc = 0, uiT = 0, flashT = 0, forceDt = 0;
 function frame() {
+  { const now = performance.now(), gap = BUSY.last ? now - BUSY.last : 16; BUSY.last = now;
+    if (BUSY.hold > 0 && !forceDt) { BUSY.hold--; return; }          // (this frame only lets the box be drawn)
+    if (busy.classList.contains('on')) { BUSY.frames++; BUSY.calm = gap < Math.max(120, BUSY.typ * 2.5) ? BUSY.calm + 1 : 0; if ((BUSY.frames > 3 && BUSY.calm >= 3) || BUSY.frames > 900) busy.classList.remove('on'); }
+    else if (gap < 1000) BUSY.typ += (gap - BUSY.typ) * 0.05; }          // (how long a frame usually takes on this machine)
   const dt = forceDt || Math.min(clock.getDelta(), 0.1);
   acc += dt; U.uTime.value = acc;
   if (st.live) st.date = Date.now(); else if (st.play) st.date += dt * 1000 * st.speed;

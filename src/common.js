@@ -247,7 +247,10 @@ export function objectMat(opts = {}) {
           #else
           float wl = (vW.y - uSeaM * uVex) / uVex;       // metres above the sea
           { float eat = texture2D(uNoise, vec2(vW.x + vW.z * 0.7, vW.y * 0.8) / 11.0).r + 0.2 * texture2D(uNoise, vec2(vW.x - vW.z, vW.y) / 2.7).b;     // holes rusted through the plating above the water, ragged at the edge
-            if(eat > 0.8 - 0.08 * smoothstep(0.5, 4.0, wl) && wl > 0.4) discard;
+            // (measured from the high-water mark, not from the sea as it is now: the plating does not come and go with the tide, and below the mark,
+            // where the barnacles grow (seabed.js), it is always whole)
+            float wh = vW.y / uVex - 0.55;
+            if(eat > 0.8 - 0.08 * smoothstep(0.5, 4.0, wh) && wh > 0.4) discard;
             if(vFx.z > 0.5 && vFx.z > 1.0 - 0.3 * (0.5 + 0.5 * sin(vFx.y * 0.55 + 1.6 * sin(vFx.y * 0.19))) * (0.55 + 0.45 * sin(vFx.y * 1.7 + 2.0 * sin(vFx.y * 0.6))) - 0.05 * texture2D(uNoise, vec2(vFx.y * 0.4, 0.37)).r) discard;      // the top edge of the plating, eaten away unevenly
             float fl = texture2D(uNoise, vec2(vW.x + vW.z, vW.y * 1.3) / 0.9).g;                                                                    // flaking scale
             float grit = texture2D(uNoise, vec2(vW.x - vW.z * 0.6, vW.y * 1.1) / 0.23).r;                                                            // fine pitting
