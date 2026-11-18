@@ -202,7 +202,11 @@ function buildBuildings(F, g, occ, casters, lights) {
       put(0, -390, 130, 112); put(1, -150, 66, 128); } }
   const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
   const resort = F.places.find(o => /^Tangalooma Resort/.test(o.n || ''))?.p || F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p;
-  if (resort) U.uResort.value.set(resort[0] + 100, resort[1] - 20, 850, 0);            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
+  if (resort) U.uResort.value.set(resort[0] + 100, resort[1] - 20, 850, 0);
+  { // Bulwer's foreshore belt of trees (see foreshoreBelt in common.js): round the middle of the township's houses, reaching past both ends of it
+    const bw = F.places.find(o => /Bulwer/.test(o.n || ''))?.p, hs = bw ? F.buildings.filter(b => b.k !== 'ship' && Math.hypot(b.p[0][0] - bw[0], b.p[0][1] - bw[1]) < 700) : [];
+    if (hs.length) { const zs = hs.map(b => b.p[0][1]), xs = hs.map(b => b.p[0][0]), z0 = Math.min(...zs), z1 = Math.max(...zs), x0 = Math.min(...xs);
+      U.uBelt.value.set(x0 - 60, (z0 + z1) / 2, (z1 - z0) / 2 / 0.8 + 40, 1); } }            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
   // which way the street lies from a house: the nearest point of any street or track within 70 m
   const toStreet = (x, z) => { let bd = 70 * 70, bx = 0, bz = 0; for (let i = 0; i < streetPts.length; i += 2) { const dx = streetPts[i] - x, dz = streetPts[i + 1] - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bx = dx; bz = dz; } } const l = Math.hypot(bx, bz); return l > 0.5 ? [bx / l, bz / l, l] : null; };
   const onStreet = (x, z) => { for (let dx = -4; dx <= 4; dx += 4) for (let dz = -4; dz <= 4; dz += 4) if (streets.has(cellKey(x + dx, z + dz, 4))) return true; return false; };
@@ -607,7 +611,9 @@ function buildTrees(F, scene) {
                          * (1.0 - smoothstep(0.52, 0.64, lumP)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));
             coastK *= 1.0 - smoothstep(0.55, 0.85, mk.g);          // (a sand blow is open sand on the map as well as bright in the photograph)
             if(coastK > 0.01){ float hx = texture2D(uHeight, worldUV(xz + vec2(22.0, 0.0))).r, hz = texture2D(uHeight, worldUV(xz + vec2(0.0, 22.0))).r; coastK *= smoothstep(0.05, 0.14, length(vec2(hx - hgt, hz - hgt)) / 22.0); }      // (slopes, not the low flats behind the beaches)
-            sandm *= 1.0 - coastK; treeK = max(treeK, coastK); rkR = max(rkR, coastK); }          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
+            sandm *= 1.0 - coastK; treeK = max(treeK, coastK); rkR = max(rkR, coastK); }
+          float beltK = foreshoreBelt(xz, (mk.b - 0.5) * 3000.0, hgt);          // the belt of trees between Bulwer and its beach (common.js)
+          sandm *= 1.0 - beltK; treeK = max(treeK, beltK);          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.5, hgt) * clr * treeK;          // (trees start at the back of the berm, clear of the highest tide)
           #ifdef SPECIES
@@ -630,16 +636,16 @@ function buildTrees(F, scene) {
           if(uForceSp > -0.5) sp = uForceSp;          // (for looking at one kind of tree on its own)
           if(uForceSp < -1.5 && !(sp > 0.5 && sp < 1.5)) dens = 0.0;      // (or at the she-oaks alone, where they really stand)
           #endif
-          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
+          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * max(1.0 - smoothstep(0.36, 0.52, lumP), beltK) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           if(uMode > 1.5){ float th = texture2D(uNoise, xz / 85.0 + 0.37).g * 0.7 + texture2D(uNoise, xz / 23.0 + 0.11).r * 0.3; dens *= mix(0.07, 1.7, smoothstep(0.43, 0.57, th)); }      // low growth stands in thickets some metres across, with open sand between them
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997) * (1.0 - sandBlow(xz));
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
           #ifdef SPECIES
-          if(yard < 0.5) dens *= mix(mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, xz / 60.0 + 0.17).b)), 1.3, rkR);      // trees stand in groves with open ground between, not evenly like an orchard
+          if(yard < 0.5) dens *= mix(mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, xz / 60.0 + 0.17).b)), 1.3, max(rkR, beltK * 0.8));      // trees stand in groves with open ground between, not evenly like an orchard
           #endif
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
-          if(uInner > 1.0) s *= max(smoothstep(0.42, 0.24, lum), rkR);
+          if(uInner > 1.0) s *= max(smoothstep(0.42, 0.24, lum), max(rkR, beltK));
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
@@ -678,9 +684,9 @@ function buildTrees(F, scene) {
             else { H = 4.2; tr = 0.026; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
-            float dense = max(smoothstep(0.30, 0.12, lum), rkR);                         // closed forest: crowns spread until they meet
+            float dense = max(smoothstep(0.30, 0.12, lum), max(rkR, beltK));             // closed forest: crowns spread until they meet (and in the belt in front of Bulwer)
             rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
-            rbK *= 1.0 + 0.45 * rkR; spread *= 1.0 + 0.25 * rkR; vPor -= 0.15 * rkR;          // in the forest wall of the island's sides the crowns are broad and full, and close up one into the next
+            { float wall = max(rkR, beltK * 0.8); rbK *= 1.0 + 0.45 * wall; spread *= 1.0 + 0.25 * wall; vPor -= 0.15 * wall; big *= 1.0 + 0.3 * beltK; }          // in the forest wall of the island's sides the crowns are broad and full, and close up one into the next
             wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); arch *= 0.6; lean *= mix(0.3, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.25 * yard;
             { float gir = hash12(cell * 5.3 + 8.0); tr *= 0.62 + 0.9 * gir * gir; vSp = sp; if(NLIMB > 3.5) rbK *= 0.84; }            // saplings, grown trees and the odd old giant; with more clumps on a tree each is smaller            // no tree grows straight, but real trunks and limbs bend in long, easy curves
             fork *= 0.85 + 0.3 * h3; if(yard > 0.5 && sp < 0.5) fork = max(fork, 0.42);          // a garden gum has a clear trunk to above the roof before it forks

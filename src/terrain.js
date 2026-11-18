@@ -256,6 +256,7 @@ export function buildTerrain(scene) {
           { float ck = (1.0 - smoothstep(380.0, 750.0, (mk.b - 0.5) * 3000.0)) * smoothstep(3.0, 7.0, hgt) * mix(0.55, 1.0, 1.0 - smoothstep(0.25, 0.5, texture2DLodEXT(uHeight, uv, 0.0).g)) * (1.0 - smoothstep(0.52, 0.64, lumP)) * (1.0 - smoothstep(0.55, 0.85, mk.g)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(t - uCape.xy));
             if(ck > 0.01) ck *= smoothstep(0.05, 0.14, length(vec2(texture2DLodEXT(uHeight, worldUV(t + vec2(22.0, 0.0)), 0.0).r - hgt, texture2DLodEXT(uHeight, worldUV(t + vec2(0.0, 22.0)), 0.0).r - hgt)) / 22.0);
             rkT = max(rkT, ck); }      // (and the forest wall of the island's sides)
+          rkT = max(rkT, foreshoreBelt(t, (mk.b - 0.5) * 3000.0, hgt));      // (and the belt of trees in front of Bulwer)
           float dens = (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45) * (1.0 - rkT)) * step(0.92, mk.r) * step(1.5, hgt) * clr * max(smoothstep(0.46, 0.26, lumP), rkT);
           if(hgt < 1.7 && (mk.b - 0.5) * 3000.0 < 130.0) dens = step(0.92, mk.r) * step(0.2, hgt) * clr * smoothstep(0.2, 0.07, lum) * (1.0 - smoothstep(0.1, 0.5, mk.g + (h4 - 0.5) * 0.45));   // low by the shore only mangroves grow, and only where the photograph is dark
           if(yard > 0.5) dens = mix(0.5, 0.82, 1.0 - smoothstep(uResort.z * 0.85, uResort.z, length(t - uResort.xy))) * step(0.92, mk.r) * step(1.5, hgt) * smoothstep(40.0, 70.0, (mk.b - 0.5) * 3000.0);
@@ -418,7 +419,8 @@ export function buildTerrain(scene) {
                      * (1.0 - smoothstep(0.52, 0.64, lum)) * (1.0 - headland) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r)) * (1.0 - smoothstep(0.55, 0.85, mk.g))
                      * smoothstep(0.05, 0.14, length(vec2(hl - hr, hu - hd)) / (2.0 * uMpp));          // (slopes, not the low flats behind the beaches)
         coastK *= 1.0 - blowK;
-        float forced = max(resK * (1.0 - resLawn), coastK);
+        float beltK = foreshoreBelt(vW.xz, (mk.b - 0.5) * 3000.0, h) * (1.0 - smoothstep(0.3, 0.8, ov.g)) * (1.0 - smoothstep(0.05, 0.12, ov.r));      // the belt of trees in front of Bulwer: forest floor, but not its tracks or yards
+        float forced = max(max(resK * (1.0 - resLawn), coastK), beltK);
         if(close > 0.0){
           vec3 nE = texture2D(uNoise, vW.xz / 3.7).rgb, nF = texture2D(uNoise, vW.xz / 0.83 + 0.21).rgb;
           vec3 nG = texture2D(uNoise, vW.xz / 0.19 + 0.47).rgb;

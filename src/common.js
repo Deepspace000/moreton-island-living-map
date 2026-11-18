@@ -36,7 +36,7 @@ export const U = {
   uFlat: { value: Array.from({ length: 24 }, () => new THREE.Vector4(1e9, 1e9, 0, 0)) }, uFlatC: { value: new THREE.Vector4(0, 0, 0, 0) },
   uHeight: { value: null }, uOver: { value: null }, uYard: { value: null }, uYardO: { value: new THREE.Vector4(0, 0, 1, 1) }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
-  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) }, uResort: { value: new THREE.Vector4(0, 0, 1, 0) }, uBlow: { value: [new THREE.Vector4(0, 0, 1, 1), new THREE.Vector4(0, 0, 1, 1)] },        // Cape Moreton headland: x, z, radius
+  uSeaM: f(0), uVex: f(VEX), uCape: { value: new THREE.Vector4(0, 0, 1, 0) }, uResort: { value: new THREE.Vector4(0, 0, 1, 0) }, uBelt: { value: new THREE.Vector4(0, 0, 1, 0) }, uBlow: { value: [new THREE.Vector4(0, 0, 1, 1), new THREE.Vector4(0, 0, 1, 1)] },        // Cape Moreton headland: x, z, radius
   uCloudTex: { value: null }, uCloudRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCloudAlt: f(2000), uCloudStr: f(0.7),
   uWindDir: { value: new THREE.Vector2(1, 0) }, uChop: f(0.5), uSurf: f(1.2), uWhitecap: f(0), uRain: f(0), uSwell: f(1),
   uWaves: { value: Array.from({ length: 6 }, () => new THREE.Vector4(1, 0, 0, 100)) },
@@ -54,6 +54,14 @@ uniform vec4 uCarL[8];        // the headlamps of the eight nearest 4WDs: where 
 uniform vec4 uFlat[24], uFlatC;
 float flatK(vec2 xz){ vec2 dc = xz - uFlatC.xy; if(dot(dc, dc) > uFlatC.z * uFlatC.z) return 0.0; float k = 0.0; for(int i = 0; i < 24; i++){ float r = uFlat[i].w; k = max(k, 1.0 - smoothstep(r * 0.55, r, length(xz - uFlat[i].xy))); } return k; }
 uniform vec4 uWorld, uCloudRect, uCape, uResort;      // uResort: Tangalooma resort's grounds: x, z, radius
+uniform vec4 uBelt;                                   // Bulwer's foreshore: x, z, radius, and 1 if there is one
+// Between Bulwer and its beach stands a belt of she-oaks, banksias and gums on the foredune, from the back of the dry sand to just short of
+// the first houses, so that the township is screened from the beach. (The dune grass photographs pale, so the photograph alone would leave
+// it bare.) shoreD: how far inland, in metres; hgt: the height of the ground, in metres. 1 inside the belt, 0 outside it.
+float foreshoreBelt(vec2 xz, float shoreD, float hgt){
+  if(uBelt.w < 0.5) return 0.0;
+  return (1.0 - smoothstep(uBelt.z * 0.8, uBelt.z, length(xz - uBelt.xy))) * smoothstep(32.0, 44.0, shoreD) * (1.0 - smoothstep(94.0, 106.0, shoreD)) * smoothstep(2.1, 2.7, hgt);
+}
 uniform vec2 uHTex;
 vec2 worldUV(vec2 xz){ return xz * uWorld.xy + 0.5; }
 float sat(float x){ return clamp(x, 0.0, 1.0); }
