@@ -1,5 +1,5 @@
 // The island's sound, made in the browser with no recordings: wind and leaves, ocean surf and
-// bay ripples, rain and thunder, cicadas by day and crickets by night, and the calls of birds that
+// bay ripples, rain and thunder, cicadas wherever there are trees near (loudest by day), crickets by night, and the calls of birds that
 // live around Moreton Bay. Every layer follows where the listener stands, the weather and the hour.
 import { U, clamp, smooth } from './common.js';
 import { maskAt, albedoAt } from './terrain.js';
@@ -33,7 +33,7 @@ export function makeSound() {
     L.rain = gain(); chain(noise(), filt('highpass', 1800), L.rain, out);
     L.thunder = gain(); chain(noise(), filt('lowpass', 110), L.thunder, out);
     // cicadas: two narrow bands of noise, chopped a hundred times a second, swelling and fading as a chorus
-    L.cic = gain(); L.cicSwell = gain(0.6); lfo(0.07, 0.4, L.cicSwell.gain); L.cic.connect(L.cicSwell); L.cicSwell.connect(out);
+    L.cic = gain(); L.cicSwell = gain(0.84); lfo(0.07, 0.16, L.cicSwell.gain); L.cic.connect(L.cicSwell); L.cicSwell.connect(out);          // (the chorus rises and falls a little, but never dies away)
     for (const [f, rate] of [[4400, 92], [6100, 118]]) { const chop = gain(0.5); lfo(rate, 0.5, chop.gain, 'square'); chain(noise(), filt('bandpass', f, 11), chop, L.cic); }
     // crickets: a pure tone in short trills
     L.crk = gain(); const tone = ctx.createOscillator(); tone.frequency.value = 4700; tone.start();
@@ -116,8 +116,11 @@ export function makeSound() {
     const d = Math.max(0, m.shore), sea = wet ? 1 : 0, oc = smooth(0.4, 0.8, expo);
     env.ocean = sea * oc * Math.exp(-d / 380) * (m.land < 0.5 ? 0.55 + 0.45 * Math.exp(m.shore / 250) : 1);       // surf carries a long way inland, and fades offshore
     env.bay = sea * (1 - oc) * Math.exp(-d / 70) * (m.land < 0.5 ? Math.exp(m.shore / 120) * 0.8 + 0.2 : 1);
-    albedoAt(x, z, rgb); const lum = rgb[0] ** 2.2 * 0.3 + rgb[1] ** 2.2 * 0.55 + rgb[2] ** 2.2 * 0.15;      // the picture is stored gamma-encoded
-    env.wood = m.land * (1 - m.sand) * smooth(0.26, 0.09, lum);
+    const woodAt = (px, pz) => { const q = maskAt(px, pz); albedoAt(px, pz, rgb); const lum = rgb[0] ** 2.2 * 0.3 + rgb[1] ** 2.2 * 0.55 + rgb[2] ** 2.2 * 0.15; return q.land * (1 - q.sand) * smooth(0.26, 0.09, lum); };      // (the picture is stored gamma-encoded)
+    env.wood = woodAt(x, z);
+    // trees close by, not only overhead: on a beach or a track with the bush beside it the cicadas are heard as well
+    let near = 0, mid = 0; for (let i = 0; i < 8; i++) { const c = Math.cos(i * 0.785), sn = Math.sin(i * 0.785); near += woodAt(x + c * 40, z + sn * 40); mid += woodAt(x + c * 100, z + sn * 100); }
+    env.trees = clamp(Math.max(env.wood, Math.min(1, near / 8 * 2.4) * 0.85, Math.min(1, mid / 8 * 2.4) * 0.5), 0, 1);
     env.beach = m.land > 0.5 ? Math.exp(-d / 120) : 0.6;
     env.land = m.land;
   }
@@ -125,7 +128,7 @@ export function makeSound() {
   let wakeT = 0;
   function wake() { if (ctx && on && ctx.state !== 'running') { try { const r = ctx.resume(); if (r && r.catch) r.catch(() => { /* not yet allowed: the next tap will do it */ }); } catch (e) { /* the same */ } } }
   return {
-    get on() { return on; },
+    get on() { return on; }, get env() { return env; },
     toggle() {
       on = !on;
       if (on && !ctx && !(window.AudioContext || window.webkitAudioContext)) return (on = false);          // (a browser with no sound at all: the button simply stays off)
@@ -161,7 +164,8 @@ export function makeSound() {
       lapT -= dt;
       if (lapT < 0) { const g = L.lap.gain; g.cancelScheduledValues(t); g.setTargetAtTime(0.2 * lapK * (0.5 + Math.random()), t, 0.12); g.setTargetAtTime(0.02 * lapK, t + 0.45, 0.4); lapT = 1.4 + Math.random() * 2.2; }
       // insects
-      ease(L.cic.gain, 0.36 * env.wood * local * day * smooth(0.5, 0.1, s.rain) * smooth(50, 22, s.wind), 1.5);
+      // cicadas: always there near trees. Loudest by day; quieter, but not gone, at night, in rain and in a strong wind.
+      env.cic = 0.36 * (env.trees || 0) * local * (0.32 + 0.68 * day) * (0.4 + 0.6 * smooth(0.5, 0.1, s.rain)) * (0.35 + 0.65 * smooth(50, 22, s.wind)); ease(L.cic.gain, env.cic, 1.5);
       ease(L.crk.gain, 0.06 * smooth(0.45, 0.85, night) * (env.land || 0) * (0.4 + 0.6 * env.wood) * local * smooth(0.6, 0.1, s.rain), 1.5);
       // birds: more talk early and late in the day, less in wind and rain
       birdT -= dt;

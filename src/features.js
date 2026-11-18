@@ -1,7 +1,7 @@
 // Everything that sits on the island: buildings, tracks and walking paths, trees,
 // the wrecks, lighthouses, jetty, navigation marks, lakes and the name labels.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, Q, makeMat, objectMat, LOGV, LOGF, rng, clamp } from './common.js';
+import { U, VEX, MOBILE, LOW, dq, Q, makeMat, objectMat, gridBlocks, nearOnly, LOGV, LOGF, rng, clamp } from './common.js';
 import { T, meshY, groundH, heightAt, maskAt, albedoAt, tideLimit } from './terrain.js';
 import { probe } from './drive.js';
 import { GB, makeLights } from './geo.js';
@@ -202,7 +202,11 @@ function buildBuildings(F, g, occ, casters, lights) {
       put(0, -390, 130, 112); put(1, -150, 66, 128); } }
   const streets = new Set(), cells = new Map(), streetPts = []; let CS = 11;
   const resort = F.places.find(o => /^Tangalooma Resort/.test(o.n || ''))?.p || F.places.find(o => /^Tangalooma/.test(o.n || ''))?.p;
-  if (resort) U.uResort.value.set(resort[0] + 100, resort[1] - 20, 850, 0);            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
+  if (resort) U.uResort.value.set(resort[0] + 100, resort[1] - 20, 850, 0);
+  { // Bulwer's foreshore belt of trees (see foreshoreBelt in common.js): round the middle of the township's houses, reaching past both ends of it
+    const bw = F.places.find(o => /Bulwer/.test(o.n || ''))?.p, hs = bw ? F.buildings.filter(b => b.k !== 'ship' && Math.hypot(b.p[0][0] - bw[0], b.p[0][1] - bw[1]) < 700) : [];
+    if (hs.length) { const zs = hs.map(b => b.p[0][1]), xs = hs.map(b => b.p[0][0]), z0 = Math.min(...zs), z1 = Math.max(...zs), x0 = Math.min(...xs);
+      U.uBelt.value.set(x0 - 60, (z0 + z1) / 2, (z1 - z0) / 2 / 0.8 + 40, 1); } }            // the resort's grounds: lawns, and trees thick between the buildings (the owner's aerial photograph)
   // which way the street lies from a house: the nearest point of any street or track within 70 m
   const toStreet = (x, z) => { let bd = 70 * 70, bx = 0, bz = 0; for (let i = 0; i < streetPts.length; i += 2) { const dx = streetPts[i] - x, dz = streetPts[i + 1] - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bx = dx; bz = dz; } } const l = Math.hypot(bx, bz); return l > 0.5 ? [bx / l, bz / l, l] : null; };
   const onStreet = (x, z) => { for (let dx = -4; dx <= 4; dx += 4) for (let dz = -4; dz <= 4; dz += 4) if (streets.has(cellKey(x + dx, z + dz, 4))) return true; return false; };
@@ -504,7 +508,7 @@ function buildGrassTrees(scene) {
   const pos = [], col = [], pt = [], idx = [], R = rng(606);
   for (let k = 0; k <= 4; k++) for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, r = 0.15 - 0.04 * k / 4; pos.push(Math.cos(a) * r, k / 4, Math.sin(a) * r); col.push(0.035, 0.033, 0.035); pt.push(0, k / 4); }
   for (let k = 0; k < 4; k++) for (let i = 0; i < 5; i++) { const j = (i + 1) % 5, q = k * 5; idx.push(q + i, q + 5 + i, q + j, q + j, q + 5 + i, q + 5 + j); }
-  const NB = LOW ? 48 : 90;                       // a grass tree's head is a ball of a hundred or more wiry leaves, each no wider than a finger
+  const NB = dq(48, 68, 90);                       // a grass tree's head is a ball of a hundred or more wiry leaves, each no wider than a finger
   for (let i = 0; i < NB; i++) {
     const az = i * 2.39996, el = 1.4 - 2.6 * Math.pow(i / (NB - 1), 0.85) + (R() - 0.5) * 0.25, L = 0.85 + 0.45 * R(), dead = el < -0.15, base = pos.length / 3;
     const g = dead ? [0.40 + R() * 0.1, 0.29 + R() * 0.06, 0.17] : [0.17 + R() * 0.06, 0.30 + R() * 0.08, 0.15];
@@ -517,11 +521,9 @@ function buildGrassTrees(scene) {
   const sb = pos.length / 3;
   for (const [y, r] of [[0.1, 0.02], [1.5, 0.02], [1.55, 0.045], [3.1, 0.035], [3.2, 0.0]]) for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; pos.push(Math.cos(a) * r, y, Math.sin(a) * r); col.push(...(y > 1.5 ? [0.17, 0.12, 0.08] : [0.33, 0.36, 0.2])); pt.push(2, y / 3.2); }
   for (let k = 0; k < 4; k++) for (let i = 0; i < 3; i++) { const j = (i + 1) % 3, q = sb + k * 3; idx.push(q + i, q + 3 + i, q + j, q + j, q + 3 + i, q + 3 + j); }
-  const n = LOW ? 44 : 64, cs = 6.5, cells = new Float32Array(n * n * 2); let k = 0;
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-  const g = new THREE.InstancedBufferGeometry();
+  const n = dq(44, 54, 64), cs = 6.5;
+  const g = new THREE.InstancedBufferGeometry();          // (one grass tree; gridBlocks below lays the grid of them out)
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aPT', new THREE.Float32BufferAttribute(pt, 2)); g.setIndex(idx);
-  g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
   const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
   const mat = makeMat({
     uniforms: uni, side: THREE.DoubleSide,
@@ -554,16 +556,13 @@ function buildGrassTrees(scene) {
       }`,
     fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`,
   });
-  const m = new THREE.Mesh(g, mat); m.name = 'grassTrees'; m.frustumCulled = false; scene.add(m);
-  return (target, camDist) => { m.visible = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
+  const grid = gridBlocks(scene, g, mat, n, cs, 12); for (const b of grid.blocks) b.m.name = 'grassTrees';
+  return (target, camDist) => { grid.on = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
 }
 function buildTrees(F, scene) {
   const rings = [];
   const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy, mode = 0) => {
-    const cells = new Float32Array(n * n * 2); let k = 0;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);
-    geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); geo.instanceCount = n * n; geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+    const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);          /* (one tree or bush; gridBlocks below lays the grid of them out) */
     const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 }, uForceSp: { value: -1 } };       // (scrub sets its own porosity per bush)
     const mat = makeMat({
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
@@ -612,7 +611,9 @@ function buildTrees(F, scene) {
                          * (1.0 - smoothstep(0.52, 0.64, lumP)) * smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));
             coastK *= 1.0 - smoothstep(0.55, 0.85, mk.g);          // (a sand blow is open sand on the map as well as bright in the photograph)
             if(coastK > 0.01){ float hx = texture2D(uHeight, worldUV(xz + vec2(22.0, 0.0))).r, hz = texture2D(uHeight, worldUV(xz + vec2(0.0, 22.0))).r; coastK *= smoothstep(0.05, 0.14, length(vec2(hx - hgt, hz - hgt)) / 22.0); }      // (slopes, not the low flats behind the beaches)
-            sandm *= 1.0 - coastK; treeK = max(treeK, coastK); rkR = max(rkR, coastK); }          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
+            sandm *= 1.0 - coastK; treeK = max(treeK, coastK); rkR = max(rkR, coastK); }
+          float beltK = foreshoreBelt(xz, (mk.b - 0.5) * 3000.0, hgt);          // the belt of trees between Bulwer and its beach (common.js)
+          sandm *= 1.0 - beltK; treeK = max(treeK, beltK);          // (the island's forest photographs mid-dark, about 0.3: it must count as forest, or the hills stand half bare)
           float dens = uMode > 1.5 ? step(0.92, mk.r) * step(0.9, hgt) * clr * mix(0.5, 0.07, sandm) * step(0.508, mk.b)        // low plants: everywhere but bare beach
                                    : (1.0 - sandm) * step(0.92, mk.r) * step(1.5, hgt) * clr * treeK;          // (trees start at the back of the berm, clear of the highest tide)
           #ifdef SPECIES
@@ -635,16 +636,16 @@ function buildTrees(F, scene) {
           if(uForceSp > -0.5) sp = uForceSp;          // (for looking at one kind of tree on its own)
           if(uForceSp < -1.5 && !(sp > 0.5 && sp < 1.5)) dens = 0.0;      // (or at the she-oaks alone, where they really stand)
           #endif
-          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * (1.0 - smoothstep(0.36, 0.52, lumP)) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
+          if(uMode > 2.5) dens = step(0.92, mk.r) * step(1.2, hgt) * clr * (1.0 - sandm) * max(1.0 - smoothstep(0.36, 0.52, lumP), beltK) * 0.82 * step(0.51, mk.b) * (1.0 - 0.65 * (1.0 - smoothstep(7.0, 11.0, hgt)) * smoothstep(120.0, 260.0, (mk.b - 0.5) * 3000.0));       // scrub fills the country between the trees
           if(uMode > 1.5){ float th = texture2D(uNoise, xz / 85.0 + 0.37).g * 0.7 + texture2D(uNoise, xz / 23.0 + 0.11).r * 0.3; dens *= mix(0.07, 1.7, smoothstep(0.43, 0.57, th)); }      // low growth stands in thickets some metres across, with open sand between them
           dens *= step(0.003, uv.x) * step(uv.x, 0.997) * step(0.003, uv.y) * step(uv.y, 0.997) * (1.0 - sandBlow(xz));
           float dc0 = length(vec3(xz.x, hgt * uVex, xz.y) - cameraPosition);
           float s = (1.0 - smoothstep(uRange * 0.72, uRange * 0.98, max(abs(xz.x - (uCentre.x + 0.5) * uCS), abs(xz.y - (uCentre.y + 0.5) * uCS)))) * (1.0 - smoothstep(uDmax * 0.55, uDmax, dc0));
           #ifdef SPECIES
-          if(yard < 0.5) dens *= mix(mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, xz / 60.0 + 0.17).b)), 1.3, rkR);      // trees stand in groves with open ground between, not evenly like an orchard
+          if(yard < 0.5) dens *= mix(mix(0.4, 1.3, smoothstep(0.38, 0.62, texture2D(uNoise, xz / 60.0 + 0.17).b)), 1.3, max(rkR, beltK * 0.8));      // trees stand in groves with open ground between, not evenly like an orchard
           #endif
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
-          if(uInner > 1.0) s *= max(smoothstep(0.42, 0.24, lum), rkR);
+          if(uInner > 1.0) s *= max(smoothstep(0.42, 0.24, lum), max(rkR, beltK));
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
@@ -683,9 +684,9 @@ function buildTrees(F, scene) {
             else { H = 4.2; tr = 0.026; vPor = 0.48; rbK = 0.3; sc.y = 0.7; twig = 0.18; bark = vec3(0.24, 0.21, 0.17); tint = vec3(0.95, 1.22, 0.62);                  // mangrove: low and spreading, bright green
               fork = 0.18; spread = 0.45; top0 = 0.6; arch = 0.1; kink = 0.08; lean = 0.15; wig = 0.06; }
             if(wetland > 0.5) bark = mix(bark, vec3(0.15, 0.115, 0.09), 0.8);          // in the wet country every trunk is dark, rough and often scorched
-            float dense = max(smoothstep(0.30, 0.12, lum), rkR);                         // closed forest: crowns spread until they meet
+            float dense = max(smoothstep(0.30, 0.12, lum), max(rkR, beltK));             // closed forest: crowns spread until they meet (and in the belt in front of Bulwer)
             rbK *= 1.0 + 1.0 * dense; spread *= 1.0 + 0.3 * dense; twig *= 1.0 + 0.3 * dense; vPor -= 0.09 * dense;
-            rbK *= 1.0 + 0.45 * rkR; spread *= 1.0 + 0.25 * rkR; vPor -= 0.15 * rkR;          // in the forest wall of the island's sides the crowns are broad and full, and close up one into the next
+            { float wall = max(rkR, beltK * 0.8); rbK *= 1.0 + 0.45 * wall; spread *= 1.0 + 0.25 * wall; vPor -= 0.15 * wall; big *= 1.0 + 0.3 * beltK; }          // in the forest wall of the island's sides the crowns are broad and full, and close up one into the next
             wig = clamp(wig * 0.4, 0.02, 0.034) * (0.7 + 0.6 * h4) * (hash12(cell * 4.7 + 3.0) < 0.17 ? 2.6 : 1.0); kink = max(kink * 0.5, 0.03); arch *= 0.6; lean *= mix(0.3, 0.2, yard); spread *= 1.0 + 0.2 * yard; rbK *= 1.0 + 0.25 * yard; H *= 1.0 + 0.25 * yard;
             { float gir = hash12(cell * 5.3 + 8.0); tr *= 0.62 + 0.9 * gir * gir; vSp = sp; if(NLIMB > 3.5) rbK *= 0.84; }            // saplings, grown trees and the odd old giant; with more clumps on a tree each is smaller            // no tree grows straight, but real trunks and limbs bend in long, easy curves
             fork *= 0.85 + 0.3 * h3; if(yard > 0.5 && sp < 0.5) fork = max(fork, 0.42);          // a garden gum has a clear trunk to above the roof before it forks
@@ -723,7 +724,7 @@ function buildTrees(F, scene) {
             } else if(aPart > 0.5){          // trunk
               float t = position.y;
               lp = (TRUNK(t) + vec3(q.x, 0.0, q.z) * tr * mix(1.0, 0.52, t) * (1.0 + 0.3 * (1.0 - t) * (1.0 - t) * (1.0 - t))) * H * s;
-              c = bark * (0.75 + 0.5 * h2) * mix(1.0, 0.5, smoothstep(250.0, 700.0, dc0)); ao = 0.5 + 0.35 * t;      // (far off, pale trunks sink into the shade of the forest instead of sparkling) vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));
+              c = bark * (0.75 + 0.5 * h2) * mix(1.0, 0.5, smoothstep(250.0, 700.0, dc0)); ao = 0.5 + 0.35 * t; vBark = vec2(mott, burnt * (1.0 - smoothstep(0.15, 0.85, t + (h3 - 0.5) * 0.4)));      // (far off, pale trunks sink into the shade of the forest instead of sparkling)
             } else {                         // clump of leaves
               float rb = rbK * (0.8 + 0.45 * hk2) * (1.0 - 0.15 * sec) * (1.0 - sec * step(hk3, 0.16)) * (1.0 - deadTree);
               vLs = max(rb * H * s, 0.5);                 // the clump's size in metres, so its leaves can be drawn at their true size
@@ -850,17 +851,18 @@ function buildTrees(F, scene) {
         }`,
     });
     mat.alphaToCoverage = !!leafy;
-    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); rings.push({ m, uni, cs, mode });
+    // drawn in blocks, so that those out of view are skipped; and not at all once the eye is further off than the shader draws any of it
+    const grid = gridBlocks(scene, geo, mat, n, cs, rmax * 4 + 6), m = grid.m; rings.push({ g: grid, m, uni, cs, mode, far: dmax + 1.42 * (n / 2 + 1) * cs + 600 });
     if (mode === 0 || mode === 3) probe.add(m, { trunkOnly: mode === 0, cs });          // trunks and the big bushes are in the way of cars and walkers (see drive.js)
   };
-  const n = +(Q.get('trees') || (LOW ? 108 : 164));
-  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(LOW ? 5 : 11, LOW ? 2 : 4), true);          // single trees close to the view, each its own kind
+  const n = +(Q.get('trees') || dq(108, 136, 164));
+  ring(n, 11, 2.5, 6.0, 1.0, 5200, 0, speciesTree(dq(5, 8, 11), dq(2, 3, 4)), true);          // single trees close to the view, each its own kind
   ring(n, 30, 6.5, 12, 0.75, 15000, n * 11 * 0.36, crown(0, [[0, 0, 0, 1], [0.7, 0.1, 0.4, 0.75], [-0.5, 0.15, -0.55, 0.7]]), false, 1);   // beyond them the canopy as overlapping clumps
-  ring(LOW ? 90 : 150, 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
-  ring(LOW ? 70 : 104, 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
+  ring(dq(90, 120, 150), 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
+  ring(dq(70, 88, 104), 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
   const grass = buildGrassTrees(scene);
   return (target, camDist) => {
-    for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); if (r.mode === 2) r.m.visible = camDist < 420; if (r.mode === 3) r.m.visible = camDist < 1400; }
+    for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); r.g.on = r.mode === 2 ? camDist < 420 : r.mode === 3 ? camDist < 1400 : camDist < r.far; }
     grass(target, camDist);
   };
 }
@@ -957,7 +959,7 @@ function buildPalms(F, scene, occ) {
     const n = list.length / 6, a = new Float32Array(n * 4), b = new Float32Array(n * 2);
     for (let i = 0; i < n; i++) { a.set(list.slice(i * 6, i * 6 + 4), i * 4); b[i * 2] = list[i * 6 + 4]; b[i * 2 + 1] = list[i * 6 + 5]; }
     g.setAttribute('iPos', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iPar', new THREE.InstancedBufferAttribute(b, 2)); g.instanceCount = n;
-    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
+    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh); nearOnly(mesh, list, 6, 4200, 30, 560, 2);          // (palms and pandanus are not drawn from further off than that)
   };
   // coconut palm: a tall, slightly curved ringed trunk and a head of long arching fronds
   add(frondPlant({ h: 9.5, r: 0.17, bend: 0.14, rings: 5, heads: [{ at: [0, 0, 0], n: 12, L: 4.2, W: 0.62, up: 1.05, down: -0.35, droop: 0.75, seg: 5, vee: 0.25 }] }), palms, mat(16, [0.17, 0.27, 0.075], [0.50, 0.45, 0.38]));
@@ -973,6 +975,7 @@ function buildPalms(F, scene, occ) {
 // a leaning plate and a few frames standing clear.
 const BULWER = [-2450.8, -11947.1];
 function buildBulwerWrecks(F, g) {
+  const plates = [];          // every panel of plating that still stands: the barnacles and weed are put on these, and nowhere else (seabed.js)
   const TONES = [[.60, .29, .16], [.47, .21, .11], [.70, .36, .18], [.54, .24, .12]];
   const tone = (R, k = 1) => { const b = TONES[(R() * TONES.length) | 0], f = (0.85 + R() * 0.3) * k; return [b[0] * f, b[1] * f, b[2] * f]; };
   // Stand a rusted hull wall along an outline. top: height of the upper edge above mean sea level (m); show: least height
@@ -998,6 +1001,7 @@ function buildBulwerWrecks(F, g) {
         const A = [a.x + a.nx * 0.5, lo, a.z + a.nz * 0.5], B = [b.x + b.nx * 0.5, lo, b.z + b.nz * 0.5], C = [b.x, b.t, b.z], D = [a.x, a.t, a.z];
         const Ai = [A[0] + a.nx * TH, lo, A[2] + a.nz * TH], Bi = [B[0] + b.nx * TH, lo, B[2] + b.nz * TH], Ci = [b.x + b.nx * TH, b.t - 0.05, b.z + b.nz * TH], Di = [a.x + a.nx * TH, a.t - 0.05, a.z + a.nz * TH];
         g.quad(A, B, C, D, col); g.quad(Bi, Ai, Di, Ci, inner); g.quad(D, C, Ci, Di, [col[0] * 1.12, col[1] * 1.08, col[2]]);
+        plates.push({ a, b, lo, th: TH });          // (its outer face leans in from the outline at the top to half a metre inside it at lo)
       }
       // a frame at each station: where the plating has gone, the bare rib is all that stands
       if (R() < o.ribs) { const h = Math.max(a.t, (o.top - 0.7 + R() * 1.0) * VEX); if (h > a.gy + 0.3) g.box(a.x + a.nx * 0.34, a.gy - 0.8, a.z + a.nz * 0.34, 0.24, h - a.gy + 0.8, 0.24, tone(R, 0.8)); }
@@ -1020,13 +1024,14 @@ function buildBulwerWrecks(F, g) {
     else if (wide < 40) shell(b.p, seed, { top: 2.3, show: 1.3, gaps: 0.07, rag: 0.7, ribs: 0.9 });                 // the northern hull, the most complete
     else shell(b.p, seed, { top: 1.8, show: 1.0, gaps: 0.26, rag: 1.0, ribs: 0.9, sag: 0.5 });                      // the southern hull: long, low and broken
   }
-  if (!hulls.length) return;
+  if (!hulls.length) return plates;
   // the pieces of the third hull that still show: its boiler, a leaning plate, a clump of frames
   const R = rng(75), y0 = (x, z) => meshY(x, z);
   g.at(new THREE.Matrix4().makeRotationZ(Math.PI / 2).setPosition(-2455.5, y0(-2457.3, -11962.0) + 1.7, -11962.0)); g.cyl(0, 0, 0, 1.7, 1.7, 3.6, 12, tone(R), tone(R, 0.8)); g.at(null);
   g.at(new THREE.Matrix4().makeRotationY(-1.35).multiply(new THREE.Matrix4().makeRotationX(0.5)).setPosition(-2455.5, y0(-2455.5, -11946.1) - 0.3, -11946.1)); g.box(0, 0, 0, 6.2, 2.4 * VEX, 0.14, tone(R)); g.at(null);
   for (let i = 0; i < 5; i++) { const x = -2452.6 + (R() - .5) * 1.2, z = -11936.6 + i * 1.1; g.box(x, y0(x, z) - 0.5, z, 0.2, (1.6 + R() * 1.0) * VEX + 0.5, 0.26, tone(R, 0.85)); }
   g.at(new THREE.Matrix4().makeRotationY(-1.3).multiply(new THREE.Matrix4().makeRotationX(-0.35)).setPosition(-2451.6, y0(-2451.6, -11922.5) - 0.3, -11922.5)); g.box(0, 0, 0, 5.5, 1.9 * VEX, 0.14, tone(R)); g.at(null);
+  return plates;
 }
 
 // ---------------------------------------------------------------- wrecks
@@ -1392,7 +1397,7 @@ export function buildFeatures(scene, F, flyTo) {
   const solid = new THREE.Mesh(g.build(), objectMat({ side: THREE.DoubleSide, defines: { WINDOWS: 1 } })); solid.frustumCulled = false; scene.add(solid);
   const gw = new GB(); const wrecks = buildWrecks(F, gw);
   const wm = new THREE.Mesh(gw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1 } })); wm.frustumCulled = false; scene.add(wm);
-  const gbw = new GB(); buildBulwerWrecks(F, gbw);
+  const gbw = new GB(), bulwerPlates = buildBulwerWrecks(F, gbw);
   const bwm = new THREE.Mesh(gbw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1, DRYRUST: 1 } })); bwm.name = 'bulwerWrecks'; bwm.frustumCulled = false; scene.add(bwm);
   const fl = buildFloaters(st.floaters, scene, lights);
   buildLakes(F, scene);
@@ -1421,7 +1426,7 @@ export function buildFeatures(scene, F, flyTo) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   lights.pts.material.uniforms.uPx.value = dpr;
   return {
-    places, wrecks,
+    places, wrecks, bulwerPlates,
     update(dt, t, camera, showLabels, target) {
       for (const b of st.beamGroups) b.rotation.y = t * 0.55;
       const sy = seaY();

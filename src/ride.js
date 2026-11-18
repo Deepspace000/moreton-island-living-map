@@ -127,7 +127,7 @@ const CABIN = /* html */`
   <div class="gauges"><span><b id="hmSpeed">0.0</b> <i id="hmUnit">kn</i></span><span><b id="hmHead">N</b></span><span>wind <b id="hmWind">-</b></span><span><i id="hmDepthL">depth</i> <b id="hmDepth">-</b></span><span class="where" id="hmNear"></span></div>
   <div class="keys">
     <button id="hmLeft" class="pill" title="Steer to port (A or left arrow)">&#9664;</button>
-    <button id="hmSlow" class="pill" title="Ease off (S or down arrow)">&minus;</button>
+    <button id="hmSlow" class="pill" title="Brake, stop, then back (S or down arrow)">&minus;</button>
     <svg class="spokes" id="hmWheel" viewBox="0 0 100 100"><circle cx="50" cy="50" r="36" fill="none" stroke="#6a4a2a" stroke-width="7"/><circle cx="50" cy="50" r="9" fill="#8a6234"/><g stroke="#8a6234" stroke-width="5" stroke-linecap="round"><path d="M50,2 V98 M2,50 H98 M16,16 L84,84 M84,16 L16,84"/></g><circle cx="50" cy="6" r="5" fill="#d9b25c"/></svg>
     <button id="hmFast" class="pill" title="More speed (W or up arrow)">+</button>
     <button id="hmRight" class="pill" title="Steer to starboard (D or right arrow)">&#9654;</button>
@@ -227,9 +227,17 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
     R.steering = steer !== 0; steer = R.autoSteer != null && !R.steering ? R.autoSteer : steer * OPT.invX;          // (autoSteer: heading for a spot picked on the mini map; a hand on the keys overrules it)
     if (R.bird && R.bird.kind !== 'walker' && R.bird.kind !== 'person') gas *= OPT.invY;          // (up and down turned round is for flying: push forward to dive)
     if (foot) { if (gas < 0 && walkGo) setGo(false); const c = R.bird.ctl; c.go = walkGo || gas > 0 || !!(press && press.on); c.speed = PACES[gear]; if (press && press.on) R.look += (0 - R.look) * (1 - Math.exp(-dt * 4)); }          // (walking by a held finger, you look where you go)
-    if (R.car && R.car.drive) { const c = R.car; c.drive.turn += (steer - c.drive.turn) * (1 - Math.exp(-dt * 3.5)); c.drive.throttle = clamp(c.drive.throttle + gas * dt * 0.7, -0.4, 1.6); }
+    // Braking (S, the down arrow or the minus button) bites harder than the throttle opens; a car or a boat brought to a stop stays stopped for
+    // half a second, so it can be stopped on the spot, and if the key is still held a car then backs, slowly (a boat cannot)
+    const brakeTo = (h, rate, back) => {
+      if (gas >= 0) { h.held = 0; return clamp(h.throttle + gas * dt * rate, back, 1.6); }
+      if (h.throttle > 0) { h.held = 0; return Math.max(0, h.throttle - dt * rate * 2.2); }
+      if (back < 0 && (h.v || 0) > 0.4) { h.held = 0; return back; }          // (a car still rolling forward: brake against it until it stands)
+      h.held = (h.held || 0) + dt; return h.held < 0.5 ? Math.min(h.throttle, 0) * (h.throttle < -0.05 && (h.v || 0) < -0.4 ? 1 : 0) : Math.max(back, h.throttle - dt * rate * 0.6);
+    };
+    if (R.car && R.car.drive) { const c = R.car; c.drive.turn += (steer - c.drive.turn) * (1 - Math.exp(-dt * 3.5)); c.drive.throttle = brakeTo(c.drive, 0.7, -0.4); }
     if (R.bird && R.bird.ctl) { const p = R.bird; p.ctl.turn += (steer - p.ctl.turn) * (1 - Math.exp(-dt * 3)); p.ctl.climb += (gas - p.ctl.climb) * (1 - Math.exp(-dt * 3)); }
-    if (R.boat && R.boat.helm) { const b = R.boat; b.helm.turn += (steer - b.helm.turn) * (1 - Math.exp(-dt * 3)); b.helm.throttle = clamp(b.helm.throttle + gas * dt * 0.6, 0, 1.5); }
+    if (R.boat && R.boat.helm) { const b = R.boat; b.helm.turn += (steer - b.helm.turn) * (1 - Math.exp(-dt * 3)); b.helm.throttle = Math.min(1.5, brakeTo(b.helm, 0.6, 0)); }
     steer = steer0; gas = gas0;
   };
   // the eye: placed after everything has moved this frame, so the view never trails the thing you ride by a frame
@@ -331,10 +339,11 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   $('hmTake').onclick = () => take(!R.helm);
   $('hmCamp').onclick = () => { const p = R.bird; if (p && p.kind === 'walker') { p.askCamp = !p.camped; if (R.helm && !p.camped) take(false); } };
   $('rideOut').onclick = () => R.zoomBy(1.6); $('rideIn').onclick = () => R.zoomBy(1 / 1.6);
-  const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], ArrowDown: [0, -1] };          // (S is the slow key, below; the down arrow still brakes, backs or sinks)
-  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = true; if (e.code === 'KeyS') { slow = true; if (R.helm) e.preventDefault(); } if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
+  const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], ArrowDown: [0, -1] };          // (in a car or a boat S brakes, stops and backs, as the down arrow does; flying or on foot it is the slow key, below)
+  const vehicle = () => R.helm && (R.car || R.boat);
+  addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = true; if (e.code === 'KeyS') { if (vehicle()) gas = -1; else slow = true; if (R.helm) e.preventDefault(); } if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } });
   addEventListener('blur', () => { fast = slow = false; });
-  addEventListener('keyup', (e) => { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = false; if (e.code === 'KeyS') slow = false; const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
+  addEventListener('keyup', (e) => { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = false; if (e.code === 'KeyS') { slow = false; if (gas < 0) gas = 0; } const k = KEY[e.code]; if (k) { if (k[0]) steer = 0; if (k[1]) gas = 0; } });
   $('rideExit').onclick = () => R.onExit && R.onExit();
   R.take = take; R.canSteer = canSteer;
   return R;

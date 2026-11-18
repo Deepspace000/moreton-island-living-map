@@ -3,7 +3,7 @@
 // shorebirds and butterflies. Small things are grown by the GPU in a grid that follows the viewer;
 // animals that swim or fly are instanced and animated in their vertex shaders.
 import * as THREE from 'three';
-import { U, VEX, MOBILE, LOW, makeMat, objectMat, blobShadowMat, FEATHER_GLSL, LOGV, LOGF, rng, clamp } from './common.js';
+import { U, VEX, MOBILE, LOW, dq, makeMat, objectMat, blobShadowMat, gridBlocks, nearOnly, FEATHER_GLSL, LOGV, LOGF, rng, clamp } from './common.js';
 // birds drawn many at a time: lit at each corner, feathered at each pixel
 const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
 import { T, meshY, groundH, heightAt, maskAt, narrowK } from './terrain.js';
@@ -29,10 +29,7 @@ const attr = (g, name, arr, n, inst) => g.setAttribute(name, inst ? new THREE.In
 // ---------------------------------------------------------------- things lying on the beach
 // One instance per grid cell around the viewer; the shader decides from the map what, if anything, lies there.
 function scatter(scene, n, cs, build, body, range, paint, pre, tab) {          // (pre, tab: the thing is placed from a table the cars read too; see the logs in drive.js)
-  const cells = new Float32Array(n * n * 2); let k = 0;
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { cells[k++] = i - n / 2; cells[k++] = j - n / 2; }
-  const g = new THREE.InstancedBufferGeometry(); build(g);
-  g.setAttribute('iCell', new THREE.InstancedBufferAttribute(cells, 2)); g.instanceCount = n * n; g.boundingSphere = FAR;
+  const g = new THREE.InstancedBufferGeometry(); build(g);          // (one of the thing; gridBlocks below lays the grid of them out)
   const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
   if (pre) { uni.uLogs = { value: tab ? tab.tex : logTexture() }; uni.uGone = { value: tab ? tab.gone : logGone }; }
   const mat = makeMat({
@@ -67,12 +64,12 @@ function scatter(scene, n, cs, build, body, range, paint, pre, tab) {          /
     // (things with a painted skin work their colour out per pixel, from where on the body the pixel is)
     fs: paint ? /* glsl */`varying vec3 vCol, vW, vObj, vNo, vLight; varying float vK; varying vec4 vH; void main(){ ${LOGF} vec3 c = vCol; ${paint} gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }` : LIT_FS,
   });
-  const m = new THREE.Mesh(g, mat); m.frustumCulled = false; scene.add(m);
-  return { m, range, set(x, z) { uni.uCentre.value.set(Math.floor(x / cs), Math.floor(z / cs)); } };
+  const grid = gridBlocks(scene, g, mat, n, cs, cs * 2 + 4);          // drawn in blocks, so that those out of view are skipped
+  return { m: grid.m, g: grid, range, set(x, z) { uni.uCentre.value.set(Math.floor(x / cs), Math.floor(z / cs)); } };
 }
 function buildBeachLife(scene) {
   // shells and sea stars: a little fan of ten triangles, shaped by the shader into a ribbed shell or a five-armed star
-  const shells = scatter(scene, LOW ? 72 : 110, 0.8, (g) => {
+  const shells = scatter(scene, dq(72, 92, 110), 0.8, (g) => {
     const pos = [0, 1, 0], k = [-1], idx = [];
     for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; pos.push(Math.cos(a), 0, Math.sin(a)); k.push(i); idx.push(0, 1 + (i + 1) % 10, 1 + i); }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
@@ -101,7 +98,7 @@ function buildBeachLife(scene) {
     for (let r = 0; r < RN; r++) for (let i = 0; i < S; i++) { const j = (i + 1) % S, q = r * S; idx.push(q + i, q + S + i, q + j, q + j, q + S + i, q + S + j); }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   };
-  const wood = scatter(scene, LOW ? 48 : 72, 3.4, stickGeo, /* glsl */`
+  const wood = scatter(scene, dq(48, 60, 72), 3.4, stickGeo, /* glsl */`
         float line = smoothstep(0.7, 1.1, hgt) * (1.0 - smoothstep(2.5, 3.6, hgt));                  // where the last high tide left things
         float stick = (1.0 - logK) * step(h3, 0.10);          // (logK: a big log lies here, by the table the 4WDs read too)
         float len = logK > 0.5 ? 2.4 + 3.4 * h1 : 0.45 + 1.1 * h1, rad = logK > 0.5 ? 0.11 + 0.12 * h2 : 0.012 + 0.02 * h2;
@@ -116,7 +113,7 @@ function buildBeachLife(scene) {
   // ---- the forest floor ----
   const WOODED = 'step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt)';
   // fallen branches and sticks
-  const sticks = scatter(scene, LOW ? 44 : 64, 2.1, stickGeo, /* glsl */`
+  const sticks = scatter(scene, dq(44, 54, 64), 2.1, stickGeo, /* glsl */`
         float logK = step(h3, 0.012), stick = (1.0 - logK) * step(h3, 0.3);
         float len = logK > 0.5 ? 2.4 + 2.4 * h1 : 0.35 + 1.3 * h1, rad = logK > 0.5 ? 0.08 + 0.08 * h2 : 0.01 + 0.022 * h2;
         float taper = 1.0 - mix(0.5, 0.72, logK) * (position.x + 0.5), crook = sin((position.x + 0.5) * 3.1416) * (h2 - 0.5) * mix(0.3, 0.07, logK);      // a fallen trunk lies long and nearly straight; only thin sticks are bowed
@@ -127,7 +124,7 @@ function buildBeachLife(scene) {
         c = mix(mix(vec3(0.26, 0.21, 0.16), vec3(0.14, 0.10, 0.07), smoothstep(0.3, 0.7, h4)), vec3(0.04, 0.035, 0.03), step(0.82, h1) * 0.85) * (0.65 + 0.6 * grain);
         c = mix(c, vec3(0.50, 0.48, 0.44) * (0.6 + 0.6 * grain), smoothstep(0.35, 0.65, mk.g));                      // out in the sun they bleach silver`, 300);
   // leaves and curls of bark: one small flat piece, long and narrow
-  const litter = scatter(scene, LOW ? 84 : 128, 0.5, (g) => {
+  const litter = scatter(scene, dq(84, 106, 128), 0.5, (g) => {
     attr(g, 'position', [-0.5, 0, 0, 0, 0, 0.5, 0.5, 0, 0, 0, 0, -0.5], 3); attr(g, 'aK', [0, 1, 0, 1], 1); g.setIndex([0, 1, 2, 0, 2, 3]);
   }, /* glsl */`
         float bark = step(h3, 0.05), leaf = (1.0 - bark) * step(h3, 0.75);
@@ -153,7 +150,7 @@ function buildBeachLife(scene) {
     }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   };
-  const tufts = scatter(scene, LOW ? 60 : 92, 1.15, tuftGeo, /* glsl */`
+  const tufts = scatter(scene, dq(60, 76, 92), 1.15, tuftGeo, /* glsl */`
         float headland = 1.0 - smoothstep(uCape.z * 0.8, uCape.z * 1.2, length(xz - uCape.xy));        // long grass all over the cape
         s = (0.3 + 0.5 * h1) * (1.0 + 0.8 * headland) * step(h3, mix(0.035, 0.95, headland)) * step(0.92, mk.r) * (1.0 - smoothstep(0.45, 0.8, mk.g)) * step(1.2, hgt);
         float oakHere = 0.0;
@@ -185,7 +182,7 @@ function buildBeachLife(scene) {
     }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   };
-  const belt = scatter(scene, LOW ? 80 : 130, 0.5, fineGeo, /* glsl */`
+  const belt = scatter(scene, dq(80, 106, 130), 0.5, fineGeo, /* glsl */`
         float band = smoothstep(0.25, 0.4, mk.g) * (1.0 - smoothstep(0.68, 0.84, mk.g));                // the map's sand value is mid-way here: neither bush nor bare beach
         float dry = step(0.7, h2), thick = mix(1.0, 0.1, smoothstep(0.55, 0.8, mk.g));                     // near-solid by the scrub, a few scattered tufts out on the sand
         s = (0.55 + 0.5 * h1) * step(h3, thick * band * smoothstep(2.5, 3.4, hgt)) * step(0.92, mk.r) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * (1.0 - smoothstep(0.02, 0.1, ov.r));       // behind the beach only, starting at the foot of the dune: the lower beach is bare
@@ -199,7 +196,7 @@ function buildBeachLife(scene) {
         c = mix(green, straw, dry) * (0.45 + 0.7 * aK);
         c = mix(c, straw, (1.0 - dry) * smoothstep(0.75, 1.0, aK) * 0.5);                               // green blades dry off toward their tips`, 130);
   // ferns: on the low wet flats they cover the ground knee to waist high, each a ring of arching fronds
-  const ferns = scatter(scene, LOW ? 60 : 88, 1.0, (g) => {
+  const ferns = scatter(scene, dq(60, 74, 88), 1.0, (g) => {
     const pos = [], k = [], idx = [];
     for (let f = 0; f < 5; f++) {          // bracken: each frond a thin arching stem with pairs of leaflets down its length, long near the base and short at the drooping tip
       const a = f * 1.26 + (f % 2) * 0.35, ca = Math.cos(a), sa = Math.sin(a), len = 0.8 + 0.3 * ((f * 5) % 4) / 3, bend = ((f * 3) % 5 - 2) * 0.07;
@@ -226,7 +223,7 @@ function buildBeachLife(scene) {
         if(atEdge > 0.5) c = mix(mix(vec3(0.09, 0.19, 0.045), vec3(0.16, 0.27, 0.08), h2), mix(vec3(0.30, 0.17, 0.07), vec3(0.19, 0.11, 0.055), h4), brown) * (0.4 + 0.75 * aK);`, 260);        // bracken: olive, a quarter of the fronds dead and brown, dark at the base
   // soldier crabs: when the tide is well out they come up on the bared flats in armies, small round sky-blue crabs that
   // walk a little way together and then screw themselves back down into the wet sand
-  const crabs = scatter(scene, LOW ? 100 : 140, 0.24, (g) => {
+  const crabs = scatter(scene, dq(100, 120, 140), 0.24, (g) => {
     const pos = [0, 1, 0], k = [0], idx = [], S = 8;                       // a rounded shell (two rings and a crown), then four bent legs a side
     for (const [r, y] of [[0.62, 0.86], [1.0, 0.48], [0.8, 0.16]]) for (let i = 0; i < S; i++) { const a = i / S * Math.PI * 2; pos.push(Math.cos(a) * r, y, Math.sin(a) * r * 0.9); k.push(0); }
     for (let i = 0; i < S; i++) { const j = (i + 1) % S; idx.push(0, 1 + j, 1 + i); for (const o of [1, 1 + S]) idx.push(o + i, o + j, o + S + i, o + j, o + S + j, o + S + i); }
@@ -553,7 +550,7 @@ function buildCars(scene, F, lights) {
           if (Math.hypot(ax + dx * t - bx, az + dz * t - bz) > 1.5) continue; const slot = breakLog(hitBuf[q + 4], hitBuf[q + 5]); if (slot < 0) continue;
           bits.burst(slot, hitBuf[q], hitBuf[q + 1], hitBuf[q + 2], hitBuf[q + 3], x, z, tx * c.sp, tz * c.sp); sus[4] -= 0.5; sus[3] += 0.6; if (c.drive) c.drive.v *= 0.72; else c.v *= 0.8; }
         // one of the big silver fallen trees: it breaks up the same way, into lengths of trunk of all sizes and its branches, and costs the car more of its speed
-        if (Math.hypot(x - target.x, z - target.z) < (LOW ? 115 : 170)) { snagsNear(bx, bz, 7.5, hitBuf);
+        if (Math.hypot(x - target.x, z - target.z) < dq(115, 140, 170)) { snagsNear(bx, bz, 7.5, hitBuf);
           for (let q = 0; q < hitBuf.length; q += 6) { const ax = hitBuf[q] - hitBuf[q + 2], az = hitBuf[q + 1] - hitBuf[q + 3], dx = hitBuf[q + 2] * 2, dz = hitBuf[q + 3] * 2, t = clamp(((bx - ax) * dx + (bz - az) * dz) / (dx * dx + dz * dz || 1), 0, 1);
             if (Math.hypot(ax + dx * t - bx, az + dz * t - bz) > 1.8) continue; const slot = breakSnag(hitBuf[q + 4], hitBuf[q + 5]); if (slot < 0) continue; const len = Math.hypot(dx, dz) / 1.06;
             bits.burst(slot, hitBuf[q], hitBuf[q + 1], hitBuf[q + 2], hitBuf[q + 3], x, z, tx * c.sp, tz * c.sp, { r0: 0.046 * len, r1: 0.013 * len, tone: [0.62, 0.6, 0.56], limbs: true }); sus[4] -= 0.8; sus[3] += 0.9; if (c.drive) c.drive.v *= 0.55; else c.v *= 0.7; } } }
@@ -653,10 +650,10 @@ function jellyfish(scene, list) {
       }`,
     fs: /* glsl */`varying vec3 vCol, vW; varying float vA; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), vA); }`,
   });
-  const m = new THREE.Mesh(g, mat); m.name = 'jellyfish'; m.frustumCulled = false; m.renderOrder = 6; scene.add(m);
+  const m = new THREE.Mesh(g, mat); m.name = 'jellyfish'; m.frustumCulled = false; m.renderOrder = 6; scene.add(m); nearOnly(m, list, 5, 380, 40, 20);
 }
 function buildSeaLife(scene, F) {
-  const R = rng(5150), depth = (x, z) => -heightAt(x, z), K = MOBILE ? 0.6 : 1;          // depths at mean sea level
+  const R = rng(5150), depth = (x, z) => -heightAt(x, z), K = MOBILE ? 0.6 : dq(0.6, 0.8, 1);          // depths at mean sea level
   // a spot of water of the wanted depth near a point
   const spot = (cx, cz, rad, d0, d1) => { for (let t = 0; t < 40; t++) { const a = R() * 6.283, r = Math.sqrt(R()) * rad, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; if (Math.abs(x) < T.sx / 2 - 300 && Math.abs(z) < T.sz / 2 - 300) { const d = depth(x, z); if (d > d0 && d < d1) return [x, z, d]; } } return null; };
   // a spot anywhere round the island, in water of the wanted depth and within reach of the shore or a bank
@@ -680,12 +677,19 @@ function buildSeaLife(scene, F) {
   const lag = F.lakes.filter(l => /Lagoon/.test(l.n || '')).map(l => l.c);
   for (let i = 0; i < 110 * K; i++) { const s = i < 30 && lag.length ? spot(lag[i % lag.length][0], lag[i % lag.length][1], 500, 0.3, 3.5) : anywhere(0.4, 2.6); if (s && (i < 30 || maskAt(s[0], s[1]).expo < 0.5)) flathead.push(s[0], s[1], 2 + R() * 5, 0, R() * 6.283, 0.05 + R() * 0.12, 0.5 + R() * 0.35, R()); }
   const coast = (n, rad, d0, d1, f) => { for (let i = 0; i < n; i++) { const z = (R() - 0.5) * T.sz * 0.8; let x = -T.sx / 2 + 400; while (x < T.sx / 2 && depth(x, z) > 0.2) x += 40; const s = spot(i % 3 === 0 ? tg[0] - 300 : x - rad * 0.6, i % 3 === 0 ? tg[1] - 800 + (R() - .5) * 2600 : z, rad, d0, d1); if (s) f(s); } };
-  coast(60 * K, 900, 1.6, 7, (s) => turtles.push(s[0], s[1], 12 + R() * 24, 0.5 + R() * 1.3, R() * 6.283, 0.45 + R() * 0.35, 1.3 + R() * 0.6, R()));     // green turtles over the seagrass on the bay side
+  // the way from a spot to the nearest shallower water that still covers an animal at half tide and above (for the sharks and turtles that come in)
+  const shallowNear = (x, z, maxR, need) => { for (let r = 12; r <= maxR; r += 12) for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283 + r * 0.13, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r, d = depth(px, pz); if (d > need + 0.2 && d < need + 0.8 && Math.abs(px) < T.sx / 2 - 300 && Math.abs(pz) < T.sz / 2 - 300) return [px - x, pz - z]; } return [0, 0]; };
+  coast(60 * K, 900, 1.6, 7, (s) => turtles.push(s[0], s[1], 12 + R() * 24, 0.5 + R() * 1.3, R() * 6.283, 0.45 + R() * 0.35, 1.3 + R() * 0.6, R(), ...shallowNear(s[0], s[1], 70, 0.9)));     // green turtles over the seagrass on the bay side; now and then one comes in over the flats
   // stingrays over the sand: in water that is shallow at some state of the tide; more of them come in when it is low
   for (let i = 0; i < 260 * K; i++) { const s = anywhere(0.35, 2.8); if (s) rays.push(s[0], s[1], 5 + R() * 12, 0, R() * 6.283, 0.3 + R() * 0.35, 0.9 + R() * 0.8, R()); }
   // shovelnose rays lying and cruising on the sand flats; small sharks patrolling the shallows and the wrecks
   for (let i = 0; i < 60 * K; i++) { const s = anywhere(0.6, 3.5); if (s) shovels.push(s[0], s[1], 8 + R() * 16, 0, R() * 6.283, 0.25 + R() * 0.3, 1.0 + R() * 0.7, R()); }
-  for (let i = 0; i < 34 * K; i++) { const s = i % 4 === 0 ? spot(tg[0] - 400, tg[1] - 1400, 1200, 1.5, 6) : anywhere(1.2, 5); if (s) sharks.push(s[0], s[1], 18 + R() * 40, 0.35 + R() * 0.9, R() * 6.283, 0.8 + R() * 0.6, 1.1 + R() * 0.7, R()); }
+  for (let i = 0; i < 34 * K; i++) { const s = i % 4 === 0 ? spot(tg[0] - 400, tg[1] - 1400, 1200, 1.5, 6) : anywhere(1.2, 5); if (s) sharks.push(s[0], s[1], 18 + R() * 40, 0.35 + R() * 0.9, R() * 6.283, 0.8 + R() * 0.6, 1.1 + R() * 0.7, R(), ...shallowNear(s[0], s[1], 160, 0.7)); }          // (and they patrol in over the flats at high water)
+  // more stingrays on the sandy stretches just off the beaches, mostly on the calm bay side, where they lie in the shallows by the water's edge
+  for (const r of F.beach || []) for (let i = 4; i < r.p.length - 4; i += r.side < 0 ? 3 : 7) {
+    const p = r.p[i]; if (R() > (r.side < 0 ? 0.55 : 0.3)) continue;
+    for (let t = 0; t < 8; t++) { const x = p[0] + (r.side || 1) * (15 + R() * 90) + (R() - 0.5) * 20, z = p[1] + (R() - 0.5) * 30, d = depth(x, z); if (d > 0.45 && d < 1.8 && maskAt(x, z).shore > -400) { rays.push(x, z, 4 + R() * 9, 0, R() * 6.283, 0.25 + R() * 0.3, 0.8 + R() * 0.8, R()); break; } }
+  }
   // jellyfish in swarms on the bay side
   for (let i = 0; i < 30 * K; i++) { const s = anywhere(1.5, 9); if (!s || maskAt(s[0], s[1]).expo > 0.5) continue; for (let j = 0; j < 11; j++) jelly.push(s[0] + (R() - .5) * 40, s[1] + (R() - .5) * 40, 0.3 + R() * 1.1, R(), 0.22 + R() * 0.2); }
   // damselfish of the Queensland coast, close in round every wreck: neon damsels in a blue cloud, humbugs hanging over the plates
@@ -703,6 +707,12 @@ function buildSeaLife(scene, F) {
   // humpback whales passing Cape Moreton on the open sea side (they migrate past from June to November)
   const cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p || [7400, -16800];
   for (let i = 0; i < 5; i++) { const s = spot(cape[0] + 1500, cape[1] + 1500 + i * 900, 2200, 12, 200); if (s) for (let j = 0; j < 1 + (i % 2); j++) whales.push(s[0] + j * 30, s[1] + j * 22, 160 + R() * 120, 3 + R() * 3, R() * 6.283 + j * 0.05, 2.2, 14 * (j ? 0.45 : 1), R() * 0.4); }
+  // Out in deep water: more humpbacks, a cow with her calf or a pair, all round the island (most off the open eastern side and the north,
+  // where they travel the coast), and big sharks, tigers and bulls three or four metres long, cruising well below the surface.
+  const deep = (d0, d1, east) => { for (let t = 0; t < 600; t++) { const x = (R() - 0.5) * (T.sx - 1000), z = (R() - 0.5) * (T.sz - 1000), d = depth(x, z); if (d > d0 && d < d1 && (!east || x > 2000 || R() < 0.3)) return [x, z, d]; } return null; };
+  for (let i = 0; i < 12 * K; i++) { const s = deep(25, 400, true); if (!s) continue; const n = R() < 0.55 ? 2 : 1; for (let j = 0; j < n; j++) whales.push(s[0] + j * 28, s[1] + j * 20, 220 + R() * 260, 3 + R() * 4, R() * 6.283 + j * 0.05, 2.0 + R() * 0.5, 14.5 * (j && R() < 0.6 ? 0.45 : 0.9 + R() * 0.2), R() * 0.4); }
+  const bigSharks = [];
+  for (let i = 0; i < 30 * K; i++) { const s = deep(8, 80, false); if (s) bigSharks.push(s[0], s[1], 40 + R() * 90, 2 + R() * Math.min(6, s[2] * 0.4), R() * 6.283, 1.0 + R() * 0.6, 2.6 + R() * 1.6, R()); }
   const SILV = [0.86, 0.89, 0.9];
   swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'bream', amp: 0.13, rate: 8, colA: [0.34, 0.38, 0.36], colB: SILV, colC: [0.45, 0.47, 0.42], see: 420 }, bream);
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'blue', amp: 0.15, rate: 13, colA: [0.10, 0.42, 0.50], colB: [0.80, 0.92, 0.80], colC: [0.5, 0.7, 0.6], eye: [0.39, 0.012, 0.02], see: 300, min: 0.5 }, blue);
@@ -712,10 +722,11 @@ function buildSeaLife(scene, F) {
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'small', amp: 0.16, rate: 14, colA: [0.30, 0.38, 0.30], colB: [0.90, 0.92, 0.88], colC: [0.6, 0.62, 0.55], eye: [0.39, 0.012, 0.02], see: 260, min: 0.3 }, small);
   swimmers(scene, { ...SLIM, paint: PAINT.whiting, name: 'whiting', amp: 0.15, rate: 13, colA: [0.56, 0.52, 0.36], colB: [0.94, 0.93, 0.88], colC: [0.7, 0.66, 0.4], eye: [0.39, 0.012, 0.02], see: 240, min: 0.22 }, whiting);
   swimmers(scene, { ...FLATHEAD, paint: PAINT.flathead, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.45, 0.38, 0.25], colB: [0.84, 0.8, 0.68], colC: [0.5, 0.42, 0.26], eye: [0.37, 0.05, 0.016], see: 500, min: 0.25 }, flathead);
-  swimmers(scene, { ...TURTLE, paint: PAINT.turtle, name: 'turtles', vertical: 1, amp: 0.2, rate: 1.7, colA: [0.30, 0.25, 0.12], colB: [0.7, 0.66, 0.44], eye: [0.735, 0.06, 0.015], rise: [0.02, 0.07], see: 1100 }, turtles);
+  swimmers(scene, { ...TURTLE, paint: PAINT.turtle, name: 'turtles', visit: 1, vertical: 1, amp: 0.2, rate: 1.7, colA: [0.30, 0.25, 0.12], colB: [0.7, 0.66, 0.44], eye: [0.735, 0.06, 0.015], rise: [0.02, 0.07], see: 1100 }, turtles);
   swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'rays', vertical: 1, bottom: 1, tidal: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 900, min: 0.25 }, rays);
   swimmers(scene, { ...SHOVEL, paint: PAINT.shovel, name: 'shovelnose', bottom: 1, amp: 0.07, rate: 3, colA: [0.46, 0.4, 0.26], colB: [0.84, 0.8, 0.7], colC: [0.4, 0.34, 0.22], eye: [0.31, 0.075, 0.014], see: 900, min: 0.3 }, shovels);
-  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'sharks', amp: 0.1, rate: 3.2, colA: [0.20, 0.20, 0.19], colB: [0.86, 0.86, 0.83], colC: [0.2, 0.2, 0.19], eye: [0.43, 0.0, 0.011], see: 1200, min: 0.7 }, sharks);
+  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'bigsharks', amp: 0.09, rate: 2.4, colA: [0.24, 0.24, 0.22], colB: [0.84, 0.84, 0.8], colC: [0.18, 0.18, 0.17], eye: [0.43, 0.0, 0.011], see: 1800, min: 3 }, bigSharks);          // (the big ones of the deep water)
+  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'sharks', visit: 1, amp: 0.1, rate: 3.2, colA: [0.20, 0.20, 0.19], colB: [0.86, 0.86, 0.83], colC: [0.2, 0.2, 0.19], eye: [0.43, 0.0, 0.011], see: 1200, min: 0.7 }, sharks);
   swimmers(scene, { ...DOLPHIN, paint: PAINT.dolphin, name: 'dolphins', vertical: 1, amp: 0.1, rate: 3.4, colA: [0.17, 0.19, 0.22], colB: [0.80, 0.76, 0.74], colC: [0.16, 0.18, 0.2], eye: [0.385, -0.008, 0.011], rise: [0.07, 0.75], see: 2600, min: 1.5 }, dolphins);
   swimmers(scene, { ...DUGONG, paint: PAINT.dugong, name: 'dugongs', vertical: 1, amp: 0.07, rate: 1.5, colA: [0.36, 0.33, 0.29], colB: [0.62, 0.58, 0.52], colC: [0.33, 0.3, 0.27], eye: [0.4, 0.0, 0.009], rise: [0.03, 0.16], see: 2200, min: 1.3 }, dugongs);
   swimmers(scene, { ...WHALE, paint: PAINT.whale, name: 'whales', vertical: 1, amp: 0.06, rate: 0.8, colA: [0.045, 0.05, 0.06], colB: [0.86, 0.86, 0.82], colC: [0.5, 0.5, 0.5], eye: [0.3, -0.035, 0.007], rise: [0.045, 0.22], see: 9000, min: 6 }, whales);
@@ -826,7 +837,7 @@ function buildBirds(scene, F) {
       }`,
     fs: LIT_FS,
   });
-  const sm = new THREE.Mesh(ig, smat); sm.name = 'shorebirds'; sm.frustumCulled = false; scene.add(sm);
+  const sm = new THREE.Mesh(ig, smat); sm.name = 'shorebirds'; sm.frustumCulled = false; scene.add(sm); nearOnly(sm, sp, 4, 700, 16);
   // pelicans and cormorants sitting on the water, paddling about: most of them by the resort jetty, where they wait for the fish feed
   const wet = (x, z) => U.uSeaM.value - heightAt(x, z) > 0.9;
   const afloat = (geo2, spots, per) => {
@@ -834,7 +845,7 @@ function buildBirds(scene, F) {
     fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color); fg.setAttribute('aFx', geo2.attributes.aFx);
     for (const [p, n] of spots) for (let i = 0, t = 0; i < n * per && t < 400; t++) { const x = p[0] - 40 - R() * 160, z = p[1] + (R() - .5) * 260; if (wet(x, z)) { ip.push(x, z, 3 + R() * 9, R()); i++; } }
     fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
-    const fm = new THREE.Mesh(fg, fmat); fm.name = 'afloat'; fm.frustumCulled = false; scene.add(fm);
+    const fm = new THREE.Mesh(fg, fmat); fm.name = 'afloat'; fm.frustumCulled = false; scene.add(fm); nearOnly(fm, ip, 4, 1200, 30, 40);
   };
   const fmat = makeMat({
     side: THREE.DoubleSide,
@@ -894,7 +905,7 @@ function buildBirds(scene, F) {
         }`,
       fs: BIRD_FS,
     });
-    const sm2 = new THREE.Mesh(ig2, smat2); sm2.name = 'ashore'; sm2.frustumCulled = false; scene.add(sm2);
+    const sm2 = new THREE.Mesh(ig2, smat2); sm2.name = 'ashore'; sm2.frustumCulled = false; scene.add(sm2); nearOnly(sm2, st, 4, 1500, 12);
   }
   afloat(CORMORANT(), spots, 2);
 
@@ -908,7 +919,7 @@ function buildBirds(scene, F) {
 
 // ---------------------------------------------------------------- butterflies
 function buildInsects(scene) {
-  return scatter(scene, LOW ? 26 : 38, 4.6, (g) => {
+  return scatter(scene, dq(26, 32, 38), 4.6, (g) => {
     attr(g, 'position', [0, 0, 0, 0.9, 0, 1, -0.7, 0, 0.8, 0, 0, 0, -0.7, 0, -0.8, 0.9, 0, -1], 3); attr(g, 'aK', [0, 1, 1, 0, -1, -1], 1); g.setIndex([0, 1, 2, 3, 4, 5]);
   }, /* glsl */`
         // blue tigers, common crows, common browns and tiny grass-blues over the heath and forest edge, by day, out of the rain
@@ -928,7 +939,7 @@ function buildInsects(scene) {
 
 // dragonflies over the low, wet country (wallum darner, Australian tiger, blue-spotted hawker): they hang in the air, then dart
 function buildDragonflies(scene) {
-  return scatter(scene, LOW ? 20 : 28, 7, (g) => {
+  return scatter(scene, dq(20, 24, 28), 7, (g) => {
     const pos = [-0.7, 0, 0.03, 0.4, 0, 0.03, 0.4, 0, -0.03, -0.7, 0, -0.03], k = [0, 0, 0, 0], idx = [0, 1, 2, 0, 2, 3];
     for (const x of [0.2, -0.02]) { const q = pos.length / 3; pos.push(x, 0.02, -1, x + 0.16, 0.02, -1, x + 0.1, 0.02, 0, x, 0.02, 0, x, 0.02, 1, x + 0.16, 0.02, 1); k.push(-1, -1, 0.01, 0.01, 1, 1); idx.push(q, q + 1, q + 2, q, q + 2, q + 3, q + 3, q + 2, q + 5, q + 3, q + 5, q + 4); }
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
@@ -946,7 +957,7 @@ function buildDragonflies(scene) {
 
 // clouds of small flies and midges hanging in the still air between the bushes
 function buildGnats(scene) {
-  return scatter(scene, LOW ? 56 : 84, 0.8, (g) => {
+  return scatter(scene, dq(56, 70, 84), 0.8, (g) => {
     attr(g, 'position', [-1, 0, 0, 1, 0, 0, 0, 1.6, 0], 3); attr(g, 'aK', [0, 0, 0], 1); g.setIndex([0, 1, 2]);
   }, /* glsl */`
         float swarm = smoothstep(0.6, 0.72, texture2D(uNoise, xz / 17.0).g) * step(0.92, mk.r) * (1.0 - smoothstep(0.3, 0.6, mk.g)) * step(1.5, hgt) * (1.0 - smoothstep(0.2, 0.6, uNight)) * (1.0 - smoothstep(0.05, 0.3, uRain));
@@ -992,7 +1003,7 @@ function buildCreeper(scene) {
     if (arm < 2) fan(px * 0.6 + 0.02, 0.1, pz * 0.6, 0.028, 2, 0, 0.55, 0);
     for (let e = 0; e < 2; e++) fan((R() - 0.5) * 0.16, 0.06 + R() * 0.06, (R() - 0.5) * 0.16, 0.05 + R() * 0.02, 0, R() * 6.28, 0.5, 1);      // a knot of leaves where the runners start
   }
-  return scatter(scene, LOW ? 44 : 64, 1.5, (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); }, /* glsl */`
+  return scatter(scene, dq(44, 54, 64), 1.5, (g) => { attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx); }, /* glsl */`
         float edge = smoothstep(0.45, 0.55, mk.g) * (1.0 - smoothstep(0.66, 0.8, mk.g));                             // it creeps out from the foot of the scrub onto the edge of the open sand
         float here = step(0.9, mk.r) * smoothstep(2.6, 3.4, hgt) * (1.0 - smoothstep(6.0, 9.0, hgt)) * (1.0 - smoothstep(170.0, 250.0, (mk.b - 0.5) * 3000.0)) * edge * step(h3, mix(0.6, 0.2, smoothstep(0.55, 0.8, mk.g))) * smoothstep(0.3, 0.5, texture2D(uNoise, xz / 19.0).g) * (1.0 - smoothstep(0.02, 0.1, ov.r));      // thick mats in places near the scrub, thinner further out
         s = (1.7 + 1.8 * h2) * here;
@@ -1018,7 +1029,7 @@ function buildSnags(scene) {
     parts.push({ kk: 1, st: [b, [b[0] + l * 0.2, b[1] + 0.05 + R() * 0.07, b[2] - out * 0.25, r0 * 0.4], [b[0] + l * 0.42, b[1] + 0.1 + R() * 0.1, b[2] - out * 0.5, 0.003]] });
   }
   const tb = tubes(parts, 5), build = (g) => { tb(g); g.computeVertexNormals(); };
-  const snags = scatter(scene, LOW ? 28 : 44, 12, build, /* glsl */`
+  const snags = scatter(scene, dq(28, 36, 44), 12, build, /* glsl */`
         // the map's sand value falls away gently from open beach (near 1) to bush (near 0): the ragged ground between is where the mid values are
         float edgeBand = max(smoothstep(0.45, 0.58, mk.g) * (1.0 - smoothstep(0.76, 0.87, mk.g)), smoothstep(0.8, 0.9, mk.g) * smoothstep(1.2, 1.8, hgt) * (1.0 - smoothstep(3.0, 4.5, hgt)) * step(h1, 0.07));     // ...and now and then one lies out on the open beach
         float here = step(0.9, mk.r) * step(0.7, hgt) * edgeBand * step(h3, 0.3) * (1.0 - smoothstep(0.02, 0.1, ov.r));        // (the whole beach counts as a track on the map, so only buildings keep them away)
@@ -1044,7 +1055,7 @@ function buildWallabies(scene) {
     parts.push({ kk: 1, st: [[0.2, 0.42, z * 0.7, 0.035], [0.3, 0.26, z * 0.8, 0.022]] });                                                   // forearm
     parts.push({ kk: 4, st: [[0.4, 0.69, z * 0.4, 0.022], [0.37, 0.8, z * 0.6, 0.014]] });                                                   // ear
   }
-  return scatter(scene, LOW ? 16 : 22, 24, loftGeo(wallaby()), /* glsl */`
+  return scatter(scene, dq(16, 20, 22), 24, loftGeo(wallaby()), /* glsl */`
         float scrub = step(0.92, mk.r) * (1.0 - smoothstep(0.25, 0.5, mk.g)) * step(2.5, hgt) * (1.0 - smoothstep(0.02, 0.1, max(ov.r, ov.g))) * step(h3, 0.012);      // only a few: the owner says there are some on the island, not many
         float f = fract(uTime * 0.012 * (0.7 + 0.6 * h2) + h1 * 5.0), tri = abs(2.0 * f - 1.0), fwd = f < 0.5 ? -1.0 : 1.0;
         float go = smoothstep(0.3, 0.7, tri), moving = smoothstep(0.3, 0.34, tri) * (1.0 - smoothstep(0.66, 0.7, tri));           // long rests at each end, a short run of hops between
@@ -1074,7 +1085,7 @@ function buildLizards(scene) {
         nrm = normal * vec3(fwd, 1.0, 1.0);
         float band = step(0.5, fract(position.x * ${big ? '9.0' : '5.0'} + h4));
         c = ${big ? 'mix(vec3(0.06, 0.065, 0.06), vec3(0.30, 0.27, 0.13), band * 0.55)' : 'mix(mix(vec3(0.36, 0.28, 0.18), vec3(0.20, 0.16, 0.12), band), vec3(0.42, 0.44, 0.40), step(0.6, h4) * 0.6)'} * (0.8 + 0.4 * smoothstep(0.02, 0.1, position.y));`;
-  return [scatter(scene, LOW ? 14 : 20, 28, loftGeo(goanna()), body(true), 300, LIZARD_PAINT(true)), scatter(scene, LOW ? 30 : 44, 3.6, loftGeo(bluetongue()), body(false), 70, LIZARD_PAINT(false))];
+  return [scatter(scene, dq(14, 18, 20), 28, loftGeo(goanna()), body(true), 300, LIZARD_PAINT(true)), scatter(scene, dq(30, 38, 44), 3.6, loftGeo(bluetongue()), body(false), 70, LIZARD_PAINT(false))];
 }
 
 // ---------------------------------------------------------------- pelicans on the wing
@@ -1184,7 +1195,7 @@ export function buildLife(scene, F) {
   buildSeaLife(scene, F);
   return {
     update(dt, t, target, camDist, renderer) {
-      for (const s of near) { s.m.visible = camDist < s.range; if (s.m.visible) s.set(target.x, target.z); }
+      for (const s of near) { s.g.on = camDist < s.range; if (s.g.on) s.set(target.x, target.z); }
       cars(dt, target, renderer); snork(dt, t); birds(dt, target); pelicans(dt, t);
       { // which cars' headlamps light the ground: the eight nearest to the view that are under way, once it is getting dark
         const L = U.uCarL.value, dark = U.uNight.value > 0.2, list = dark ? rideable.filter(c => !c.parked || c.drive).map(c => [c, (c.m.position.x - target.x) ** 2 + (c.m.position.z - target.z) ** 2]).sort((a, b) => a[1] - b[1]) : [];

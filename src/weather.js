@@ -8,7 +8,7 @@ export const live = {
   wave: 0.9, waveDir: 110, wavePeriod: 8, swell: 0.8, swellDir: 120, swellPeriod: 9, windWave: 0.3, sst: 24, tide: 0, time: '',
 };
 // what the scene uses (eased toward the target every frame)
-export const wx = { overcast: 0, haze: 0.1, turb: 0, cloud: 0.3, wind: 14, windDir: 120, rain: 0, storm: 0, wave: 0.9, tide: 0, cy: 1, cs: 1, calt: 0, cirrus: 0.5, low: 1, dark: 0 };
+export const wx = { overcast: 0, haze: 0.1, turb: 0, cloud: 0.3, wind: 14, windDir: 120, rain: 0, storm: 0, wave: 0.9, tide: 0, cy: 1, cs: 1, calt: 0, cirrus: 0.85, low: 1, dark: 0 };
 const target = { ...wx };
 
 // ---- tide ----
@@ -44,7 +44,7 @@ export let mode = 'live';
 // hand-set weather (the sliders)
 export const custom = { sun: 85, cloud: 25, ctype: 'cumulus', wind: 14, windDir: 120, rain: 0, fog: 5, swell: 0.9, tide: 0, storm: 0 };
 export const TYPES = {
-  cumulus: { label: 'Fair-weather cumulus', cy: 1, cs: 1, calt: 0, cirrus: 0.5, low: 1, dark: 0 },
+  cumulus: { label: 'Fair-weather cumulus', cy: 1, cs: 1, calt: 0, cirrus: 0.85, low: 1, dark: 0 },          // (with some high cirrus as well, as on most days)
   towering: { label: 'Towering cumulus', cy: 2.0, cs: 1.25, calt: -100, cirrus: 0.3, low: 1, dark: 0.15 },
   stratus: { label: 'Low grey sheet', cy: 0.28, cs: 2.0, calt: -420, cirrus: 0.05, low: 1.25, dark: 0.3 },
   cirrus: { label: 'High wisps only', cy: 1, cs: 1, calt: 0, cirrus: 1.7, low: 0.1, dark: 0 },
