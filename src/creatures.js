@@ -11,7 +11,7 @@ const rows = (prof, n) => {                  // a smooth run of n+1 cross-sectio
   for (let i = 0; i <= n; i++) { const f = i / n * m, k = Math.min(m - 1, Math.floor(f)), t = f - k, r = []; for (let c = 0; c < 4; c++) r.push(cr(P(k - 1)[c] || 0, P(k)[c] || 0, P(k + 1)[c] || 0, P(k + 2)[c] || 0, t)); r[1] = Math.max(r[1], 0.0005); r[2] = Math.max(r[2], 0.0005); out.push(r); }
   return out;
 };
-class Shape {
+export class Shape {
   constructor(flex) { this.pos = []; this.uv = []; this.fx = []; this.part = []; this.idx = []; this.flexAt = flex || ((x) => Math.pow(Math.min(1, Math.max(0, (0.18 - x) / 0.7)), 1.4)); }
   v(p, u, v, part, flex) { this.pos.push(p[0], p[1], p[2]); this.uv.push(u, v); this.part.push(part); this.fx.push(flex ?? this.flexAt(p[0], p[1], p[2])); return this.pos.length / 3 - 1; }
   // a curved sheet: f(t, s) gives the point for t and s from 0 to 1
@@ -76,7 +76,7 @@ class Shape {
 
 // ---------------------------------------------------------------- the animals
 // A bony fish from its outline. x runs from the nose (+0.5) to the tail (-0.42).
-function fish({ prof, tail, dorsal, anal, pect = [0.2, -0.04, 0.12, 0.04], pelv, NS = 12 }) {
+export function fish({ prof, tail, dorsal, anal, pect = [0.2, -0.04, 0.12, 0.04], pelv, NS = 12 }) {
   const m = new Shape().body(prof, { NS });
   m.tail(tail.len, tail);
   for (const d of dorsal || []) m.ridge(d[0], d[1], d[2], d[3]);
@@ -149,9 +149,9 @@ export const WHALE = cetacean({ prof: [[0.5, 0.004, 0.006, -0.03], [0.47, 0.04, 
 
 // ---------------------------------------------------------------- water birds sitting on the sea
 // Built from the same smooth pieces; returned as a plain coloured geometry (colours: one per part number).
-function bird(build, colours, kinds) {       // kinds: what each part is, for the feather painter (1 body feathers, 2 flight feathers, 3 bare skin or bill, 4 leg, 5 a single long feather)
+export function bird(build, colours, kinds) {       // kinds: what each part is, for the feather painter (1 body feathers, 2 flight feathers, 3 bare skin or bill, 4 leg, 5 a single long feather)
   const m = new Shape(() => 0); m.weld = true; build(m); const d = m.done(), g = new THREE.BufferGeometry(), col = [];
-  d.part.forEach((p, i) => { const ny = d.nrm[i * 3 + 1], u = d.uv[i * 2], v = d.uv[i * 2 + 1], k = 0.8 + 0.2 * Math.min(1, Math.max(0, ny * 0.9 + 0.6)); col.push(colours[p][0] * k, colours[p][1] * k, colours[p][2] * k); });
+  d.part.forEach((p, i) => { const ny = d.nrm[i * 3 + 1], u = d.uv[i * 2], v = d.uv[i * 2 + 1], k = 0.8 + 0.2 * Math.min(1, Math.max(0, ny * 0.9 + 0.6)); const cc = typeof colours[p] === "function" ? colours[p](u, v, d.pos[i * 3], d.pos[i * 3 + 1], d.pos[i * 3 + 2]) : colours[p]; col.push(cc[0] * k, cc[1] * k, cc[2] * k); });
   const fx = []; d.part.forEach((p, i) => fx.push(1 + ((kinds && kinds[p]) || 1), d.uv[i * 2], d.uv[i * 2 + 1]));
   g.setAttribute('position', new THREE.Float32BufferAttribute(d.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(d.nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aFx', new THREE.Float32BufferAttribute(fx, 3)); g.setIndex(d.idx);
   return g;

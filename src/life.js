@@ -13,6 +13,8 @@ import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
 const loftGeo = (m) => (g) => { attr(g, 'position', m.pos, 3); attr(g, 'normal', m.nrm, 3); attr(g, 'aK', m.part, 1); g.setIndex(m.idx); };
+import { OSPREY_FLY, OSPREY_WING, BRAHMINY_FLY, BRAHMINY_WING, WHISTLING_FLY, WHISTLING_WING, WEDGETAIL_FLY, WEDGETAIL_WING, PEREGRINE_FLY, PEREGRINE_WING, CURLEW, GODWIT, OYSTERCATCHER, STONECURLEW, CORMORANT_STAND, GREAT_CORMORANT, BLACK_SWAN, walkers } from './wildbirds.js';
+import { TAILOR, DART, TREVALLY, JEWFISH, LONGTOM, TARWHINE, SNAPPER, SWEETLIP, COD, MOSES, TUSK, MORWONG, MORAY, WPAINT } from './wildlife.js';
 import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
@@ -730,6 +732,48 @@ function buildSeaLife(scene, F) {
   swimmers(scene, { ...DOLPHIN, paint: PAINT.dolphin, name: 'dolphins', vertical: 1, amp: 0.1, rate: 3.4, colA: [0.17, 0.19, 0.22], colB: [0.80, 0.76, 0.74], colC: [0.16, 0.18, 0.2], eye: [0.385, -0.008, 0.011], rise: [0.07, 0.75], see: 2600, min: 1.5 }, dolphins);
   swimmers(scene, { ...DUGONG, paint: PAINT.dugong, name: 'dugongs', vertical: 1, amp: 0.07, rate: 1.5, colA: [0.36, 0.33, 0.29], colB: [0.62, 0.58, 0.52], colC: [0.33, 0.3, 0.27], eye: [0.4, 0.0, 0.009], rise: [0.03, 0.16], see: 2200, min: 1.3 }, dugongs);
   swimmers(scene, { ...WHALE, paint: PAINT.whale, name: 'whales', vertical: 1, amp: 0.06, rate: 0.8, colA: [0.045, 0.05, 0.06], colB: [0.86, 0.86, 0.82], colC: [0.5, 0.5, 0.5], eye: [0.3, -0.035, 0.007], rise: [0.045, 0.22], see: 9000, min: 6 }, whales);
+  // The rest of the island's fish (wildlife.js): tailor and dart in the surf, trevally, jewfish, snapper, sweetlip, cod and the rest round the wrecks and reefs
+  {
+    const tailor = [], dart = [], trev = [], jew = [], ltom = [], tarw = [], snap = [], squi = [], swee = [], cod = [], mose = [], tusk = [], morw = [], eel = [];
+    const open = (s) => s && maskAt(s[0], s[1]).expo > 0.5, calm = (s) => s && maskAt(s[0], s[1]).expo < 0.6;
+    const one = (out, x, z, rad, dep, size, sp = 0.4) => out.push(x, z, rad, dep, R() * 6.283, sp + R() * sp * 0.6, size * (0.85 + R() * 0.3), R());
+    for (const w of F.wrecks) {
+      if (depth(w.c[0], w.c[1]) < 0.6) continue;
+      const d = Math.max(depth(w.c[0], w.c[1]), 2.2), wx = w.c[0], wz = w.c[1], at = (r) => [wx + (R() - .5) * r, wz + (R() - .5) * r];
+      school(trev, wx + 6, wz - 4, d, Math.round(7 * K), 14 + R() * 10, 0.85);
+      school(mose, wx, wz, d, Math.round(10 * K), 6 + R() * 6, 0.42); school(squi, wx + 3, wz + 5, d, Math.round(9 * K), 4 + R() * 5, 0.3);
+      for (let i = 0; i < 2; i++) { const p = at(16); one(jew, p[0], p[1], 3 + R() * 4, d, 1.3, 0.3); }
+      for (let i = 0; i < 4; i++) { const p = at(22); one(snap, p[0], p[1], 3 + R() * 5, d, 0.72, 0.3); }
+      for (let i = 0; i < 3; i++) { const p = at(24); one(swee, p[0], p[1], 3 + R() * 6, d, 0.66, 0.35); }
+      for (let i = 0; i < 3; i++) { const p = at(14); one(cod, p[0], p[1], 0.6 + R() * 1.4, 0, 0.95, 0.15); }
+      for (let i = 0; i < 2; i++) { const p = at(18); one(tusk, p[0], p[1], 3 + R() * 4, d, 0.5, 0.3); }
+      for (let i = 0; i < 3; i++) { const p = at(20); one(morw, p[0], p[1], 3 + R() * 5, d, 0.56, 0.25); }
+      for (let i = 0; i < 3; i++) { const p = at(12); one(eel, p[0], p[1], 0.5 + R() * 1.0, 0, 0.75, 0.1); }
+    }
+    for (let t = 0; t < 120 * K; t++) { const s = anywhere(1.2, 6); if (open(s)) school(tailor, s[0], s[1], s[2], 9 + ((R() * 6) | 0), 5 + R() * 9, 0.6); }          // tailor hunting the gutters of the surf beaches
+    for (let t = 0; t < 140 * K; t++) { const s = anywhere(0.6, 2.4); if (open(s)) school(dart, s[0], s[1], s[2], 6 + ((R() * 4) | 0), 3 + R() * 5, 0.38); }          // darts in the white water
+    for (let t = 0; t < 120 * K; t++) { const s = anywhere(0.8, 4.5); if (s && (t % 2 || calm(s))) school(tarw, s[0], s[1], s[2], 7 + ((R() * 5) | 0), 4 + R() * 7, 0.42); }          // tarwhine over the sand flats
+    for (let t = 0; t < 40 * K; t++) { const s = anywhere(0.7, 5); if (s) { const n = 4 + ((R() * 4) | 0), ph = R() * 6.283, sp = 0.9 + R() * 0.4; for (let i = 0; i < n; i++) ltom.push(s[0] + (R() - .5) * 3, s[1] + (R() - .5) * 3, 4 + R() * 6, 0.12, ph + i * 0.14, sp, 1.0 * (0.85 + R() * 0.3), R()); } }       // longtoms lying just under the surface
+    for (let t = 0; t < 36 * K; t++) { const s = anywhere(5, 22); if (s && R() < 0.8) { one(jew, s[0], s[1], 6 + R() * 10, s[2], 1.4, 0.3); if (R() < 0.5) one(jew, s[0] + 8, s[1] + 5, 6 + R() * 10, s[2], 1.2, 0.3); } }          // jewfish over the deeper holes and banks
+    for (let t = 0; t < 40 * K; t++) { const s = anywhere(6, 30); if (s) { for (let i = 0; i < 1 + ((R() * 3) | 0); i++) one(snap, s[0] + R() * 12, s[1] + R() * 12, 6 + R() * 10, s[2], 0.75, 0.35); school(trev, s[0], s[1], s[2], 5, 10 + R() * 8, 0.9); } }
+    for (let t = 0; t < 40 * K; t++) { const s = anywhere(1.5, 7); if (s) school(squi, s[0], s[1], s[2], 7 + ((R() * 5) | 0), 3 + R() * 4, 0.3); }
+    { const c = F.lights.find(l => /Cape/.test(l.n || ''))?.p; if (c) for (let t = 0; t < 22; t++) { const s = spot(c[0] + 100, c[1] + 100, 1100, 3, 25); if (s) { school(morw, s[0], s[1], s[2], 3, 6, 0.58); one(jew, s[0], s[1], 5, s[2], 1.3, 0.3); one(swee, s[0], s[1], 5, s[2], 0.66, 0.3); one(eel, s[0], s[1], 0.8, 0, 0.8, 0.1); one(tusk, s[0], s[1], 4, s[2], 0.5, 0.3); one(cod, s[0], s[1], 1, 0, 1.0, 0.15); } } }       // the rocky ground off Cape Moreton
+    const S = [0.86, 0.89, 0.9];
+    swimmers(scene, { ...TAILOR, paint: WPAINT.tailor, name: 'tailor', amp: 0.16, rate: 11, colA: [0.2, 0.36, 0.38], colB: [0.86, 0.9, 0.9], colC: [0.5, 0.58, 0.55], eye: [0.39, 0.015, 0.02], see: 420, min: 0.8 }, tailor);
+    swimmers(scene, { ...DART, paint: WPAINT.dart, name: 'dart', amp: 0.13, rate: 12, colA: [0.62, 0.68, 0.66], colB: [0.92, 0.9, 0.8], colC: [0.8, 0.74, 0.4], eye: [0.38, 0.03, 0.022], see: 300, min: 0.5 }, dart);
+    swimmers(scene, { ...TREVALLY, paint: WPAINT.trevally, name: 'trevally', amp: 0.12, rate: 8, colA: [0.4, 0.52, 0.55], colB: [0.88, 0.84, 0.66], colC: [0.7, 0.62, 0.3], eye: [0.37, 0.04, 0.027], see: 700, min: 1.2 }, trev);
+    swimmers(scene, { ...JEWFISH, paint: WPAINT.jewfish, name: 'jewfish', amp: 0.09, rate: 5, colA: [0.46, 0.4, 0.3], colB: [0.88, 0.8, 0.74], colC: [0.5, 0.44, 0.36], eye: [0.385, 0.02, 0.024], see: 800, min: 1.5 }, jew);
+    swimmers(scene, { ...LONGTOM, paint: WPAINT.longtom, name: 'longtom', amp: 0.1, rate: 7, colA: [0.12, 0.36, 0.34], colB: [0.86, 0.9, 0.88], colC: [0.14, 0.3, 0.3], eye: [0.37, 0.011, 0.011], see: 320, min: 0.4 }, ltom);
+    swimmers(scene, { ...TARWHINE, paint: WPAINT.tarwhine, name: 'tarwhine', amp: 0.13, rate: 8, colA: [0.46, 0.48, 0.46], colB: S, colC: [0.6, 0.55, 0.4], eye: [0.37, 0.04, 0.028], see: 380, min: 0.6 }, tarw);
+    swimmers(scene, { ...SNAPPER, paint: WPAINT.snapper, name: 'snapper', amp: 0.1, rate: 6, colA: [0.78, 0.42, 0.4], colB: [0.96, 0.88, 0.86], colC: [0.9, 0.46, 0.44], eye: [0.36, 0.04, 0.03], see: 650, min: 1.0 }, snap);
+    swimmers(scene, { ...SNAPPER, paint: WPAINT.squire, name: 'squire', amp: 0.13, rate: 9, colA: [0.84, 0.6, 0.6], colB: [0.97, 0.94, 0.92], colC: [0.92, 0.62, 0.58], eye: [0.36, 0.04, 0.03], see: 320, min: 0.6 }, squi);
+    swimmers(scene, { ...SWEETLIP, paint: WPAINT.sweetlip, name: 'sweetlip', amp: 0.1, rate: 6, colA: [0.82, 0.36, 0.32], colB: [0.96, 0.88, 0.84], colC: [0.9, 0.3, 0.26], eye: [0.37, 0.025, 0.026], see: 560, min: 1.0 }, swee);
+    swimmers(scene, { ...COD, paint: WPAINT.cod, name: 'cod', bottom: 1, amp: 0.05, rate: 2.5, colA: [0.36, 0.28, 0.16], colB: [0.7, 0.62, 0.46], colC: [0.42, 0.32, 0.2], eye: [0.38, 0.045, 0.03], see: 500, min: 0.8 }, cod);
+    swimmers(scene, { ...MOSES, paint: WPAINT.moses, name: 'moses', amp: 0.12, rate: 8, colA: [0.62, 0.62, 0.58], colB: [0.92, 0.9, 0.84], colC: [0.9, 0.78, 0.34], eye: [0.375, 0.03, 0.026], see: 380, min: 0.8 }, mose);
+    swimmers(scene, { ...TUSK, paint: WPAINT.tusk, name: 'tuskfish', amp: 0.1, rate: 7, colA: [0.1, 0.46, 0.4], colB: [0.6, 0.78, 0.8], colC: [0.1, 0.5, 0.48], eye: [0.37, 0.035, 0.026], see: 420, min: 1.0 }, tusk);
+    swimmers(scene, { ...MORWONG, paint: WPAINT.morwong, name: 'morwong', amp: 0.1, rate: 6, colA: [0.62, 0.62, 0.6], colB: [0.9, 0.86, 0.82], colC: [0.5, 0.5, 0.5], eye: [0.37, 0.035, 0.026], see: 420, min: 1.0 }, morw);
+    swimmers(scene, { ...MORAY, paint: WPAINT.moray, name: 'moray', bottom: 1, amp: 0.1, rate: 3.5, colA: [0.5, 0.4, 0.16], colB: [0.7, 0.62, 0.46], colC: [0.4, 0.3, 0.1], eye: [0.44, 0.02, 0.011], see: 380, min: 0.5 }, eel);
+  }
   jellyfish(scene, jelly);
 }
 
@@ -762,8 +806,6 @@ function buildBirds(scene, F) {
   for (const p of places.slice(0, 5)) for (let i = 0; i < 3; i++) add(p[0] - 420 + (R() - .5) * 300, 2.5 + R() * 5, p[1] + (R() - .5) * 600, 120 + R() * 200, 13, 1.1, 0, 0.9, [.07, .07, .08], [.1, .1, .11]);
   // pelicans gliding low in a line along the bay shore
   for (const p of places.slice(0, 6)) { const ph = R() * 6.283, rad = 160 + R() * 160, alt = 4 + R() * 6; for (let i = 0; i < 4; i++) add(p[0] - 500, alt, p[1], rad, 9, 2.6, 0, 0.3, WHITE, BLACK, ph + i * 16 / rad); }
-  // whistling kites, brahminy kites and sea eagles soaring over the dunes and the shore
-  for (let i = 0; i < 22; i++) { const x = (R() - .5) * T.sx * 0.6, z = (R() - .5) * T.sz * 0.8; if (maskAt(x, z).land < 0.5 && R() < 0.6) continue; const k = i % 4; add(x, 60 + R() * 110, z, 90 + R() * 160, 9, k === 2 ? 2.2 : 1.5, 0, 0.08, [[.42, .33, .24], [.55, .25, .12], [.9, .9, .88], [.88, .86, .8]][k], [[.3, .24, .18], [.5, .22, .1], [.38, .4, .43], [.3, .25, .2]][k]); }      // whistling kite, brahminy kite, sea eagle, osprey
   add(0, 110, 0, 140, 9, 1.6, 1, 0.08, [.55, .25, .12], [.5, .22, .1]);
   const n = list.length / 8, g = new THREE.InstancedBufferGeometry(), a = new Float32Array(n * 4), b = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
@@ -810,11 +852,11 @@ function buildBirds(scene, F) {
   ell(0.115, 0.285, 0, 0.05, 0.045, 0.04, WHITE, 4, 6); ell(0.15, 0.33, 0, 0.046, 0.042, 0.04, [0, 0, 0]);                                                      // neck and head
   ell(0.215, 0.322, 0, 0.05, 0.011, 0.011, RED, 4, 5); sg.box(0.02, 0, 0.03, 0.013, 0.17, 0.013, RED); sg.box(0.02, 0, -0.03, 0.013, 0.17, 0.013, RED);        // bill and legs
   const geo = sg.build(), ig = new THREE.InstancedBufferGeometry(); ig.index = geo.index; ig.setAttribute('position', geo.attributes.position); ig.setAttribute('normal', geo.attributes.normal); ig.setAttribute('color', geo.attributes.color);
-  const sp = [], sc = [];
+  const sp = [], sc = [], oys = [];
   for (const r of F.beach || []) for (let i = 8; i < r.p.length - 8; i += MOBILE ? 9 : 5) {
     if (R() < 0.45) continue;
     const p = r.p[i], q = r.p[i + 1], gull = R() < 0.35, k = gull ? 2 + ((R() * 4) | 0) : 2, side = r.side || 1;
-    for (let j = 0; j < k; j++) { sp.push(p[0] + side * (5 + R() * 5) + (R() - .5) * 4, p[1] + (R() - .5) * 8, Math.atan2(-(q[1] - p[1]), q[0] - p[0]) + (R() < .5 ? 0 : Math.PI), R()); sc.push(...(gull ? GREY : ob)); }
+    for (let j = 0; j < k; j++) { const e = [p[0] + side * (5 + R() * 5) + (R() - .5) * 4, p[1] + (R() - .5) * 8, Math.atan2(-(q[1] - p[1]), q[0] - p[0]) + (R() < .5 ? 0 : Math.PI), R()]; if (gull) { sp.push(...e); sc.push(...GREY); } else oys.push(...e); }
   }
   if (F.micat) { const M = F.micat, [dx, dz] = M.dir;            // a flock of silver gulls stands about on the sand beside the Micat's landing (the owner's photograph)
     for (let j = 0; j < 16; j++) { const up = 20 + R() * 16, out = 12 + R() * 26; sp.push(M.land[0] + dx * up - dz * out, M.land[1] + dz * up + dx * out, R() * 6.283, R()); sc.push(...GREY); } }
@@ -908,6 +950,63 @@ function buildBirds(scene, F) {
     const sm2 = new THREE.Mesh(ig2, smat2); sm2.name = 'ashore'; sm2.frustumCulled = false; scene.add(sm2); nearOnly(sm2, st, 4, 1500, 12);
   }
   afloat(CORMORANT(), spots, 2);
+  afloat(GREAT_CORMORANT(), spots, 2);
+  // Black swans on the sheltered water of the bay and on the lakes
+  {
+    const bayP = F.places.filter(p => /Kooringal|Bulwer|Cowan|Tangalooma|Toompani/.test(p.n || '')).map(p => [p.p, 1]);
+    if (bayP.length) afloat(BLACK_SWAN(), bayP, MOBILE ? 2 : 3);
+    const inPoly = (pl, x, z) => { let c = false; for (let i = 0, j = pl.length - 1; i < pl.length; j = i++) { const a = pl[i], b = pl[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+    const lp = [], ly = [];
+    for (const l of F.lakes) {
+      if (!l.n || l.y === undefined || l.p.length < 8) continue;
+      let want = /Blue Lagoon/.test(l.n) ? 5 : 2, bb = [1e9, 1e9, -1e9, -1e9]; for (const q of l.p) { bb[0] = Math.min(bb[0], q[0]); bb[1] = Math.min(bb[1], q[1]); bb[2] = Math.max(bb[2], q[0]); bb[3] = Math.max(bb[3], q[1]); }
+      for (let t = 0; t < 200 && want > 0; t++) { const x = bb[0] + R() * (bb[2] - bb[0]), z = bb[1] + R() * (bb[3] - bb[1]); if (inPoly(l.p, x, z) && inPoly(l.p, x + 14, z) && inPoly(l.p, x - 14, z) && inPoly(l.p, x, z + 14) && inPoly(l.p, x, z - 14)) { lp.push(x, z, 3 + R() * 5, R()); ly.push(l.y); want--; } }
+    }
+    if (lp.length) {
+      const sg = BLACK_SWAN(), lg = new THREE.InstancedBufferGeometry();
+      lg.index = sg.index; for (const k of ['position', 'normal', 'color', 'aFx']) lg.setAttribute(k, sg.attributes[k]);
+      lg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(lp), 4)); lg.setAttribute('iY', new THREE.InstancedBufferAttribute(new Float32Array(ly), 1)); lg.instanceCount = lp.length / 4; lg.boundingSphere = FAR;
+      const lmat = makeMat({
+        side: THREE.DoubleSide,
+        vs: /* glsl */`
+          attribute vec3 color, aFx; attribute vec4 iP; attribute float iY; varying vec3 vCol, vW, vLight, vFx;
+          void main(){
+            float way = iP.w < 0.5 ? 1.0 : -1.0, ang = iP.w * 40.0 + uTime * 0.12 / iP.z * way;
+            vec2 c = iP.xy + vec2(cos(ang), sin(ang)) * iP.z, fwd = vec2(-sin(ang), cos(ang)) * way;
+            vec3 lq = position * 1.9 - vec3(0.0, 0.29, 0.0);
+            vec3 wp = vec3(c.x + fwd.x * lq.x - fwd.y * lq.z, iY + lq.y + sin(uTime * 1.1 + iP.w * 30.0) * 0.03, c.y + fwd.y * lq.x + fwd.x * lq.z);
+            vec3 nw = normalize(vec3(fwd.x * normal.x - fwd.y * normal.z, normal.y, fwd.y * normal.x + fwd.x * normal.z));
+            float ok = 1.0 - smoothstep(700.0, 1000.0, length(wp - cameraPosition));
+            vCol = color; vFx = aFx; vLight = uLightCol * (0.12 + 0.75 * max(dot(nw, uLightDir), 0.0)) * cloudShadow(wp) + uAmbSky * (0.6 + 0.4 * nw.y); vW = wp;
+            gl_Position = ok <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
+            ${LOGV}
+          }`,
+        fs: BIRD_FS,
+      });
+      const lm = new THREE.Mesh(lg, lmat); lm.name = 'lakeswans'; lm.frustumCulled = false; scene.add(lm); nearOnly(lm, lp, 4, 1000, 20, 40);
+    }
+  }
+  // Waders and the rest on foot along the shore (wildbirds.js): far eastern curlews and bar-tailed godwits on the flats of the bay side, pied
+  // oystercatchers along every tide line, beach stone-curlews paired at the top of the beach, great cormorants standing about the sand spits
+  {
+    const Rw = rng(8123), cu = [], gw = [], stc = [], cs = [], cd = [];
+    const seaward = (x0, z, side, lo, hi) => { for (let t = 0; t < 60; t++) { const x = x0 + side * t * 1.2, h = heightAt(x, z); if (h <= hi) return h >= lo ? x : null; } return null; };          // down the beach to wet sand
+    const landward = (x0, z, side, lo, hi) => { for (let t = 0; t < 50; t++) { const x = x0 - side * t * 1.3, h = heightAt(x, z); if (h >= lo && h <= hi) return x; if (h > hi) return null; } return null; };       // up the beach to the dry top
+    for (const r of F.beach || []) for (let i = 6; i < r.p.length - 6; i += MOBILE ? 5 : 3) {
+      const p = r.p[i], q = r.p[i + 1], side = r.side || 1, hd = Math.atan2(-(q[1] - p[1]), q[0] - p[0]), sheltered = side < 0;
+      if (sheltered && Rw() < 0.1) { const x = seaward(p[0], p[1], side, 0.15, 0.6); if (x !== null) for (let j = 0, n = 1 + ((Rw() * 2) | 0); j < n; j++) cu.push(x, p[1] + j * 5 + (Rw() - .5) * 4, hd + (Rw() < .5 ? 0 : Math.PI), Rw()); }
+      if (sheltered && Rw() < (p[1] > 5500 ? 0.12 : 0.04)) { const n = 6 + ((Rw() * 12) | 0); for (let j = 0; j < n; j++) { const z = p[1] + (Rw() - .5) * 46, x = seaward(p[0], z, side, 0.1, 0.6); if (x !== null) gw.push(x + (Rw() - .5) * 3, z, hd + (Rw() < .5 ? 0 : Math.PI), Rw()); } }
+      if (Rw() < 0.07) { const x = landward(p[0], p[1], side, 1.3, 2.8); if (x !== null) { const h0 = Rw() * 6.283; for (let j = 0; j < 2; j++) stc.push(x + (Rw() - .5) * 5, p[1] + j * 3 + (Rw() - .5) * 3, h0 + j * 0.6, Rw()); } }
+      if (sheltered && Rw() < 0.05) { const x = seaward(p[0], p[1], side, 0.3, 0.9), dry = Rw() < 0.45; if (x !== null) for (let j = 0, n = 1 + ((Rw() * 4) | 0); j < n; j++) (dry ? cd : cs).push(x + (Rw() - .5) * 3, p[1] + j * 3 + (Rw() - .5) * 3, Rw() * 6.283, Rw()); }
+    }
+    const WS = 1.6;          // (the waders are shown larger than life, like the gulls: at a hundred metres a real one is a speck)
+    walkers(scene, OYSTERCATCHER(), oys, { scale: WS, pace: 4, see: 650, name: 'oystercatchers' });
+    walkers(scene, CURLEW(), cu, { scale: WS, pace: 3, see: 750, name: 'curlews' });
+    walkers(scene, GODWIT(), gw, { scale: WS, pace: 2.5, see: 650, name: 'godwits' });
+    walkers(scene, STONECURLEW(), stc, { scale: WS, pace: 0.4, night: 1, see: 600, name: 'stonecurlews' });
+    walkers(scene, CORMORANT_STAND(false), cs, { scale: 1.5, pace: 0, see: 700, name: 'cormorants' });
+    walkers(scene, CORMORANT_STAND(true), cd, { scale: 1.5, pace: 0, see: 700, name: 'cormorantsdry' });
+  }
 
   const f = new THREE.Vector3(); let first = true;
   return (dt, target) => {
@@ -1116,6 +1215,25 @@ function buildPelicans(scene, F) {
     const h = roosts[i % roosts.length];
     make(eb, ew, 1.4, [0.05, 0.085, 0.1], { kind: 'eagle', home: [h[0] + (R() - .5) * 300, h[1] + (R() - .5) * 300], rad: 110 + R() * 170, ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, alt: 45 + R() * 70, sp: 12.5, glide: 0.2, beats: 0.82, rate: 5.0, sweep: 0.5, round: 1 });
   }
+  // Five more raptors (wildbirds.js), each in its own country: ospreys fishing the bay, brahminy kites over the shore, whistling kites over the
+  // heath and the dunes, wedge-tailed eagles high over the hills, peregrines about the cape and the cliffs
+  {
+    const landAt = (x, z) => { const mk = maskAt(x, z); return mk.land > 0.6 && Math.abs(x) < T.sx / 2 - 400 && Math.abs(z) < T.sz / 2 - 400; };
+    const inland = []; for (let t = 0; t < 800 && inland.length < 24; t++) { const x = (R() - .5) * T.sx * 0.7, z = (R() - .5) * T.sz * 0.85; if (landAt(x, z) && maskAt(x, z).sand < 0.8) inland.push([x, z]); }
+    const bay = [...homes, ...F.places.filter(p => p.p[0] < 0).map(p => [p.p[0] - 300, p.p[1]])], hills = [...peaks, ...inland.slice(0, 6)];
+    const cliffs = [cape, ...(F.sandnames || []).map(q => q.p || q.c)].filter(Boolean);
+    const KINDS = [
+      ['osprey', OSPREY_FLY(), OSPREY_WING(), 1.3, [0.04, 0.065, 0.08], MOBILE ? 2 : 4, bay, { rad: 150, alt: 8, sp: 11, glide: 0.12, beats: 0.55, rate: 6.5, sweep: 0.5, zoom0: 6 }],
+      ['brahminy', BRAHMINY_FLY(), BRAHMINY_WING(), 1.0, [0.04, 0.062, 0.075], MOBILE ? 2 : 4, bay, { rad: 120, alt: 5, sp: 9.5, glide: 0.15, beats: 0.7, rate: 6.0, sweep: 0.45, zoom0: 5 }],
+      ['whistling', WHISTLING_FLY(), WHISTLING_WING(), 1.05, [0.04, 0.062, 0.078], MOBILE ? 3 : 5, inland, { rad: 220, alt: 14, sp: 10, glide: 0.2, beats: 0.78, rate: 5.5, sweep: 0.45, zoom0: 6 }],
+      ['wedgetail', WEDGETAIL_FLY(), WEDGETAIL_WING(), 1.7, [0.045, 0.08, 0.098], MOBILE ? 2 : 3, hills, { rad: 380, alt: 40, sp: 13, glide: 0.2, beats: 0.85, rate: 4.5, sweep: 0.4, zoom0: 10 }],
+      ['peregrine', PEREGRINE_FLY(), PEREGRINE_WING(), 0.85, [0.04, 0.08, 0.085], MOBILE ? 2 : 3, cliffs, { rad: 140, alt: 20, sp: 17, glide: 0.1, beats: 0.45, rate: 9.5, sweep: 0.55, zoom0: 5 }],
+    ];
+    for (const [kind, bg, wg, sc, sh, n, at, o] of KINDS) for (let i = 0; i < n && at.length; i++) {
+      const h = at[(i + (kind === 'brahminy' ? 2 : 0)) % at.length];
+      make(bg, wg, sc, sh, { kind, home: [h[0] + (R() - .5) * 400, h[1] + (R() - .5) * 400], ...o, rad: o.rad * (0.8 + R() * 0.5), ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, round: 1 });
+    }
+  }
   // A pair of sea eagles sitting in a dead tree, as the owner saw them: a bare grey stag with two long limbs, one bird on each, at a few places
   // round the island (by the Little and the Big Sandhills, near the wrecks, and on the cape).
   {
@@ -1150,7 +1268,7 @@ function buildPelicans(scene, F) {
       p.fl = p.fl === undefined ? flT : p.fl + (flT - p.fl) * (1 - Math.exp(-dt * (flT > p.fl ? 2.2 : 0.7)));
       if (p.ctl) {                      // flown by hand: turn, climb and sink; down on the water it folds its wings and paddles
         const c = p.ctl; p.hd -= c.turn * 0.85 * dt; bank = c.turn * 0.5;
-        const eagle = p.kind === 'eagle';
+        const eagle = p.kind !== 'pelican';
         p.y += c.climb * (eagle ? 8 + Math.max(0, p.y - sea) * 0.05 : 5) * dt; const floor = sea + 0.25;       // an eagle climbs fast, and faster the higher it is (it has the whole sky to cross)
         if (p.kind !== 'pelican') { p.y = Math.max(p.y, floor + 0.7); p.afloat = false; }       // only a pelican settles on the water; an eagle can skim it
         else if (p.y <= floor) { p.y = floor; p.afloat = c.climb <= 0; } else p.afloat = false;
@@ -1166,7 +1284,7 @@ function buildPelicans(scene, F) {
         // a pelican keeps its height; a sea eagle rides the rising air up in its circles until it is a speck, then slides all the way down again to treetop height
         // (heights are above whatever is below: the sea, the sand, or the treetops). Pelicans mostly skim the water but go up every so often too.
         const swing = 0.5 - 0.5 * Math.cos(t * 0.045 + p.ph), up = Math.max(0, Math.sin(t * 0.027 + p.ph * 2));
-        const goalAlt = p.kind === 'eagle' ? 18 + p.alt * 3.2 * swing * swing : p.alt + Math.sin(t * 0.13 + p.ph) * 2.5 + 55 * up * up * up;
+        const goalAlt = p.kind !== 'pelican' ? 18 + p.alt * 3.2 * swing * swing : p.alt + Math.sin(t * 0.13 + p.ph) * 2.5 + 55 * up * up * up;
         const goal = p.fl + goalAlt; p.vy = (p.vy ?? 0) + (clamp((goal - p.y) * 0.3, -6, 14) - (p.vy ?? 0)) * (1 - Math.exp(-dt * 1.0)); p.y += p.vy * dt;
         p.y = Math.max(p.y, flNow - 5);
         flap = Math.sin(t * 0.21 + p.ph * 3) > p.beats;     // beats in bursts, glides between (an eagle hardly beats at all)
