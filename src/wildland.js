@@ -3,6 +3,7 @@
 // bandicoots, common brushtail and common ringtail possums, water rat, grey-headed flying-fox and a small bat). Each is a lofted body (smooth cross-sections
 // along a curve, like the wallaby and the goanna in bodies.js) with a skin or coat worked out per pixel from where on the body the pixel is.
 import * as THREE from 'three';
+import { spotCritter } from './spot.js';
 import { Loft } from './bodies.js';
 import { bird } from './creatures.js';
 import { makeMat, nearOnly, LOGV, LOGF } from './common.js';
@@ -186,6 +187,7 @@ WILD_PAINT.waterrat = `{ vec3 p = vObj; ${FUR(6)} c = mix(vec3(0.12, 0.1, 0.09),
 // ground test), paint (GLSL). The same shader draws every kind: only the numbers and the paint change.
 export function critters(scene, loft, list, o) {
   const n = list.length / 5; if (!n) return null;
+  spotCritter(o.name, list);
   const g = new THREE.InstancedBufferGeometry(), P4 = new Float32Array(n * 4), Y = new Float32Array(n);
   for (let k = 0; k < n; k++) { P4.set(list.slice(k * 5, k * 5 + 4), k * 4); Y[k] = list[k * 5 + 4]; }
   g.setAttribute('position', new THREE.Float32BufferAttribute(loft.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(loft.nrm, 3)); g.setAttribute('aK', new THREE.Float32BufferAttribute(loft.part, 1)); g.setIndex(loft.idx);

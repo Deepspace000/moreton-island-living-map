@@ -14,19 +14,17 @@ def portrait(src, name, W=640, H=480, fill=0.62, thr=38):
         sizes = ndi.sum(d, lab, range(1, n + 1)); d = lab == (1 + int(np.argmax(sizes)))
     ys, xs = np.nonzero(d)
     if len(xs) < 30: raise SystemExit('nothing found in ' + src)
-    x0, x1, y0, y1 = np.percentile(xs, 0.1), np.percentile(xs, 99.9), np.percentile(ys, 0.1), np.percentile(ys, 99.9)
+    x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()          # (the biggest piece only, so specks do not count)
     cx, cy, bw, bh = (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0
     if bw > 4 * bh: fill = 0.9          # a snake or a long fish: fill the width
     cw = max(bw / fill, bh / fill * W / H, 140); ch = cw * H / W
     box = (int(round(cx - cw / 2)), int(round(cy - ch / 2)), int(round(cx + cw / 2)), int(round(cy + ch / 2)))
-    pad = Image.new('RGB', (w + 2 * int(cw), h + 2 * int(cw)))
-    # the backdrop beyond the frame is its edge colour, so a crop that runs over the edge stays plain
-    pad.paste(im, (int(cw), int(cw)))
-    for y in range(h + 2 * int(cw)):
-        yy = min(max(y - int(cw), 0), h - 1); c = tuple(int(v) for v in a[yy, 0]); pad.paste(c, (0, y, int(cw), y + 1)); pad.paste(c, (int(cw) + w, y, w + 2 * int(cw), y + 1))
-    for x in range(int(cw), int(cw) + w):
-        pad.paste(tuple(int(v) for v in a[0, x - int(cw)]), (x, 0, x + 1, int(cw))); pad.paste(tuple(int(v) for v in a[h - 1, x - int(cw)]), (x, int(cw) + h, x + 1, h + 2 * int(cw)))
-    out = pad.crop((box[0] + int(cw), box[1] + int(cw), box[2] + int(cw), box[3] + int(cw))).resize((W, H), Image.LANCZOS)
+    # keep the box inside the picture: slide it back in (the subject is never at the very edge)
+    bx0, by0, bx1, by1 = box
+    if bx1 - bx0 > w or by1 - by0 > h: k = min(w / (bx1 - bx0), h / (by1 - by0)); cw2, ch2 = int((bx1 - bx0) * k), int((by1 - by0) * k); bx0, by0 = int(cx - cw2 / 2), int(cy - ch2 / 2); bx1, by1 = bx0 + cw2, by0 + ch2
+    dx = -bx0 if bx0 < 0 else (w - bx1 if bx1 > w else 0); dy = -by0 if by0 < 0 else (h - by1 if by1 > h else 0)
+    box = (bx0 + dx, by0 + dy, bx1 + dx, by1 + dy)
+    out = im.crop(box).resize((W, H), Image.LANCZOS)
     os.makedirs(OUT, exist_ok=True); out.save(os.path.join(OUT, name + '.jpg'), quality=84, optimize=True)
     return box
 if __name__ == '__main__':

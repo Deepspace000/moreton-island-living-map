@@ -2,6 +2,7 @@
 // edges), given curved fins, and painted per pixel: countershading, scales, bars and spots, an eye, fin rays, the
 // dancing light of the surface on its back, and the colour of the water it is seen through.
 import * as THREE from 'three';
+import { spotSwim } from './spot.js';
 import { makeMat, nearOnly, byPlace, LOGV, LOGF } from './common.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6), PI = Math.PI;
@@ -103,7 +104,7 @@ export const FLATHEAD = (() => {
 export const SHARK = (() => {
   const m = new Shape().body([[0.52, 0.003, 0.004, -0.01], [0.48, 0.024, 0.034, -0.012], [0.4, 0.05, 0.062, -0.006], [0.26, 0.078, 0.086, 0], [0.08, 0.09, 0.092, 0], [-0.1, 0.078, 0.072, 0], [-0.26, 0.05, 0.042, 0.004], [-0.38, 0.028, 0.02, 0.008], [-0.44, 0.022, 0.01, 0.012]], { NS: 14, belly: 0.85 });
   m.tail(0.26, { low: 0.12, spread: 0.95, fork: 0.72 });
-  m.surf(8, 6, (t, s) => { const x0 = 0.12 - 0.13 * t, lead = 0.2 * s * s, h = 0.15 * s * (1 - 0.25 * t * s); return [x0 - lead - 0.05 * t * s * (1 - s), m.top(x0) - 0.01 + h, 0]; }, 1);      // first dorsal: swept, with a curved trailing edge
+  m.surf(8, 6, (t, s) => { const xb = 0.15 - 0.13 * t, x = xb * (1 - s) + 0.07 * s; return [x, m.top(xb) - 0.01 + 0.085 * s, 0]; }, 1);      // first dorsal: a small straight-sided triangle, leaning back a little
   m.ridge(-0.24, -0.33, 0.04, { sweep: 1.2 }); m.ridge(-0.25, -0.33, 0.035, { dir: -1, sweep: 1.2, belly: 0.85 });
   for (const sd of [-1, 1]) { m.leaf([0.2, -0.045, sd * 0.07], [-0.5, -0.22, sd * 0.84], [0.86, 0, sd * 0.5], 0.23, 0.06, { curl: [-0.25, 0, 0], tip: 0.55 }); m.leaf([-0.14, -0.05, sd * 0.03], [-0.7, -0.5, sd * 0.5], [0.7, -0.2, sd * 0.6], 0.07, 0.03); }
   return m.done();
@@ -134,7 +135,7 @@ export const TURTLE = (() => {
 // dolphins, dugongs and whales beat their tails up and down: the flukes lie flat
 function cetacean({ prof, NS = 14, belly = 1, dorsal, flip, fluke, hump }) {
   const m = new Shape().body(prof, { NR: 24, NS, belly });
-  if (dorsal) m.surf(10, 8, (t, s) => { const [x0, len, h, sw] = dorsal, x = x0 - len * t; return [x - sw * s * s - len * 0.35 * t * s * (1 - s) * 2, m.top(x) - 0.006 + h * s * (1 - 0.45 * t * s), 0]; }, 1);
+  if (dorsal) m.surf(10, 8, (t, s) => { const [x0, len, h] = dorsal, xb = x0 - len * t, x = xb * (1 - s) + (x0 - len * 0.7) * s; return [x, m.top(xb) - 0.006 + h * s, 0]; }, 1);          // a small triangle
   if (hump) m.ridge(hump[0], hump[1], hump[2], { sweep: 1.4, lobe: 1.2 });
   const e = m.R[m.R.length - 1];
   for (const sd of [-1, 1]) {
@@ -143,7 +144,7 @@ function cetacean({ prof, NS = 14, belly = 1, dorsal, flip, fluke, hump }) {
   }
   return m.done();
 }
-export const DOLPHIN = cetacean({ prof: [[0.56, 0.003, 0.003, -0.02], [0.53, 0.018, 0.02, -0.02], [0.45, 0.026, 0.028, -0.018], [0.4, 0.062, 0.058, 0], [0.3, 0.092, 0.084, 0.006], [0.14, 0.108, 0.098, 0.006], [-0.02, 0.1, 0.09, 0.004], [-0.18, 0.076, 0.064, 0], [-0.32, 0.048, 0.034, 0], [-0.42, 0.028, 0.016, 0], [-0.47, 0.016, 0.02, 0]], dorsal: [0.02, 0.15, 0.12, 0.12], flip: [0.24, 0.17, 0.045], fluke: [0.17, 0.05] });
+export const DOLPHIN = cetacean({ prof: [[0.56, 0.003, 0.003, -0.02], [0.53, 0.018, 0.02, -0.02], [0.45, 0.026, 0.028, -0.018], [0.4, 0.062, 0.058, 0], [0.3, 0.092, 0.084, 0.006], [0.14, 0.108, 0.098, 0.006], [-0.02, 0.1, 0.09, 0.004], [-0.18, 0.076, 0.064, 0], [-0.32, 0.048, 0.034, 0], [-0.42, 0.028, 0.016, 0], [-0.47, 0.016, 0.02, 0]], dorsal: [0.04, 0.13, 0.08, 0], flip: [0.24, 0.17, 0.045], fluke: [0.17, 0.05] });
 export const DUGONG = cetacean({ prof: [[0.5, 0.004, 0.004, -0.06], [0.47, 0.055, 0.06, -0.05], [0.4, 0.08, 0.075, -0.02], [0.3, 0.1, 0.1, 0.0], [0.14, 0.14, 0.145, 0.0], [-0.02, 0.15, 0.155, 0], [-0.18, 0.125, 0.12, 0], [-0.32, 0.075, 0.06, 0], [-0.42, 0.036, 0.024, 0], [-0.47, 0.018, 0.03, 0]], belly: 0.9, flip: [0.22, 0.15, 0.05], fluke: [0.19, 0.06] });
 export const WHALE = cetacean({ prof: [[0.5, 0.004, 0.006, -0.03], [0.47, 0.04, 0.05, -0.025], [0.38, 0.078, 0.082, -0.015], [0.24, 0.1, 0.1, -0.005], [0.08, 0.108, 0.102, 0], [-0.08, 0.094, 0.084, 0], [-0.22, 0.066, 0.054, 0], [-0.34, 0.04, 0.028, 0], [-0.43, 0.022, 0.014, 0], [-0.47, 0.012, 0.02, 0]], NS: 16, belly: 1.15, hump: [-0.1, -0.2, 0.03], flip: [0.2, 0.3, 0.04], fluke: [0.2, 0.055] });
 
@@ -308,7 +309,7 @@ export const PAINT = {
 // visit: each animal has two more numbers, the way (x, z, in metres) to a shallower spot it swims in to now and then while the tide is up.
 // (They are drawn as one batch for each part of the map they live in, all sharing one shape and one material: a batch that is out of view,
 // or too far off to be seen, is then skipped whole.)
-export function swimmers(scene, o, all) { let first = null; for (const list of byPlace(all, o.visit ? 10 : 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
+export function swimmers(scene, o, all) { spotSwim(o.name, all, o.visit ? 10 : 8); let first = null; for (const list of byPlace(all, o.visit ? 10 : 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
 function swimmersAt(scene, o, list) {
   const st = o.visit ? 10 : 8, g = new THREE.InstancedBufferGeometry(), n = list.length / st, a = new Float32Array(n * 4), b = new Float32Array(n * 4), v = new Float32Array(n * 2), F = (arr, k) => new THREE.Float32BufferAttribute(arr, k), P = o.paint || {};
   for (let i = 0; i < n; i++) { a.set(list.slice(i * st, i * st + 4), i * 4); b.set(list.slice(i * st + 4, i * st + 8), i * 4); if (o.visit) v.set(list.slice(i * st + 8, i * st + 10), i * 2); }

@@ -3,6 +3,7 @@
 // stone-curlew), and the water birds (black swan, great cormorant). Same smooth lofted parts as creatures.js; colour comes from a function
 // of the surface's own coordinates, so a head can have its stripes, a belly its white and a tail its bars.
 import * as THREE from 'three';
+import { spotWalk } from './spot.js';
 import { Shape, bird } from './creatures.js';
 import { makeMat, nearOnly, FEATHER_GLSL, LOGV, LOGF } from './common.js';
 
@@ -234,6 +235,7 @@ export const BLACK_SWAN = () => {
 const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} void main(){ ${LOGF} vec3 c = featherPaint(vCol, vFx); gl_FragColor = vec4(applyFog(c * vLight, vW), 1.0); }`;
 export function walkers(scene, geo, list, o) {
   if (!list.length) return null;
+  spotWalk(o.name, list);
   const g = new THREE.InstancedBufferGeometry();
   g.index = geo.index; for (const k of ['position', 'normal', 'color', 'aFx']) g.setAttribute(k, geo.attributes[k]);
   g.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(list), 4)); g.instanceCount = list.length / 4; g.boundingSphere = FAR;

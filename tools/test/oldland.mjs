@@ -6,7 +6,7 @@ for (const g of window.__ol || []) MAP.scene.remove(g);
 window.__ol = [];
 const sea = MAP.U.uSeaM.value, T = MAP.T, add = (o) => { MAP.scene.add(o); window.__ol.push(o); return o; };
 const find = (ok) => { for (let t = 0; t < 20000; t++) { const x = (Math.random() - .5) * (T.sx - 1000), z = (Math.random() - .5) * (T.sz - 1000); if (ok(x, z)) return [x, z]; } return null; };
-const deep = find((x, z) => -TR.heightAt(x, z) > 4 && -TR.heightAt(x - 600, z) > 4 && -TR.heightAt(x + 600, z) > 4);
+const deep = find((x, z) => z < T.sz / 2 - 13000 && -TR.heightAt(x, z) > 4 && -TR.heightAt(x - 600, z) > 4 && -TR.heightAt(x + 600, z) > 4);
 const shallow = find((x, z) => { const d = -TR.heightAt(x, z); return d > 0.7 && d < 1.0 && -TR.heightAt(x + 8, z) > 0.5 && -TR.heightAt(x - 8, z) > 0.5 && -TR.heightAt(x, z + 8) > 0.5 && -TR.heightAt(x, z - 8) > 0.5; });
 const land = find((x, z) => { const h = TR.heightAt(x, z); return h > 4 && h < 12 && Math.abs(TR.heightAt(x + 12, z) - h) < 1 && Math.abs(TR.heightAt(x, z + 12) - h) < 1 && Math.abs(TR.heightAt(x - 12, z) - h) < 1 && Math.abs(TR.heightAt(x, z - 12) - h) < 1; });
 window.__ob = { deep, shallow, land };
@@ -32,7 +32,7 @@ const FLY = [['pelicanfly', 'PELICAN', 1.6, [0.06, 0.1, 0.12], CR], ['seaeaglefl
 FLY.forEach(([id, k, sc, sh, M], i) => {
   const body = M[k + '_FLY'](), wing = M[k + '_WING'](), g = new THREE.Group(), b = new THREE.Mesh(body, mat), wl = new THREE.Mesh(wing, mat), wr = new THREE.Mesh(wing, mat);
   wl.position.set(sh[0], sh[1], sh[2]); wr.position.set(sh[0], sh[1], -sh[2]); wr.scale.z = -1; wl.rotation.x = -0.12; wr.rotation.x = 0.12; g.add(b, wl, wr); g.scale.setScalar(sc * 4);
-  g.position.set(deep[0], sea + 3, deep[1] + 1500 + i * 600); for (const m of [b, wl, wr]) m.frustumCulled = false; add(g); E.push({ id, kind: 'fly', x: deep[0], z: deep[1] + 1500 + i * 600, sc: sc * 4, k: /bat|fox/.test(id) || id === 'microbat' ? 0.9 : 2.2 });
+  g.position.set(deep[0], sea + 3, deep[1] + 1500 + i * 600); for (const m of [b, wl, wr]) m.frustumCulled = false; add(g); E.push({ id, kind: 'fly', x: deep[0], z: deep[1] + 1500 + i * 600, sc: sc * 4, k: /bat|fox/.test(id) || id === 'microbat' ? 2.7 : 2.2 });
 });
 
 // ---- a tern in the air: the map draws every flying gull and tern as a small bird of fourteen triangles (life.js BIRD); the same shape here
@@ -42,7 +42,7 @@ FLY.forEach(([id, k, sc, sh, M], i) => {
     const g = new THREE.BufferGeometry(), col = []; for (const t of tone) for (let c = 0; c < 3; c++) col.push([.95, .95, .93][c] * (1 - t) + b2[c] * t);
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
     const gr = new THREE.Group(), m = new THREE.Mesh(g, matV); m.frustumCulled = false; gr.add(m); gr.scale.setScalar(14); const i = E.filter(e => e.kind === 'fly').length;
-    gr.position.set(deep[0], sea + 3, deep[1] + 1500 + i * 600); add(gr); E.push({ id, kind: 'fly', x: deep[0], z: deep[1] + 1500 + i * 600, sc: 14, k: 1.2 }); } }
+    gr.position.set(deep[0], sea + 3, deep[1] + 1500 + i * 600); add(gr); E.push({ id, kind: 'fly', x: deep[0], z: deep[1] + 1500 + i * 600, sc: 14, k: 2.0 }); } }
 
 // ---- land animals of the map's own scatter system, one at a time (life.js STUDIO)
 const F = (v) => v.toFixed(3);
@@ -71,12 +71,12 @@ const loose = (m) => { const a = MAP.seabed.meshes, k = a.indexOf(m); if (k >= 0
   const bp = [0, 0, 0, 0.9, 0, 1, -0.7, 0, 0.8, 0, 0, 0, -0.7, 0, -0.8, 0.9, 0, -1], bk = [0, 1, 1, 0, -1, -1], bi = [0, 1, 2, 3, 4, 5];
   const BUT = { bluetiger: (t) => { const a = [0.05, 0.05, 0.06], b = [0.45, 0.72, 0.95]; return a.map((v, i) => v + (b[i] - v) * t * 0.9); }, crow: (t) => { const a = [0.10, 0.07, 0.05], b = [0.85, 0.85, 0.8]; return a.map((v, i) => v + (b[i] - v) * t * 0.35); }, brown: (t) => { const a = [0.75, 0.42, 0.10], b = [0.35, 0.22, 0.10]; return a.map((v, i) => v + (b[i] - v) * t * 0.5); }, grassblue: () => [0.62, 0.66, 0.92] };
   let i = 0; for (const [id, f] of Object.entries(BUT)) { const pos = bp.slice(), col = []; for (let v = 0; v < 6; v++) { if (bk[v]) pos[v * 3 + 1] = 0.85; col.push(...f(Math.abs(bk[v]) > 0.5 ? 1 : 0).map(c => c * 1.3)); }
-    const g = new THREE.Group(), m = new THREE.Mesh(mk(pos, col, bi), matV); m.frustumCulled = false; g.add(m); g.scale.setScalar(16); const z = deep[1] + 9000 + i * 600; g.position.set(deep[0], sea + 3, z); add(g); E.push({ id, kind: 'fly', x: deep[0], z, sc: 16, k: 1.0, only: 'plan' }); i++; }
+    const g = new THREE.Group(), m = new THREE.Mesh(mk(pos, col, bi), matV); m.frustumCulled = false; g.add(m); g.scale.setScalar(4); const z = deep[1] + 9000 + i * 600; g.position.set(deep[0], sea + 3, z); add(g); E.push({ id, kind: 'fly', x: deep[0], z, sc: 4, k: 5.0, only: 'plan' }); i++; }
   const dp = [-0.7, 0, 0.03, 0.4, 0, 0.03, 0.4, 0, -0.03, -0.7, 0, -0.03], dk = [0, 0, 0, 0], di = [0, 1, 2, 0, 2, 3];
   for (const x of [0.2, -0.02]) { const q = dp.length / 3; dp.push(x, 0.02, -1, x + 0.16, 0.02, -1, x + 0.1, 0.02, 0, x, 0.02, 0, x, 0.02, 1, x + 0.16, 0.02, 1); dk.push(-1, -1, 0.01, 0.01, 1, 1); di.push(q, q + 1, q + 2, q, q + 2, q + 3, q + 3, q + 2, q + 5, q + 3, q + 5, q + 4); }
   const DRG = { darner: [0.50, 0.36, 0.10], aussietiger: [0.80, 0.68, 0.10], hawker: [0.12, 0.35, 0.75] }; let j = 0;
   for (const [id, body] of Object.entries(DRG)) { const col = []; for (let v = 0; v < dk.length; v++) col.push(...(Math.abs(dk[v]) > 0.005 ? [0.78, 0.84, 0.88] : body));
-    const g = new THREE.Group(), m = new THREE.Mesh(mk(dp, col, di), matV); m.frustumCulled = false; g.add(m); g.scale.setScalar(16); const z = deep[1] + 9000 + (4 + j) * 600; g.position.set(deep[0], sea + 3, z); add(g); E.push({ id, kind: 'fly', x: deep[0], z, sc: 16, k: 1.0, only: 'plan' }); j++; } }
+    const g = new THREE.Group(), m = new THREE.Mesh(mk(dp, col, di), matV); m.frustumCulled = false; g.add(m); g.scale.setScalar(4); const z = deep[1] + 9000 + (4 + j) * 600; g.position.set(deep[0], sea + 3, z); add(g); E.push({ id, kind: 'fly', x: deep[0], z, sc: 4, k: 5.0, only: 'plan' }); j++; } }
 window.__oe = E;
 window.__crabShot = async (id, tint) => { const e = E.find(x => x.id === 'sandcrab'); const m = MAP.seabed.studio.crab([e.x, e.z, 0.5, 0.55, 0.0, 0.0, 0.5, tint]); loose(m); m.layers.set(1); const r = await MAP.shot('old_' + id + '.jpg', { walk: [e.x, e.z + 1.5, 0.0, -0.66], min: 690, wx: 'clear' }); MAP.scene.remove(m); return r; };
 window.__oldLandShots = async (only) => { const out = [], Y = sea * 1.7;

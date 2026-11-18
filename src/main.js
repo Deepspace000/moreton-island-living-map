@@ -28,6 +28,8 @@ import { carPace, probe, OPT } from './drive.js';
 import { buildAboard } from './avatar.js';
 import { buildSeabed } from './seabed.js';
 import { makeGuide } from './guide.js';
+import { spotSeabed } from './spot.js';
+import { makeSpotting } from './spotting.js';
 import { buildMinimap } from './minimap.js';
 import { makeWindows } from './windows.js';
 import { makeMenu } from './menu.js';
@@ -363,6 +365,7 @@ let showLabels = Q.get('labels') !== '0', showClouds = true;
 $('btLabels').classList.toggle('on', showLabels);
 $('btLabels').onclick = (e) => { showLabels = !showLabels; e.currentTarget.classList.toggle('on', showLabels); };
 const guide = makeGuide(); $('btGuide').onclick = () => guide.toggle();
+let spotter = null;
 addEventListener('keydown', (e) => { if (e.code === 'Escape' && guide.isOpen) guide.close(); });
 $('btClouds').onclick = (e) => { showClouds = !showClouds; e.currentTarget.classList.toggle('on', showClouds); };
 $('btSpin').onclick = (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); };
@@ -586,6 +589,8 @@ async function boot() {
   trek = buildTraveller(scene, F);
   aboard = buildAboard(scene, { cars: rideable, boats: () => boats.boats, planes: () => air.planes, ride });
   seabed = buildSeabed(scene, F, { wrecks: features.wrecks, plates: features.bulwerPlates, reefs: folk.reefs });
+  spotSeabed(seabed.lists.crabs, seabed.lists.octos);
+  spotter = makeSpotting({ camera, F, state: () => ({ walking: walk.active, riding: ride.active }), openGuide: (id) => guide.open(id) });
   clouds = buildClouds(scene, renderer);
   detail = buildDetail(F);
   mini = buildMinimap(F, {
@@ -604,7 +609,7 @@ async function boot() {
   fetchWeather().then(syncWeatherUI); setInterval(() => fetchWeather().then(syncWeatherUI), 15 * 60e3);
   refreshWeatherUI();
   syncWeatherUI();
-  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour, mini, menu, openMenu, seabed, aboard };
+  window.MAP = { camera, controls, scene, renderer, st, U, flyTo, features, boats, life, folk, dive, ride, rideable, flyers, enterRide, exitRide, sound, F, wx, walk, enterWalk, exitWalk, setCustom, setMode, T, sky, frame, setMinutes: (m) => { st.live = false; setMinutes(m); }, setDt: (v) => { forceDt = v; }, travel: (k, c) => travel(k, c), get air() { return air; }, get trek() { return trek; }, tour, startTour, stopTour, mini, menu, openMenu, seabed, aboard, guide, get spotter() { return spotter; } };
   // review helper: pose the scene, let it settle, post the frame to the local receiver
   window.MAP.shot = async (name, o = {}) => {
     if (!o.walk && walk.active) exitWalk();
@@ -675,6 +680,7 @@ function frame() {
   detail.update(t, camDist, acc, dt);
   life.update(dt, acc, t, camDist, renderer);
   seabed.update(camDist);
+  if (spotter) spotter.update(dt);
   // (only for what goes on the ground: someone walking, a 4WD being driven, the traveller; never for a boat, a bird or a plane)
   if (camDist < 200 && !ride.boat && !(ride.bird && ride.bird.kind !== 'walker' && ride.bird.kind !== 'person') && !(ride.car && !ride.car.drive)) probe.look(renderer, t.x, t.z);          // where the trees, big bushes and logs stand round the view, for whatever walks or drives there
   air.update(dt, acc); trek.update(dt, acc); aboard.update(dt, acc, t);

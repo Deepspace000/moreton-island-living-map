@@ -524,11 +524,11 @@ function buildGrassTrees(scene) {
   const n = dq(44, 54, 64), cs = 6.5;
   const g = new THREE.InstancedBufferGeometry();          // (one grass tree; gridBlocks below lays the grid of them out)
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aPT', new THREE.Float32BufferAttribute(pt, 2)); g.setIndex(idx);
-  const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs } };
+  const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uStudio: { value: new THREE.Vector3() } };
   const mat = makeMat({
     uniforms: uni, side: THREE.DoubleSide,
     vs: /* glsl */`
-      attribute vec2 iCell, aPT; attribute vec3 aCol; uniform vec2 uCentre, uWindDir; uniform float uCS, uRange; varying vec3 vCol, vW;
+      attribute vec2 iCell, aPT; attribute vec3 aCol; uniform vec2 uCentre, uWindDir; uniform vec3 uStudio; uniform float uCS, uRange; varying vec3 vCol, vW;
       void main(){
         vec2 cell = uCentre + iCell;
         float h1 = hash12(cell), h2 = hash12(cell + 17.3), h3 = hash12(cell * 1.7 + 5.1), h4 = hash12(cell * 0.37 + 91.0);
@@ -538,6 +538,7 @@ function buildGrassTrees(scene) {
         float thick = smoothstep(0.35, 0.6, texture2D(uNoise, xz / 260.0).r);
         float on = step(0.92, mk.r) * step(1.8, hgt) * (1.0 - smoothstep(0.35, 0.7, mk.g)) * (1.0 - smoothstep(0.06, 0.3, max(max(ov.r, ov.g), ov.b))) * step(h3, 0.03 + 0.22 * thick);
         on *= 1.0 - smoothstep(uRange * 0.75, uRange * 0.97, length(xz - (uCentre + 0.5) * uCS));
+        if(uStudio.z > 0.5){ xz = uStudio.xy; on = abs(iCell.x) + abs(iCell.y) < 0.5 ? 1.0 : 0.0; }          // (for the glossary pictures)
         if(on <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
         float trunkH = 0.25 + 2.0 * h4 * h4, size = (0.8 + 0.5 * h1) * 1.25, spike = step(0.72, h2), part = aPT.x;
         vec3 lp = position;
@@ -557,17 +558,18 @@ function buildGrassTrees(scene) {
     fs: /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`,
   });
   const grid = gridBlocks(scene, g, mat, n, cs, 12); for (const b of grid.blocks) b.m.name = 'grassTrees';
-  return (target, camDist) => { grid.on = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
+  const upd = (target, camDist) => { grid.on = camDist < 900; uni.uCentre.value.set(Math.floor(target.x / cs), Math.floor(target.z / cs)); };
+  upd.uni = uni; upd.grid = grid; return upd;
 }
 function buildTrees(F, scene) {
   const rings = [];
   const ring = (n, cs, rmin, rmax, squash, dmax, inner, base, leafy, mode = 0) => {
     const geo = new THREE.InstancedBufferGeometry(); geo.setIndex(base.idx); geo.setAttribute('position', base.pos); geo.setAttribute('normal', base.nrm); geo.setAttribute('aPart', base.part); if (base.blob) geo.setAttribute('aBlob', base.blob);          /* (one tree or bush; gridBlocks below lays the grid of them out) */
-    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 }, uForceSp: { value: -1 } };       // (scrub sets its own porosity per bush)
+    const uni = { uCentre: { value: new THREE.Vector2() }, uCS: { value: cs }, uRange: { value: n / 2 * cs }, uRad: { value: new THREE.Vector3(rmin, rmax, squash) }, uDmax: { value: dmax }, uInner: { value: inner }, uMode: { value: mode }, uPorous: { value: mode === 2 ? 0.74 : 0.6 }, uForceSp: { value: -1 }, uStudio: { value: new THREE.Vector3() } };       // (scrub sets its own porosity per bush)
     const mat = makeMat({
       uniforms: uni, defines: { ...(leafy ? { LEAFY: 1 } : {}), ...(base.blob ? { SPECIES: 1, NLIMB: base.B.toFixed(1) } : {}) }, side: leafy ? THREE.DoubleSide : THREE.FrontSide,
       vs: /* glsl */`
-        attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform float uForceSp, uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
+        attribute vec2 iCell; attribute float aPart; uniform vec2 uCentre; uniform vec3 uStudio; uniform float uForceSp, uCS, uRange, uDmax, uInner, uMode; uniform vec3 uRad;
         varying vec3 vCol, vDir, vN, vObj, vWp; varying float vFog, vTrunk, vPor, vSp, vLs; varying vec2 vBark; uniform float uPorous;
         #ifdef SPECIES
         attribute float aBlob;            // crown: which clump; limb: which limb
@@ -646,6 +648,7 @@ function buildTrees(F, scene) {
           #endif
           s *= step(h3, dens * 1.15) * smoothstep(uInner * 0.75, uInner, length(xz - (uCentre + 0.5) * uCS));
           if(uInner > 1.0) s *= max(smoothstep(0.42, 0.24, lum), max(rkR, beltK));
+          if(uStudio.z > 0.5){ xz = uStudio.xy; s = abs(iCell.x) + abs(iCell.y) < 0.5 ? 1.0 : 0.0; }          // (for the glossary pictures: the one tree of the middle cell, put where uStudio says)
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
@@ -861,10 +864,11 @@ function buildTrees(F, scene) {
   ring(dq(90, 120, 150), 1.45, 0.18, 0.62, 0.5, 300, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 1], [0.5, 0.25, 0.3, 0.6]]), true, 2);   // shrubs, ferns and tussocks at your feet
   ring(dq(70, 88, 104), 3.1, 0.5, 1.45, 1.0, 700, 0, crown(LOW ? 0 : 1, [[0, 0, 0, 0.8], [0.6, 0.35, 0.3, 0.6], [-0.45, 0.5, -0.45, 0.55]]), true, 3);      // scrub: twiggy bushes head-high and lower
   const grass = buildGrassTrees(scene);
-  return (target, camDist) => {
+  const upd = (target, camDist) => {
     for (const r of rings) { r.uni.uCentre.value.set(Math.floor(target.x / r.cs), Math.floor(target.z / r.cs)); r.g.on = r.mode === 2 ? camDist < 420 : r.mode === 3 ? camDist < 1400 : camDist < r.far; }
     grass(target, camDist);
   };
+  upd.rings = rings; upd.grass = grass; return upd;
 }
 
 // ---------------------------------------------------------------- palms and pandanus
@@ -901,6 +905,7 @@ function frondPlant(o) {
   g.setIndex(idx); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
   return g;
 }
+export const STUDIO = {};
 function buildPalms(F, scene, occ) {
   const R = rng(4711), taken = new Set();
   const free = (x, z, d) => { const k = cellKey(x, z, d); if (taken.has(k) || occ.has(cellKey(x, z, 6))) return false; taken.add(k); return true; };
@@ -962,9 +967,12 @@ function buildPalms(F, scene, occ) {
     const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh); nearOnly(mesh, list, 6, 4200, 30, 560, 2);          // (palms and pandanus are not drawn from further off than that)
   };
   // coconut palm: a tall, slightly curved ringed trunk and a head of long arching fronds
-  add(frondPlant({ h: 9.5, r: 0.17, bend: 0.14, rings: 5, heads: [{ at: [0, 0, 0], n: 12, L: 4.2, W: 0.62, up: 1.05, down: -0.35, droop: 0.75, seg: 5, vee: 0.25 }] }), palms, mat(16, [0.17, 0.27, 0.075], [0.50, 0.45, 0.38]));
+  const palmG = frondPlant({ h: 9.5, r: 0.17, bend: 0.14, rings: 5, heads: [{ at: [0, 0, 0], n: 12, L: 4.2, W: 0.62, up: 1.05, down: -0.35, droop: 0.75, seg: 5, vee: 0.25 }] }), palmM = mat(16, [0.17, 0.27, 0.075], [0.50, 0.45, 0.38]);
+  add(palmG, palms, palmM);
   // pandanus: a short trunk standing on prop roots, a few branches, each ending in a tuft of long narrow leaves
-  add(frondPlant({ h: 2.8, r: 0.12, bend: 0.1, rings: 2, roots: 5, heads: [{ at: [0, 0.2, 0], n: 10, L: 1.5, W: 0.07, up: 1.2, down: -0.2, droop: 0.95, seg: 3, vee: 0.3 }, { at: [0.9, -0.5, 0.3], n: 9, L: 1.35, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }, { at: [-0.6, -0.7, -0.7], n: 9, L: 1.3, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }] }), pands, mat(0, [0.20, 0.36, 0.15], [0.40, 0.35, 0.27]));
+  const pandG = frondPlant({ h: 2.8, r: 0.12, bend: 0.1, rings: 2, roots: 5, heads: [{ at: [0, 0.2, 0], n: 10, L: 1.5, W: 0.07, up: 1.2, down: -0.2, droop: 0.95, seg: 3, vee: 0.3 }, { at: [0.9, -0.5, 0.3], n: 9, L: 1.35, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }, { at: [-0.6, -0.7, -0.7], n: 9, L: 1.3, W: 0.07, up: 1.1, down: -0.3, droop: 1.0, seg: 3, vee: 0.3 }] }), pandM = mat(0, [0.20, 0.36, 0.15], [0.40, 0.35, 0.27]);
+  add(pandG, pands, pandM);
+  STUDIO.palm = (list) => add(palmG.clone(), list, palmM); STUDIO.pandanus = (list) => add(pandG.clone(), list, pandM);          // (for the glossary pictures: one plant at a place, [x, y, z, turn, size, 0])
 }
 
 // ---------------------------------------------------------------- the Bulwer wrecks
@@ -1401,7 +1409,7 @@ export function buildFeatures(scene, F, flyTo) {
   const bwm = new THREE.Mesh(gbw.build(), objectMat({ side: THREE.DoubleSide, defines: { RUST: 1, DRYRUST: 1 } })); bwm.name = 'bulwerWrecks'; bwm.frustumCulled = false; scene.add(bwm);
   const fl = buildFloaters(st.floaters, scene, lights);
   buildLakes(F, scene);
-  const trees = buildTrees(F, scene);
+  const trees = buildTrees(F, scene); STUDIO.trees = trees;
   buildPalms(F, scene, occ);
   scene.add(lights.pts);
   const labels = buildLabels(F, flyTo);

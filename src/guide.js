@@ -1,3 +1,4 @@
+import { seen } from './spot.js';
 // The Wildlife guide: every animal in the map, with a picture (assets/guide/<id>.jpg, then <id>_2.jpg and so on), what it is, and where
 // and when to look for it. The pictures are studio renders of the map's own models (tools/make_guide_images.py).
 // Each entry: [id, name, latin name, group, number of pictures, what it is, where in the map (and when)]
@@ -87,36 +88,95 @@ const G = [
   ['aussietiger', 'Australian Tiger', 'Ictinogomphus australis', 'insects', 1, 'A yellow and black dragonfly. It perches on reeds and flies out to catch smaller insects.', 'Over the low, wet country, by day.'],
   ['hawker', 'Blue-spotted Hawker', 'Adversaeschna brevistyla', 'insects', 1, 'A dragonfly with bright blue spots along its body. It patrols a stretch of water and hunts in flight.', 'Over the low, wet country, by day.'],
   ['midges', 'Midges', 'Chironomidae', 'insects', 0, 'Tiny flies that hang in clouds in still air. They are too small to see well, so they have no picture.', 'In clouds between the bushes, on still days.'],
+  // ---- trees
+  ['eucalypt', 'Scribbly Gum and Bloodwood', 'Eucalyptus signata, Corymbia intermedia', 'trees', 1, 'The tall eucalypts of the dune forest. Scribbly gums have smooth pale bark marked with the looping tracks of moth larvae. Bloodwoods have rough bark that bleeds red sap.', 'The commonest tree in the forest on the dunes and hills.'],
+  ['sheoak', 'Forest She-oak', 'Allocasuarina torulosa', 'trees', 1, 'A slender tree with drooping, needle-like branchlets that sigh in the wind. Black cockatoos feed on its cones.', 'In the forest, and as coastal she-oaks behind the beaches.'],
+  ['banksia', 'Coast Banksia', 'Banksia integrifolia', 'trees', 1, 'A gnarled tree with dark green leaves, silver underneath, and pale yellow flower spikes full of nectar.', 'Behind the beaches, on the headlands and across the cape, where the wind shapes it.'],
+  ['paperbark', 'Paperbark', 'Melaleuca quinquenervia', 'trees', 1, 'A tree with thick white bark that peels in papery layers. It stands in swampy ground and flowers in cream bottlebrushes.', 'On the low wet flats.'],
+  ['mangrove', 'Grey Mangrove', 'Avicennia marina', 'trees', 1, 'A coastal tree that grows in salty mud. Pencil-like roots stick up out of the mud so that it can breathe.', 'At the tide line, and in clumps in the shallows on the sheltered south-western shore.'],
+  ['grasstree', 'Grass Tree', 'Xanthorrhoea johnsonii', 'trees', 1, 'A slow-growing plant with a black trunk and a ball of long wiry leaves, with a skirt of dead ones below. A tall flower spike comes up after fire.', 'On the heath and under open forest, in clumps.'],
+  ['coconutpalm', 'Coconut Palm', 'Cocos nucifera', 'trees', 1, 'A tall palm with a curved, ringed trunk and a head of long arching fronds.', 'Around the resort and the villages.'],
+  ['pandanus', 'Pandanus (Screw Pine)', 'Pandanus tectorius', 'trees', 1, 'A short tree standing on stilt-like prop roots, with long spiky leaves in tufts at the ends of its branches.', 'On the dunes just behind the beaches.'],
+  // ---- wildflowers and shrubs
+  ['wallumbanksia', 'Wallum Banksia', 'Banksia aemula', 'plants', 1, 'A gnarled, many-limbed small tree with stiff, dark, toothed leaves and golden flower cones that stand up from the ends of the twigs.', 'On the dunes and the heath.'],
+  ['sawbanksia', 'Saw Banksia', 'Banksia serrata', 'plants', 1, 'The same build as the wallum banksia, with lighter saw-edged leaves, grey-green flower spikes and fat grey woody cones.', 'On the dunes and the heath.'],
+  ['heathyparrotpea', 'Heathy Parrot-pea', 'Dillwynia retorta', 'plants', 1, 'A low wiry shrub with fine needle leaves and orange-yellow pea flowers with a red keel, scattered along the stems.', 'On the heath.'],
+  ['beakedparrotpea', 'Beaked Parrot-pea', '', 'plants', 1, 'A heath shrub with stiff leaves and clusters of yellow and orange flowers at the tips of the stems.', 'On the heath.'],
+  ['weddingbush', 'Wedding Bush', 'Ricinocarpos pinifolius', 'plants', 1, 'A tall, slim shrub with fine needle leaves and masses of small white five-petalled flowers.', 'On the heath and the dunes.'],
+  ['devilsrice', 'Devil’s Rice', '', 'plants', 1, 'A rounded shrub with thin grey-green leaves and loose, branched heads of small cream-white flowers.', 'On the heath.'],
+  ['guineaflower', 'Showy Guinea Flower', 'Hibbertia', 'plants', 1, 'A low spreading shrub with bright yellow flowers like small buttercups.', 'On the heath and the dune edges.'],
+  ['sarsaparilla', 'Native Sarsaparilla', 'Hardenbergia violacea', 'plants', 1, 'A twining vine that climbs over a tangle of its own stems. It has glossy leaves of three leaflets and hanging sprays of purple pea flowers.', 'In the forest and over shrubs.'],
+  ['geebung', 'Wallum Geebung', 'Persoonia', 'plants', 1, 'A small shrub with narrow pointed leaves in whorls and small yellow tubular flowers.', 'On the heath.'],
+  ['matrush', 'Mat Rush', 'Lomandra longifolia', 'plants', 1, 'A dense clump of long strap-like leaves that arch over, tan at the tips. Some plants carry a branching head of cream flowers.', 'In the forest and on the heath.'],
+  ['blueflaxlily', 'Blue Flax Lily', 'Dianella caerulea', 'plants', 1, 'A fan of upright strap leaves with a branching spray of small blue-violet flowers, followed by shining blue berries.', 'In the forest.'],
+  ['cottontree', 'Cotton Tree', 'Hibiscus tiliaceus', 'plants', 1, 'A spreading coastal tree with a leaning trunk, heart-shaped leaves in layers, and big yellow hibiscus flowers with a dark eye.', 'Along the back of the beaches.'],
+  ['asparagusfern', 'Asparagus Fern (a weed)', 'Asparagus aethiopicus', 'plants', 1, 'An invasive weed: a sprawling mound of arching green stems with feathery tufts and small red berries. It smothers native plants.', 'Where gardens meet the bush.'],
 ];
-export const GROUPS = [['all', 'All'], ['birds', 'Birds'], ['fish', 'Fish and sharks'], ['sea', 'Other sea life'], ['reptiles', 'Reptiles'], ['mammals', 'Mammals'], ['insects', 'Insects']];
+export const GROUPS = [['all', 'All'], ['birds', 'Birds'], ['fish', 'Fish and sharks'], ['sea', 'Other sea life'], ['reptiles', 'Reptiles'], ['mammals', 'Mammals'], ['insects', 'Insects'], ['trees', 'Trees'], ['plants', 'Wildflowers and shrubs']];
 export const GUIDE = G.map(([id, name, latin, group, n, text, where]) => ({ id, name, latin, group, n, text, where }));
 
-// ---------- the panel: a grid of the animals, search and group buttons; a tap on one opens its page ----------
+// ---------- spotting: an animal counts as spotted when you have seen it in the map (spotting.js); plants and trees are only listed ----------
+export const ANIMALS = GUIDE.filter(a => a.group !== 'trees' && a.group !== 'plants');
+const inGroup = (g) => ANIMALS.filter(a => a.group === g);
+export const counts = () => { const c = { total: 0, max: ANIMALS.length }; for (const g of ['birds', 'fish', 'sea', 'reptiles', 'mammals', 'insects']) { c[g] = inGroup(g).filter(a => seen.has(a.id)).length; c[g + 'Max'] = inGroup(g).length; } c.total = ANIMALS.filter(a => seen.has(a.id)).length; return c; };
+// [id, title, what to do, test]
+export const ACH = [
+  ['first', 'First sighting', 'Spot your first animal', (c) => c.total >= 1],
+  ['ten', 'Getting your eye in', 'Spot 10 different animals', (c) => c.total >= 10],
+  ['twentyfive', 'Naturalist', 'Spot 25 different animals', (c) => c.total >= 25],
+  ['fifty', 'Field expert', 'Spot 50 different animals', (c) => c.total >= 50],
+  ['all', 'The whole island', 'Spot every animal in the guide', (c) => c.total >= c.max],
+  ['birds5', 'Bird watcher', 'Spot 5 kinds of bird', (c) => c.birds >= 5],
+  ['birdsall', 'Every bird', 'Spot every bird', (c) => c.birds >= c.birdsMax],
+  ['fish10', 'Sharp-eyed angler', 'Spot 10 kinds of fish', (c) => c.fish >= 10],
+  ['fishall', 'Every fish', 'Spot every fish and shark', (c) => c.fish >= c.fishMax],
+  ['sea5', 'Sea watcher', 'Spot 5 kinds of other sea life', (c) => c.sea >= 5],
+  ['seaall', 'Everything in the water', 'Spot all the other sea life', (c) => c.sea >= c.seaMax],
+  ['rept5', 'Reptile spotter', 'Spot 5 reptiles', (c) => c.reptiles >= 5],
+  ['reptall', 'Every reptile', 'Spot every reptile', (c) => c.reptiles >= c.reptilesMax],
+  ['mam4', 'Night walker', 'Spot 4 mammals', (c) => c.mammals >= 4],
+  ['mamall', 'Every mammal', 'Spot every mammal', (c) => c.mammals >= c.mammalsMax],
+  ['insall', 'Bug hunter', 'Spot every insect', (c) => c.insects >= c.insectsMax],
+  ['whale', 'Whale watch', 'Spot a humpback whale', () => seen.has('humpback')],
+  ['dugong', 'Sea cow', 'Spot a dugong', () => seen.has('dugong')],
+  ['peregrine', 'Fastest animal on earth', 'Spot a peregrine falcon', () => seen.has('peregrine')],
+  ['shark', 'Shark!', 'Spot a shark', () => seen.has('whaler') || seen.has('tigershark')],
+];
+
+// ---------- the panel: a grid of the entries, search and group buttons; a tap on one opens its page ----------
 export function makeGuide() {
-  const root = document.getElementById('guide'), grid = root.querySelector('.gd-grid'), page = root.querySelector('.gd-page'), search = root.querySelector('.gd-search'), chips = root.querySelector('.gd-chips'), count = root.querySelector('.gd-count');
+  const root = document.getElementById('guide'), grid = root.querySelector('.gd-grid'), page = root.querySelector('.gd-page'), search = root.querySelector('.gd-search'), chips = root.querySelector('.gd-chips'), count = root.querySelector('.gd-count'), prog = root.querySelector('.gd-prog');
   let group = 'all', open = null, shown = [];
   const src = (id, k) => 'assets/guide/' + id + (k > 1 ? '_' + k : '') + '.jpg';
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  chips.innerHTML = GROUPS.map(([k, t]) => `<button data-g="${k}" class="${k === 'all' ? 'on' : ''}">${t}</button>`).join('');
+  const isAnimal = (a) => a.group !== 'trees' && a.group !== 'plants';
+  chips.innerHTML = [...GROUPS, ['new', 'Not seen yet']].map(([k, t]) => `<button data-g="${k}" class="${k === 'all' ? 'on' : ''}">${t}</button>`).join('') + '<button data-g="ach" class="gd-achbtn">Achievements</button>';
+  function head() { const c = counts(); prog.innerHTML = `Spotted <b>${c.total}</b> of ${c.max} animals<i style="width:${Math.round(100 * c.total / c.max)}%"></i>`; }
   function draw() {
     const q = search.value.trim().toLowerCase();
-    shown = GUIDE.filter(a => (group === 'all' || a.group === group) && (!q || (a.name + ' ' + a.latin + ' ' + a.where).toLowerCase().includes(q)));
-    grid.innerHTML = shown.map(a => `<button class="gd-card" data-id="${a.id}">${a.n ? `<img loading="lazy" alt="" src="${src(a.id, 1)}">` : '<span class="gd-none">no picture</span>'}<b>${esc(a.name)}</b><i>${esc(a.latin)}</i></button>`).join('') || '<p class="gd-empty">Nothing matches that.</p>';
-    count.textContent = shown.length + (shown.length === 1 ? ' animal' : ' animals');
+    shown = GUIDE.filter(a => (group === 'all' || a.group === group || (group === 'new' && isAnimal(a) && !seen.has(a.id))) && (!q || (a.name + ' ' + a.latin + ' ' + a.where).toLowerCase().includes(q)));
+    grid.innerHTML = shown.map(a => { const st = isAnimal(a) ? (seen.has(a.id) ? ' seen' : ' unseen') : ''; return `<button class="gd-card${st}" data-id="${a.id}">${a.n ? `<img loading="lazy" alt="" src="${src(a.id, 1)}">` : '<span class="gd-none">no picture</span>'}<b>${esc(a.name)}</b><i>${esc(a.latin || ' ')}</i>${st ? `<em>${st === ' seen' ? 'Spotted' : 'Not seen yet'}</em>` : ''}</button>`; }).join('') || '<p class="gd-empty">Nothing matches that.</p>';
+    count.textContent = shown.length + (shown.length === 1 ? ' entry' : ' entries'); head();
   }
   function show(id) {
     const a = GUIDE.find(x => x.id === id); if (!a) return; open = a;
-    const ix = shown.findIndex(x => x.id === id);
-    page.innerHTML = `<div class="gd-top"><button class="gd-back">← All animals</button><span class="gd-nav"><button class="gd-prev" title="Previous">‹</button><button class="gd-next" title="Next">›</button></span></div>` +
+    const st = isAnimal(a) ? (seen.has(a.id) ? '<span class="gd-tag seen">Spotted</span>' : '<span class="gd-tag">Not seen yet</span>') : '';
+    page.innerHTML = `<div class="gd-top"><button class="gd-back">← All entries</button><span class="gd-nav"><button class="gd-prev" title="Previous">‹</button><button class="gd-next" title="Next">›</button></span></div>` +
       (a.n ? `<div class="gd-pic"><img alt="${esc(a.name)}" src="${src(a.id, 1)}"></div>` + (a.n > 1 ? `<div class="gd-thumbs">${Array.from({ length: a.n }, (_, k) => `<button data-k="${k + 1}" class="${k ? '' : 'on'}"><img alt="" src="${src(a.id, k + 1)}"></button>`).join('')}</div>` : '') : '') +
-      `<h3>${esc(a.name)}</h3><p class="gd-latin">${esc(a.latin)}</p><p>${esc(a.text)}</p><p class="gd-where"><b>In the map</b> ${esc(a.where)}</p>`;
-    page.hidden = false; grid.parentElement.hidden = true; page.scrollTop = 0; page.dataset.ix = ix;
+      `<h3>${esc(a.name)} ${st}</h3>${a.latin ? `<p class="gd-latin">${esc(a.latin)}</p>` : ''}<p>${esc(a.text)}</p><p class="gd-where"><b>In the map</b> ${esc(a.where)}</p>`;
+    page.hidden = false; grid.parentElement.hidden = true; page.scrollTop = 0;
   }
-  function list() { page.hidden = true; grid.parentElement.hidden = false; open = null; }
+  function achievements() {
+    const got = seen.ach();
+    page.innerHTML = `<div class="gd-top"><button class="gd-back">← All entries</button></div><h3>Achievements</h3><p class="gd-latin">${ACH.filter(a => got[a[0]]).length} of ${ACH.length} unlocked</p><div class="gd-ach">` +
+      ACH.map(([id, t, d]) => `<div class="${got[id] ? 'got' : ''}"><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join('') + '</div>';
+    open = null; page.hidden = false; grid.parentElement.hidden = true; page.scrollTop = 0;
+  }
+  function list() { page.hidden = true; grid.parentElement.hidden = false; open = null; draw(); }
   function step(d) { if (!open || !shown.length) return; const i = (shown.findIndex(x => x.id === open.id) + d + shown.length) % shown.length; show(shown[i].id); }
   grid.addEventListener('click', (e) => { const b = e.target.closest('.gd-card'); if (b) show(b.dataset.id); });
-  chips.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; group = b.dataset.g; for (const c of chips.children) c.classList.toggle('on', c === b); draw(); });
-  search.addEventListener('input', draw);
+  chips.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.g === 'ach') return achievements(); group = b.dataset.g; for (const c of chips.children) c.classList.toggle('on', c === b); if (!page.hidden) list(); else draw(); });
+  search.addEventListener('input', () => { if (!page.hidden) list(); else draw(); });
   page.addEventListener('click', (e) => {
     if (e.target.closest('.gd-back')) return list();
     if (e.target.closest('.gd-prev')) return step(-1); if (e.target.closest('.gd-next')) return step(1);
@@ -124,10 +184,11 @@ export function makeGuide() {
   });
   // the map behind must not hear the keys, the wheel or the taps made on the guide
   for (const ev of ['pointerdown', 'pointerup', 'wheel', 'touchstart', 'touchmove', 'contextmenu']) root.addEventListener(ev, (e) => e.stopPropagation());
-  root.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.code === 'Escape') { if (open) list(); else close(); } if (open && e.code === 'ArrowRight') step(1); if (open && e.code === 'ArrowLeft') step(-1); });
+  root.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.code === 'Escape') { if (!page.hidden) list(); else close(); } if (open && e.code === 'ArrowRight') step(1); if (open && e.code === 'ArrowLeft') step(-1); });
   root.querySelector('.gd-close').onclick = () => close();
   root.addEventListener('click', (e) => { if (e.target === root) close(); });
-  function openGuide() { root.hidden = false; document.body.classList.add('guide-open'); if (!grid.children.length) draw(); (open ? page : search).focus?.(); search.focus(); }
+  function openGuide(id) { root.hidden = false; document.body.classList.add('guide-open'); draw(); if (id) show(id); else { page.hidden = true; grid.parentElement.hidden = false; search.focus(); } }
   function close() { root.hidden = true; document.body.classList.remove('guide-open'); }
+  seen.on(() => { if (!root.hidden && page.hidden) draw(); });
   return { open: openGuide, close, toggle: () => (root.hidden ? openGuide() : close()), get isOpen() { return !root.hidden; } };
 }

@@ -387,3 +387,47 @@ body.ui-off .win { display: none !important; }
 .gd-where { background: rgba(127, 227, 212, .09); border: 1px solid rgba(127, 227, 212, .25); border-radius: 10px; padding: 9px 12px; }
 .gd-where b { color: var(--accent); margin-right: 6px; font-weight: 600; }
 @media (max-width: 560px) { .gd-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; padding: 4px 12px 14px; } .gd-head { padding: 12px 14px 8px; } .gd-tools { padding: 8px 14px; } .gd-page { padding: 10px 14px 20px; } }
+
+/* ---------- spotting: the progress bar in the guide, the badges on its cards, and the information boxes ---------- */
+.gd-prog { position: relative; font-size: 12.5px; color: var(--dim); padding: 2px 12px 5px; border-radius: 999px; background: rgba(255, 255, 255, .06); overflow: hidden; white-space: nowrap; }
+.gd-prog b { color: var(--accent); }
+.gd-prog i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
+.gd-head { flex-wrap: wrap; }
+.gd-achbtn { border-color: rgba(255, 207, 107, .5) !important; color: #ffe0a0 !important; }
+.gd-card em { font-style: normal; font-size: 11px; padding: 0 10px 9px; color: var(--dim); }
+.gd-card.seen em { color: var(--accent); }
+.gd-card.unseen img { filter: grayscale(.7) brightness(.8); }
+.gd-tag { display: inline-block; vertical-align: middle; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 500; background: rgba(255, 255, 255, .08); color: var(--dim); }
+.gd-tag.seen { background: rgba(127, 227, 212, .2); color: var(--accent); }
+.gd-ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.gd-ach div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; opacity: .55; }
+.gd-ach div b { display: block; font-size: 14px; }
+.gd-ach div span { font-size: 12.5px; color: var(--dim); }
+.gd-ach div.got { opacity: 1; border-color: rgba(255, 207, 107, .55); background: rgba(255, 207, 107, .08); }
+.gd-ach div.got b { color: #ffd98a; }
+#spots { position: fixed; z-index: 25; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.spot-toast { position: relative; pointer-events: auto; cursor: pointer; background: rgba(8, 28, 40, .9); border: 1px solid var(--line); border-radius: 14px; padding: 10px; box-shadow: 0 10px 34px rgba(0, 0, 0, .4); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; transform: translateY(-14px); transition: opacity .35s, transform .35s; }
+.spot-toast.in { opacity: 1; transform: none; }
+.spot-toast.out { opacity: 0; transform: translateY(-10px); }
+.spot-x { position: absolute; right: 6px; top: 2px; border: 0; background: none; color: var(--dim); font-size: 20px; line-height: 1; padding: 2px 6px; z-index: 1; }
+.spot-x:hover { color: #fff; }
+.spot-one { display: flex; gap: 10px; }
+.spot-one img { width: 108px; height: 81px; object-fit: cover; border-radius: 9px; flex: none; }
+.spot-toast small { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.spot-toast b { display: block; font-size: 15px; font-weight: 600; margin: 1px 0; padding-right: 18px; }
+.spot-toast i { display: block; font-size: 12px; color: var(--dim); }
+.spot-toast p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #d5e6ec; }
+.spot-toast span { display: block; margin-top: 5px; font-size: 11px; color: var(--dim); }
+.spot-many h4 { margin: 8px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.spot-row { display: flex; align-items: center; gap: 9px; padding: 3px 4px; border-radius: 8px; }
+.spot-row:hover { background: rgba(255, 255, 255, .08); }
+.spot-row img { width: 44px; height: 33px; object-fit: cover; border-radius: 6px; flex: none; }
+.spot-row b { font-size: 13px; font-weight: 500; margin: 0; padding: 0; }
+.spot-ach { display: flex; gap: 12px; align-items: center; }
+.spot-ach small { color: #ffd98a; }
+.spot-ach p { margin-top: 2px; }
+.spot-badge { width: 44px; height: 44px; flex: none; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe9b0, #e0a93b 70%, #a56f14); box-shadow: 0 0 0 3px rgba(255, 207, 107, .25); position: relative; }
+.spot-badge::after { content: ''; position: absolute; left: 14px; top: 11px; width: 10px; height: 18px; border: solid #5a3a06; border-width: 0 4px 4px 0; transform: rotate(40deg); }
+body.guide-open #spots { z-index: 35; }
+.spot-ach > div > div { margin-top: 7px; }
+.spot-ach > div > div:first-of-type { margin-top: 3px; }

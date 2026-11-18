@@ -23,6 +23,9 @@ MAP['cresttern'] = ['old_cresttern_under', 'old_cresttern_plan']
 MAP['flyingfox'] = ['old_flyingfox_under', 'old_flyingfox_plan']
 MAP['microbat'] = ['old_microbat_under', 'old_microbat_plan']
 for n in ['bluetiger', 'crow', 'brown', 'grassblue', 'darner', 'aussietiger', 'hawker']: MAP[n] = ['old_' + n + '_plan']
+# trees and wildflowers (treerow.mjs)
+for n in ['eucalypt', 'sheoak', 'banksia', 'paperbark', 'mangrove', 'grasstree', 'coconutpalm', 'pandanus']: MAP[n] = ['tree_' + n]
+for i, n in enumerate(['wallumbanksia', 'sawbanksia', 'heathyparrotpea', 'beakedparrotpea', 'weddingbush', 'devilsrice', 'guineaflower', 'sarsaparilla', 'geebung', 'matrush', 'blueflaxlily', 'cottontree', 'asparagusfern']): MAP[n] = ['plant_' + str(i)]
 for n in ['tailor', 'dart', 'trevally', 'jewfish', 'longtom', 'tarwhine', 'snapper', 'squire', 'sweetlip', 'cod', 'moses', 'tusk', 'morwong', 'moray']: MAP[n + 'fish' if n in () else n] = ['fish_' + n]
 for n in ['waterdragon', 'majorskink', 'landmullet', 'gardenskink', 'legless', 'python', 'treesnake', 'blacksnake', 'whipsnake', 'turtle', 'bandicoot', 'longnose', 'brushtail', 'ringtail', 'waterrat']: MAP[n] = ['crit_' + n]
 if __name__ == '__main__':

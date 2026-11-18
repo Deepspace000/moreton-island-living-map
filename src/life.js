@@ -17,6 +17,7 @@ import { buildWildPlants } from './wildplants.js';
 import { critters, WILD_PAINT, WATER_DRAGON, MAJOR_SKINK, LAND_MULLET, GARDEN_SKINK, LEGLESS, CARPET_PYTHON, GREEN_TREE_SNAKE, BLACK_SNAKE, WHIPSNAKE, LONGNECK_TURTLE, BANDICOOT, LONGNOSE_BANDICOOT, BRUSHTAIL, RINGTAIL, WATER_RAT, FLYINGFOX_FLY, FLYINGFOX_WING, MICROBAT_FLY, MICROBAT_WING } from './wildland.js';
 import { OSPREY_FLY, OSPREY_WING, BRAHMINY_FLY, BRAHMINY_WING, WHISTLING_FLY, WHISTLING_WING, WEDGETAIL_FLY, WEDGETAIL_WING, PEREGRINE_FLY, PEREGRINE_WING, CURLEW, GODWIT, OYSTERCATCHER, STONECURLEW, CORMORANT_STAND, GREAT_CORMORANT, BLACK_SWAN, walkers } from './wildbirds.js';
 import { TAILOR, DART, TREVALLY, JEWFISH, LONGTOM, TARWHINE, SNAPPER, SWEETLIP, COD, MOSES, TUSK, MORWONG, MORAY, WPAINT } from './wildlife.js';
+import { spotAt } from './spot.js';
 import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
@@ -626,6 +627,7 @@ function jellyfish(scene, list) {
     const a = f / 6 * Math.PI * 2, q = pos.length / 3, ca = Math.cos(a) * 0.16, sa = Math.sin(a) * 0.16;
     for (let j = 0; j <= 3; j++) { const d = j / 3, w = 0.07 * (1 - 0.5 * d); pos.push(ca - Math.sin(a) * w, -0.05 - d * 0.75, sa + Math.cos(a) * w, ca + Math.sin(a) * w, -0.05 - d * 0.75, sa - Math.cos(a) * w); pr.push(0.4, d, 0.4, d); if (j) { const p = q + j * 2; idx.push(p - 2, p - 1, p, p, p - 1, p + 1); } }
   }
+  spotAt('jellyfish', list, 5, 70, { rad: 4 });
   const n = list.length / 5, g = new THREE.InstancedBufferGeometry(), a = new Float32Array(n * 4), b = new Float32Array(n);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 5, i * 5 + 4), i * 4); b[i] = list[i * 5 + 4]; }
   attr(g, 'position', pos, 3); attr(g, 'aPR', pr, 2); g.setIndex(idx);
@@ -809,6 +811,9 @@ function buildBirds(scene, F) {
   // pelicans gliding low in a line along the bay shore
   for (const p of places.slice(0, 6)) { const ph = R() * 6.283, rad = 160 + R() * 160, alt = 4 + R() * 6; for (let i = 0; i < 4; i++) add(p[0] - 500, alt, p[1], rad, 9, 2.6, 0, 0.3, WHITE, BLACK, ph + i * 16 / rad); }
   add(0, 110, 0, 140, 9, 1.6, 1, 0.08, [.55, .25, .12], [.5, .22, .1]);
+  { const by = { pelican: [], cormorant: [], cresttern: [], silvergull: [] };          // (for the guide's spotting: the birds that circle a fixed place; those that follow the viewer are always about)
+    for (let i = 0; i < list.length; i += 8) { if (list[i + 7] >= 1) continue; const sz = list[i + 6]; by[sz > 2 ? 'pelican' : sz > 1.05 ? 'cormorant' : sz < 0.9 ? 'cresttern' : 'silvergull'].push(...list.slice(i, i + 8)); }
+    for (const [id, l] of Object.entries(by)) spotAt(id, l, 8, id === 'pelican' ? 450 : 300, { xAt: 0, zAt: 2, radAt: 3 }); }
   const n = list.length / 8, g = new THREE.InstancedBufferGeometry(), a = new Float32Array(n * 4), b = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
   attr(g, 'position', BIRD.pos, 3); attr(g, 'aWing', BIRD.wing, 1); attr(g, 'aTone', BIRD.tone, 1); g.setIndex(BIRD.idx);
@@ -862,7 +867,7 @@ function buildBirds(scene, F) {
   }
   if (F.micat) { const M = F.micat, [dx, dz] = M.dir;            // a flock of silver gulls stands about on the sand beside the Micat's landing (the owner's photograph)
     for (let j = 0; j < 16; j++) { const up = 20 + R() * 16, out = 12 + R() * 26; sp.push(M.land[0] + dx * up - dz * out, M.land[1] + dz * up + dx * out, R() * 6.283, R()); sc.push(...GREY); } }
-  ig.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(sp), 4)); ig.setAttribute('iC', new THREE.InstancedBufferAttribute(new Float32Array(sc), 3)); ig.instanceCount = sp.length / 4; ig.boundingSphere = FAR;
+  spotAt('silvergull', sp, 4, 300, { rad: 10 }); ig.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(sp), 4)); ig.setAttribute('iC', new THREE.InstancedBufferAttribute(new Float32Array(sc), 3)); ig.instanceCount = sp.length / 4; ig.boundingSphere = FAR;
   const smat = makeMat({
     side: THREE.DoubleSide,
     vs: /* glsl */`
@@ -884,11 +889,11 @@ function buildBirds(scene, F) {
   const sm = new THREE.Mesh(ig, smat); sm.name = 'shorebirds'; sm.frustumCulled = false; scene.add(sm); nearOnly(sm, sp, 4, 700, 16);
   // pelicans and cormorants sitting on the water, paddling about: most of them by the resort jetty, where they wait for the fish feed
   const wet = (x, z) => U.uSeaM.value - heightAt(x, z) > 0.9;
-  const afloat = (geo2, spots, per) => {
+  const afloat = (geo2, spots, per, id, see) => {
     const fg = new THREE.InstancedBufferGeometry(), ip = [];
     fg.index = geo2.index; fg.setAttribute('position', geo2.attributes.position); fg.setAttribute('normal', geo2.attributes.normal); fg.setAttribute('color', geo2.attributes.color); fg.setAttribute('aFx', geo2.attributes.aFx);
     for (const [p, n] of spots) for (let i = 0, t = 0; i < n * per && t < 400; t++) { const x = p[0] - 40 - R() * 160, z = p[1] + (R() - .5) * 260; if (wet(x, z)) { ip.push(x, z, 3 + R() * 9, R()); i++; } }
-    fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
+    spotAt(id, ip, 4, see, { radAt: 2 }); fg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(ip), 4)); fg.instanceCount = ip.length / 4; fg.boundingSphere = FAR;
     const fm = new THREE.Mesh(fg, fmat); fm.name = 'afloat'; fm.frustumCulled = false; scene.add(fm); nearOnly(fm, ip, 4, 1200, 30, 40);
   };
   const fmat = makeMat({
@@ -910,7 +915,7 @@ function buildBirds(scene, F) {
   });
   const tgl = F.places.find(p => /^Tangalooma/.test(p.n || ''))?.p, wv = F.views.find(v => /Tangalooma Wrecks/.test(v.n || '')), wrk = wv && (wv.c || wv.p), others = F.places.filter(p => !/^Tangalooma/.test(p.n || '')).map(p => [p.p, 1]);
   const spots = [...(tgl ? [[[tgl[0] - 230, tgl[1] + 340], 3]] : []), ...(wrk ? [[[wrk[0] + 60, wrk[1]], 2]] : []), ...others];
-  afloat(PELICAN(), spots, 3);
+  afloat(PELICAN(), spots, 3, 'pelican', 450);
   // pelicans ashore: groups of them standing together on the sand spits and beaches of the sheltered side, all facing into the wind,
   // most of them toward the south end (Kooringal and the banks by the Big Sandhills), as the owner photographed them
   {
@@ -930,7 +935,7 @@ function buildBirds(scene, F) {
     }
     const sg = PELICAN_STAND(), ig2 = new THREE.InstancedBufferGeometry();
     ig2.index = sg.index; for (const k of ['position', 'normal', 'color', 'aFx']) ig2.setAttribute(k, sg.attributes[k]);
-    ig2.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(st), 4)); ig2.instanceCount = st.length / 4; ig2.boundingSphere = FAR;
+    spotAt('pelican', st, 4, 450, { rad: 6 }); ig2.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(st), 4)); ig2.instanceCount = st.length / 4; ig2.boundingSphere = FAR;
     const smat2 = makeMat({
       side: THREE.DoubleSide, uniforms: { },
       vs: /* glsl */`
@@ -951,12 +956,12 @@ function buildBirds(scene, F) {
     });
     const sm2 = new THREE.Mesh(ig2, smat2); sm2.name = 'ashore'; sm2.frustumCulled = false; scene.add(sm2); nearOnly(sm2, st, 4, 1500, 12);
   }
-  afloat(CORMORANT(), spots, 2);
-  afloat(GREAT_CORMORANT(), spots, 2);
+  afloat(CORMORANT(), spots, 2, 'cormorant', 300);
+  afloat(GREAT_CORMORANT(), spots, 2, 'greatcormorant', 220);
   // Black swans on the sheltered water of the bay and on the lakes
   {
     const bayP = F.places.filter(p => /Kooringal|Bulwer|Cowan|Tangalooma|Toompani/.test(p.n || '')).map(p => [p.p, 1]);
-    if (bayP.length) afloat(BLACK_SWAN(), bayP, MOBILE ? 2 : 3);
+    if (bayP.length) afloat(BLACK_SWAN(), bayP, MOBILE ? 2 : 3, 'swan', 320);
     const inPoly = (pl, x, z) => { let c = false; for (let i = 0, j = pl.length - 1; i < pl.length; j = i++) { const a = pl[i], b = pl[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
     const lp = [], ly = [];
     for (const l of F.lakes) {
@@ -967,7 +972,7 @@ function buildBirds(scene, F) {
     if (lp.length) {
       const sg = BLACK_SWAN(), lg = new THREE.InstancedBufferGeometry();
       lg.index = sg.index; for (const k of ['position', 'normal', 'color', 'aFx']) lg.setAttribute(k, sg.attributes[k]);
-      lg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(lp), 4)); lg.setAttribute('iY', new THREE.InstancedBufferAttribute(new Float32Array(ly), 1)); lg.instanceCount = lp.length / 4; lg.boundingSphere = FAR;
+      spotAt('swan', lp, 4, 320, { rad: 12 }); lg.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(lp), 4)); lg.setAttribute('iY', new THREE.InstancedBufferAttribute(new Float32Array(ly), 1)); lg.instanceCount = lp.length / 4; lg.boundingSphere = FAR;
       const lmat = makeMat({
         side: THREE.DoubleSide,
         vs: /* glsl */`
