@@ -18,6 +18,7 @@ export function entryPos(s, i, t, sea, vex, ground, out) {
   if (s.move === 'swim') { const r0 = d[k + 2], b = d[k + 7], way = b < 0.5 ? 1 : -1, ang = d[k + 4] + t * d[k + 5] / r0 * way, rr = r0 * (1 + 0.25 * Math.sin(ang * 3 + b * 9)); return out.set(x + Math.cos(ang) * rr, sea - d[k + 3] * vex, z + Math.sin(ang) * rr); }
   if (s.move === 'afloat') { const r = d[k + 2], w = d[k + 3], ang = w * 40 + t * 0.22 / r * (w < 0.5 ? 1 : -1); return out.set(x + Math.cos(ang) * r, sea + 0.4, z + Math.sin(ang) * r); }
   if (s.move === 'fly8') { const ang = d[k + 4] + t * d[k + 5] / d[k + 3]; return out.set(x + Math.cos(ang) * d[k + 3], d[k + 1] + Math.sin(ang * 2 + d[k + 4]) * d[k + 3] * 0.06, d[k + 2] + Math.sin(ang) * d[k + 3] * 0.8); }          // (x, alt, z, radius, phase, speed)
+  if (s.move === 'jelly') return out.set(x, sea - d[k + 2] * vex, z);          // (x, z, depth)
   return out.set(x, ground(x, z) + 0.4, z);
 }
 

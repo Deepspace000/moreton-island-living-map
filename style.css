@@ -405,18 +405,18 @@ body.ui-off .win { display: none !important; }
 .gd-ach div span { font-size: 12.5px; color: var(--dim); }
 .gd-ach div.got { opacity: 1; border-color: rgba(255, 207, 107, .55); background: rgba(255, 207, 107, .08); }
 .gd-ach div.got b { color: #ffd98a; }
-#spots { position: fixed; z-index: 25; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.spot-toast { position: relative; pointer-events: auto; cursor: pointer; background: rgba(8, 28, 40, .9); border: 1px solid var(--line); border-radius: 14px; padding: 10px; box-shadow: 0 10px 34px rgba(0, 0, 0, .4); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; transform: translateY(-14px); transition: opacity .35s, transform .35s; }
+#spots { position: fixed; z-index: 25; top: 22%; right: max(12px, env(safe-area-inset-right)); width: min(300px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.spot-toast { position: relative; pointer-events: auto; cursor: pointer; background: rgba(8, 28, 40, .9); border: 1px solid var(--line); border-radius: 14px; padding: 8px; box-shadow: 0 10px 34px rgba(0, 0, 0, .4); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; transform: translateY(-14px); transition: opacity .35s, transform .35s; }
 .spot-toast.in { opacity: 1; transform: none; }
 .spot-toast.out { opacity: 0; transform: translateY(-10px); }
 .spot-x { position: absolute; right: 6px; top: 2px; border: 0; background: none; color: var(--dim); font-size: 20px; line-height: 1; padding: 2px 6px; z-index: 1; }
 .spot-x:hover { color: #fff; }
 .spot-one { display: flex; gap: 10px; }
-.spot-one img { width: 108px; height: 81px; object-fit: cover; border-radius: 9px; flex: none; }
+.spot-one img { width: 84px; height: 63px; object-fit: cover; border-radius: 9px; flex: none; }
 .spot-toast small { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
-.spot-toast b { display: block; font-size: 15px; font-weight: 600; margin: 1px 0; padding-right: 18px; }
+.spot-toast b { display: block; font-size: 13.5px; font-weight: 600; margin: 1px 0; padding-right: 18px; }
 .spot-toast i { display: block; font-size: 12px; color: var(--dim); }
-.spot-toast p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #d5e6ec; }
+.spot-toast p { margin: 3px 0 0; font-size: 11.5px; line-height: 1.4; color: #d5e6ec; }
 .spot-toast span { display: block; margin-top: 5px; font-size: 11px; color: var(--dim); }
 .spot-many h4 { margin: 8px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .spot-row { display: flex; align-items: center; gap: 9px; padding: 3px 4px; border-radius: 8px; }
@@ -436,23 +436,22 @@ body.guide-open #spots { z-index: 35; }
 #spotframes { position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
 .spot-frame { position: absolute; pointer-events: none; animation: spotpulse 1.1s ease-in-out infinite; }
 .spot-frame i { position: absolute; inset: 0; background:
-  linear-gradient(#7fe3d4, #7fe3d4) 0 0 / 24px 3px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 0 0 / 3px 24px no-repeat,
-  linear-gradient(#7fe3d4, #7fe3d4) 100% 0 / 24px 3px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 100% 0 / 3px 24px no-repeat,
-  linear-gradient(#7fe3d4, #7fe3d4) 0 100% / 24px 3px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 0 100% / 3px 24px no-repeat,
-  linear-gradient(#7fe3d4, #7fe3d4) 100% 100% / 24px 3px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 100% 100% / 3px 24px no-repeat;
+  linear-gradient(#7fe3d4, #7fe3d4) 0 0 / 26px 4px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 0 0 / 4px 26px no-repeat,
+  linear-gradient(#7fe3d4, #7fe3d4) 100% 0 / 26px 4px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 100% 0 / 4px 26px no-repeat,
+  linear-gradient(#7fe3d4, #7fe3d4) 0 100% / 26px 4px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 0 100% / 4px 26px no-repeat,
+  linear-gradient(#7fe3d4, #7fe3d4) 100% 100% / 26px 4px no-repeat, linear-gradient(#7fe3d4, #7fe3d4) 100% 100% / 4px 26px no-repeat;
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, .7)) drop-shadow(0 0 6px rgba(127, 227, 212, .6)); }
-.spot-frame span { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 8px; background: rgba(8, 28, 40, .88); border: 1px solid rgba(127, 227, 212, .5); color: #fff; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.spot-frame span { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 8px; background: rgba(8, 28, 40, .9); border: 1px solid rgba(127, 227, 212, .7); color: #fff; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; pointer-events: auto; cursor: pointer; }
+.spot-frame.off { animation: none; }
+.spot-frame.off i { display: none; }
+.spot-frame.off span { top: 0; margin: 0; transform: translate(-50%, -50%); border-color: #7fe3d4; box-shadow: 0 0 10px rgba(127, 227, 212, .6); }
 @keyframes spotpulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .spot-frame { animation: none; } }
 
-/* small notices for the fish: they come up at different places on the screen as one swims close */
-#spotnotes { position: fixed; inset: 0; z-index: 24; pointer-events: none; }
-.spot-note { position: absolute; width: 250px; transform: translate(-50%, -50%) scale(.94); display: flex; gap: 9px; padding: 8px; pointer-events: auto; cursor: pointer; background: rgba(8, 28, 40, .88); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 26px rgba(0, 0, 0, .4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .35s, transform .35s; }
-.spot-note.in { opacity: 1; transform: translate(-50%, -50%); }
-.spot-note.out { opacity: 0; transform: translate(-50%, -50%) scale(.96); }
-.spot-note img { width: 64px; height: 48px; object-fit: cover; border-radius: 7px; flex: none; }
-.spot-note small { display: block; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
-.spot-note b { display: block; font-size: 13.5px; font-weight: 600; }
-.spot-note p { margin: 2px 0 0; font-size: 11.5px; line-height: 1.35; color: #d5e6ec; }
-.spot-note span { display: block; margin-top: 3px; font-size: 10.5px; color: var(--dim); }
-@media (max-width: 560px) { .spot-note { width: 210px; } }
+
+
+/* the small notices now stack in the same column as the other messages */
+#spotnotes { display: none; }
+.spot-toast.spot-note { display: flex; gap: 8px; }
+.spot-note img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; flex: none; }
+@media (max-width: 560px) { #spots { top: 18%; width: min(260px, calc(100vw - 24px)); } }

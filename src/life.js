@@ -627,7 +627,7 @@ function jellyfish(scene, list) {
     const a = f / 6 * Math.PI * 2, q = pos.length / 3, ca = Math.cos(a) * 0.16, sa = Math.sin(a) * 0.16;
     for (let j = 0; j <= 3; j++) { const d = j / 3, w = 0.07 * (1 - 0.5 * d); pos.push(ca - Math.sin(a) * w, -0.05 - d * 0.75, sa + Math.cos(a) * w, ca + Math.sin(a) * w, -0.05 - d * 0.75, sa - Math.cos(a) * w); pr.push(0.4, d, 0.4, d); if (j) { const p = q + j * 2; idx.push(p - 2, p - 1, p, p, p - 1, p + 1); } }
   }
-  spotAt('jellyfish', list, 5, 70, { rad: 4 });
+  spotAt('jellyfish', list, 5, 70, { rad: 4, move: 'jelly' });
   const n = list.length / 5, g = new THREE.InstancedBufferGeometry(), a = new Float32Array(n * 4), b = new Float32Array(n);
   for (let i = 0; i < n; i++) { a.set(list.slice(i * 5, i * 5 + 4), i * 4); b[i] = list[i * 5 + 4]; }
   attr(g, 'position', pos, 3); attr(g, 'aPR', pr, 2); g.setIndex(idx);
