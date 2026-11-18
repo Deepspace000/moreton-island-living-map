@@ -96,6 +96,7 @@ A living 3D map of Moreton Island (Mulgumpin), Queensland. Drag to move, right-d
 - The steering box at the bottom left of a ride is small and can be minimised like the other panels
 - While you ride or walk (watching or in control) every panel stays: weather, tides, places, settings, the mini map, the control bar and the names. Minimise the ones you do not want
 - Download: the Download button (or `?download` added to the address) saves the whole map as one HTML file of about 37 MB that opens on its own, even offline
+- Windows: the `desktop` folder wraps the map as a Windows program with its own window (a portable .exe and an installer, built with `npm run dist`; see `desktop/README.md`). Everything but the live weather works offline
 
 Run locally: serve this folder with any static web server (for example `python -m http.server`) and open it in a browser.
 
