@@ -24,7 +24,7 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
   const lakes = (F.lakes || []).map(l => l.c).filter(Boolean);
   const f = new THREE.Vector3();
   let acc = 0, pend = new Map(), now = 0, focus = null;
-  const vp = new THREE.Vector3();
+  const vp = new THREE.Vector3(); let lastCrowd = [0, 1];
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const img = (id) => `assets/guide/${id}.jpg`;
 
@@ -114,11 +114,17 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
     const p = camera.position, cx = p.x, cz = p.z, sea = U.uSeaM.value * VEX, alt = p.y - Math.max(meshY(cx, cz), sea);
     camera.getWorldDirection(f); const fx = f.x, fz = f.z, fh = Math.hypot(fx, fz);
     const night = U.uNight.value, dark = night > 0.55, light = night < 0.4;
+    // where there are a lot of animals about (a wreck, a school of fish, a flock) the small and near kinds are only picked out from closer in
+    let crowd = 0;
+    for (const s of SPOT.src) for (let i = 0; i < s.n; i++) { const dx = s.xz[i * 2] - cx, dz = s.xz[i * 2 + 1] - cz; if (dx * dx + dz * dz < 6400) crowd++; }
+    for (const q of flyers) if (q.m && q.m.visible && q.m.position.distanceToSquared(p) < 22500) crowd++;
+    const squeeze = crowd <= 10 ? 1 : Math.max(0.25, 1 / (1 + (crowd - 10) / 25));
+    lastCrowd = [crowd, squeeze];
     for (const s of SPOT.src) {
       const id = s.id; if (seen.has(id)) continue;
       if (NIGHT_ONLY.has(id) ? !dark : (DAY_ONLY.has(id) && dark)) continue;
       if (alt > (HIGH[id] || 70)) continue;
-      const lim = s.see; let best = 1e9, bi = -1;
+      const lim = s.see > 150 ? s.see : Math.max(14, s.see * squeeze); let best = 1e9, bi = -1;
       for (let i = 0; i < s.n; i++) {
         const dx = s.xz[i * 2] - cx, dz = s.xz[i * 2 + 1] - cz, d2 = dx * dx + dz * dz, L = lim + s.rad[i];
         if (d2 > L * L) continue;
@@ -153,6 +159,7 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
   }
 
   return {
+    get crowd() { return lastCrowd; },
     update(dt) {
       now += dt; acc += dt;
       if (acc >= 0.25) { acc = 0; if (!document.hidden && !document.body.classList.contains('guide-open')) { look(); if (pend.size) flush(); } }
