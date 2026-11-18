@@ -677,12 +677,19 @@ function buildSeaLife(scene, F) {
   const lag = F.lakes.filter(l => /Lagoon/.test(l.n || '')).map(l => l.c);
   for (let i = 0; i < 110 * K; i++) { const s = i < 30 && lag.length ? spot(lag[i % lag.length][0], lag[i % lag.length][1], 500, 0.3, 3.5) : anywhere(0.4, 2.6); if (s && (i < 30 || maskAt(s[0], s[1]).expo < 0.5)) flathead.push(s[0], s[1], 2 + R() * 5, 0, R() * 6.283, 0.05 + R() * 0.12, 0.5 + R() * 0.35, R()); }
   const coast = (n, rad, d0, d1, f) => { for (let i = 0; i < n; i++) { const z = (R() - 0.5) * T.sz * 0.8; let x = -T.sx / 2 + 400; while (x < T.sx / 2 && depth(x, z) > 0.2) x += 40; const s = spot(i % 3 === 0 ? tg[0] - 300 : x - rad * 0.6, i % 3 === 0 ? tg[1] - 800 + (R() - .5) * 2600 : z, rad, d0, d1); if (s) f(s); } };
-  coast(60 * K, 900, 1.6, 7, (s) => turtles.push(s[0], s[1], 12 + R() * 24, 0.5 + R() * 1.3, R() * 6.283, 0.45 + R() * 0.35, 1.3 + R() * 0.6, R()));     // green turtles over the seagrass on the bay side
+  // the way from a spot to the nearest shallower water that still covers an animal at half tide and above (for the sharks and turtles that come in)
+  const shallowNear = (x, z, maxR, need) => { for (let r = 12; r <= maxR; r += 12) for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283 + r * 0.13, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r, d = depth(px, pz); if (d > need + 0.2 && d < need + 0.8 && Math.abs(px) < T.sx / 2 - 300 && Math.abs(pz) < T.sz / 2 - 300) return [px - x, pz - z]; } return [0, 0]; };
+  coast(60 * K, 900, 1.6, 7, (s) => turtles.push(s[0], s[1], 12 + R() * 24, 0.5 + R() * 1.3, R() * 6.283, 0.45 + R() * 0.35, 1.3 + R() * 0.6, R(), ...shallowNear(s[0], s[1], 70, 0.9)));     // green turtles over the seagrass on the bay side; now and then one comes in over the flats
   // stingrays over the sand: in water that is shallow at some state of the tide; more of them come in when it is low
   for (let i = 0; i < 260 * K; i++) { const s = anywhere(0.35, 2.8); if (s) rays.push(s[0], s[1], 5 + R() * 12, 0, R() * 6.283, 0.3 + R() * 0.35, 0.9 + R() * 0.8, R()); }
   // shovelnose rays lying and cruising on the sand flats; small sharks patrolling the shallows and the wrecks
   for (let i = 0; i < 60 * K; i++) { const s = anywhere(0.6, 3.5); if (s) shovels.push(s[0], s[1], 8 + R() * 16, 0, R() * 6.283, 0.25 + R() * 0.3, 1.0 + R() * 0.7, R()); }
-  for (let i = 0; i < 34 * K; i++) { const s = i % 4 === 0 ? spot(tg[0] - 400, tg[1] - 1400, 1200, 1.5, 6) : anywhere(1.2, 5); if (s) sharks.push(s[0], s[1], 18 + R() * 40, 0.35 + R() * 0.9, R() * 6.283, 0.8 + R() * 0.6, 1.1 + R() * 0.7, R()); }
+  for (let i = 0; i < 34 * K; i++) { const s = i % 4 === 0 ? spot(tg[0] - 400, tg[1] - 1400, 1200, 1.5, 6) : anywhere(1.2, 5); if (s) sharks.push(s[0], s[1], 18 + R() * 40, 0.35 + R() * 0.9, R() * 6.283, 0.8 + R() * 0.6, 1.1 + R() * 0.7, R(), ...shallowNear(s[0], s[1], 160, 0.7)); }          // (and they patrol in over the flats at high water)
+  // more stingrays on the sandy stretches just off the beaches, mostly on the calm bay side, where they lie in the shallows by the water's edge
+  for (const r of F.beach || []) for (let i = 4; i < r.p.length - 4; i += r.side < 0 ? 3 : 7) {
+    const p = r.p[i]; if (R() > (r.side < 0 ? 0.55 : 0.3)) continue;
+    for (let t = 0; t < 8; t++) { const x = p[0] + (r.side || 1) * (15 + R() * 90) + (R() - 0.5) * 20, z = p[1] + (R() - 0.5) * 30, d = depth(x, z); if (d > 0.45 && d < 1.8 && maskAt(x, z).shore > -400) { rays.push(x, z, 4 + R() * 9, 0, R() * 6.283, 0.25 + R() * 0.3, 0.8 + R() * 0.8, R()); break; } }
+  }
   // jellyfish in swarms on the bay side
   for (let i = 0; i < 30 * K; i++) { const s = anywhere(1.5, 9); if (!s || maskAt(s[0], s[1]).expo > 0.5) continue; for (let j = 0; j < 11; j++) jelly.push(s[0] + (R() - .5) * 40, s[1] + (R() - .5) * 40, 0.3 + R() * 1.1, R(), 0.22 + R() * 0.2); }
   // damselfish of the Queensland coast, close in round every wreck: neon damsels in a blue cloud, humbugs hanging over the plates
@@ -700,6 +707,12 @@ function buildSeaLife(scene, F) {
   // humpback whales passing Cape Moreton on the open sea side (they migrate past from June to November)
   const cape = F.lights.find(l => /Cape/.test(l.n || ''))?.p || [7400, -16800];
   for (let i = 0; i < 5; i++) { const s = spot(cape[0] + 1500, cape[1] + 1500 + i * 900, 2200, 12, 200); if (s) for (let j = 0; j < 1 + (i % 2); j++) whales.push(s[0] + j * 30, s[1] + j * 22, 160 + R() * 120, 3 + R() * 3, R() * 6.283 + j * 0.05, 2.2, 14 * (j ? 0.45 : 1), R() * 0.4); }
+  // Out in deep water: more humpbacks, a cow with her calf or a pair, all round the island (most off the open eastern side and the north,
+  // where they travel the coast), and big sharks, tigers and bulls three or four metres long, cruising well below the surface.
+  const deep = (d0, d1, east) => { for (let t = 0; t < 600; t++) { const x = (R() - 0.5) * (T.sx - 1000), z = (R() - 0.5) * (T.sz - 1000), d = depth(x, z); if (d > d0 && d < d1 && (!east || x > 2000 || R() < 0.3)) return [x, z, d]; } return null; };
+  for (let i = 0; i < 12 * K; i++) { const s = deep(25, 400, true); if (!s) continue; const n = R() < 0.55 ? 2 : 1; for (let j = 0; j < n; j++) whales.push(s[0] + j * 28, s[1] + j * 20, 220 + R() * 260, 3 + R() * 4, R() * 6.283 + j * 0.05, 2.0 + R() * 0.5, 14.5 * (j && R() < 0.6 ? 0.45 : 0.9 + R() * 0.2), R() * 0.4); }
+  const bigSharks = [];
+  for (let i = 0; i < 30 * K; i++) { const s = deep(8, 80, false); if (s) bigSharks.push(s[0], s[1], 40 + R() * 90, 2 + R() * Math.min(6, s[2] * 0.4), R() * 6.283, 1.0 + R() * 0.6, 2.6 + R() * 1.6, R()); }
   const SILV = [0.86, 0.89, 0.9];
   swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'bream', amp: 0.13, rate: 8, colA: [0.34, 0.38, 0.36], colB: SILV, colC: [0.45, 0.47, 0.42], see: 420 }, bream);
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'blue', amp: 0.15, rate: 13, colA: [0.10, 0.42, 0.50], colB: [0.80, 0.92, 0.80], colC: [0.5, 0.7, 0.6], eye: [0.39, 0.012, 0.02], see: 300, min: 0.5 }, blue);
@@ -709,10 +722,11 @@ function buildSeaLife(scene, F) {
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'small', amp: 0.16, rate: 14, colA: [0.30, 0.38, 0.30], colB: [0.90, 0.92, 0.88], colC: [0.6, 0.62, 0.55], eye: [0.39, 0.012, 0.02], see: 260, min: 0.3 }, small);
   swimmers(scene, { ...SLIM, paint: PAINT.whiting, name: 'whiting', amp: 0.15, rate: 13, colA: [0.56, 0.52, 0.36], colB: [0.94, 0.93, 0.88], colC: [0.7, 0.66, 0.4], eye: [0.39, 0.012, 0.02], see: 240, min: 0.22 }, whiting);
   swimmers(scene, { ...FLATHEAD, paint: PAINT.flathead, name: 'flathead', bottom: 1, amp: 0.05, rate: 2.2, colA: [0.45, 0.38, 0.25], colB: [0.84, 0.8, 0.68], colC: [0.5, 0.42, 0.26], eye: [0.37, 0.05, 0.016], see: 500, min: 0.25 }, flathead);
-  swimmers(scene, { ...TURTLE, paint: PAINT.turtle, name: 'turtles', vertical: 1, amp: 0.2, rate: 1.7, colA: [0.30, 0.25, 0.12], colB: [0.7, 0.66, 0.44], eye: [0.735, 0.06, 0.015], rise: [0.02, 0.07], see: 1100 }, turtles);
+  swimmers(scene, { ...TURTLE, paint: PAINT.turtle, name: 'turtles', visit: 1, vertical: 1, amp: 0.2, rate: 1.7, colA: [0.30, 0.25, 0.12], colB: [0.7, 0.66, 0.44], eye: [0.735, 0.06, 0.015], rise: [0.02, 0.07], see: 1100 }, turtles);
   swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'rays', vertical: 1, bottom: 1, tidal: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 900, min: 0.25 }, rays);
   swimmers(scene, { ...SHOVEL, paint: PAINT.shovel, name: 'shovelnose', bottom: 1, amp: 0.07, rate: 3, colA: [0.46, 0.4, 0.26], colB: [0.84, 0.8, 0.7], colC: [0.4, 0.34, 0.22], eye: [0.31, 0.075, 0.014], see: 900, min: 0.3 }, shovels);
-  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'sharks', amp: 0.1, rate: 3.2, colA: [0.20, 0.20, 0.19], colB: [0.86, 0.86, 0.83], colC: [0.2, 0.2, 0.19], eye: [0.43, 0.0, 0.011], see: 1200, min: 0.7 }, sharks);
+  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'bigsharks', amp: 0.09, rate: 2.4, colA: [0.24, 0.24, 0.22], colB: [0.84, 0.84, 0.8], colC: [0.18, 0.18, 0.17], eye: [0.43, 0.0, 0.011], see: 1800, min: 3 }, bigSharks);          // (the big ones of the deep water)
+  swimmers(scene, { ...SHARK, paint: PAINT.shark, name: 'sharks', visit: 1, amp: 0.1, rate: 3.2, colA: [0.20, 0.20, 0.19], colB: [0.86, 0.86, 0.83], colC: [0.2, 0.2, 0.19], eye: [0.43, 0.0, 0.011], see: 1200, min: 0.7 }, sharks);
   swimmers(scene, { ...DOLPHIN, paint: PAINT.dolphin, name: 'dolphins', vertical: 1, amp: 0.1, rate: 3.4, colA: [0.17, 0.19, 0.22], colB: [0.80, 0.76, 0.74], colC: [0.16, 0.18, 0.2], eye: [0.385, -0.008, 0.011], rise: [0.07, 0.75], see: 2600, min: 1.5 }, dolphins);
   swimmers(scene, { ...DUGONG, paint: PAINT.dugong, name: 'dugongs', vertical: 1, amp: 0.07, rate: 1.5, colA: [0.36, 0.33, 0.29], colB: [0.62, 0.58, 0.52], colC: [0.33, 0.3, 0.27], eye: [0.4, 0.0, 0.009], rise: [0.03, 0.16], see: 2200, min: 1.3 }, dugongs);
   swimmers(scene, { ...WHALE, paint: PAINT.whale, name: 'whales', vertical: 1, amp: 0.06, rate: 0.8, colA: [0.045, 0.05, 0.06], colB: [0.86, 0.86, 0.82], colC: [0.5, 0.5, 0.5], eye: [0.3, -0.035, 0.007], rise: [0.045, 0.22], see: 9000, min: 6 }, whales);

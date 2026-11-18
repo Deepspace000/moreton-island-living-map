@@ -94,12 +94,14 @@ export function buildSky(scene) {
           float dk = texture2D(uNoise, suv).r * 0.6 + texture2D(uNoise, suv * 2.7 + 0.3).r * 0.4;
           c = mix(c, c * (0.42 + 1.0 * dk), uOvercast * 0.85 * smoothstep(0.0, 0.12, d.y));
         }
-        // high cirrus: thin wind-combed streaks
+        // high cirrus: wisps combed out along the wind into fine fibres (mares' tails), lying in patches and bands across the sky, not as an even film
         if(d.y > 0.02){
-          vec2 cu = d.xz / (d.y + 0.25);
-          float ci = texture2D(uNoise, cu * vec2(0.03, 0.10) + uWindDir * uTime * 0.0004).r;
-          ci = smoothstep(0.5, 0.86, ci) * (0.4 + 0.9 * texture2D(uNoise, cu * 0.37).b);
-          c += (uSunCol * 0.13 + uSunGlow * 0.12 + uAmbSky * 0.5) * ci * smoothstep(0.02, 0.3, d.y) * uCirrus * (1.0 - uNight * 0.8);
+          vec2 cu = d.xz / (d.y + 0.25), wd = normalize(uWindDir + vec2(1e-4, 0.0)), q = vec2(dot(cu, wd), dot(cu, vec2(-wd.y, wd.x))) + vec2(uTime * 0.0006, 0.0);
+          float streak = texture2D(uNoise, q * vec2(0.06, 0.34)).r, fibre = texture2D(uNoise, q * vec2(0.14, 2.3) + 0.31).g;
+          float patchK = smoothstep(0.36, 0.6, texture2D(uNoise, cu * 0.28 + 0.17).b);          // (several patches across the sky, with clear blue between)
+          float ci = smoothstep(0.48, 0.82, streak) * (0.45 + 0.75 * fibre) * patchK;
+          ci += 0.35 * smoothstep(0.62, 0.9, streak) * smoothstep(0.55, 0.8, fibre) * patchK;          // brighter strands within each wisp
+          c += (uSunCol * 0.16 + uSunGlow * 0.14 + uAmbSky * 0.62) * ci * smoothstep(0.02, 0.3, d.y) * uCirrus * (1.0 - uNight * 0.8);
         }
         // below the horizon: sea haze
         c = mix(c, fogColor(d), smoothstep(0.0, -0.06, d.y));

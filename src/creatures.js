@@ -304,27 +304,37 @@ export const PAINT = {
 
 // Each animal swims a wobbly loop around a home point. list: [cx, cz, radius, depth, phase, speed, size, seed] per animal.
 // o: mesh, paint, colA (back), colB (belly), colC (fins), eye [x, y, radius], amp and rate of the swimming beat, vertical (beats up and down),
-// bottom (lies on the sand), tidal, min (water it needs), rise [how far out of the water, how often], see (how far away it is drawn).
+// bottom (lies on the sand), tidal, min (water it needs), rise [how far out of the water, how often], see (how far away it is drawn);
+// visit: each animal has two more numbers, the way (x, z, in metres) to a shallower spot it swims in to now and then while the tide is up.
 // (They are drawn as one batch for each part of the map they live in, all sharing one shape and one material: a batch that is out of view,
 // or too far off to be seen, is then skipped whole.)
-export function swimmers(scene, o, all) { let first = null; for (const list of byPlace(all, 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
+export function swimmers(scene, o, all) { let first = null; for (const list of byPlace(all, o.visit ? 10 : 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
 function swimmersAt(scene, o, list) {
-  const g = new THREE.InstancedBufferGeometry(), n = list.length / 8, a = new Float32Array(n * 4), b = new Float32Array(n * 4), F = (arr, k) => new THREE.Float32BufferAttribute(arr, k), P = o.paint || {};
-  for (let i = 0; i < n; i++) { a.set(list.slice(i * 8, i * 8 + 4), i * 4); b.set(list.slice(i * 8 + 4, i * 8 + 8), i * 4); }
+  const st = o.visit ? 10 : 8, g = new THREE.InstancedBufferGeometry(), n = list.length / st, a = new Float32Array(n * 4), b = new Float32Array(n * 4), v = new Float32Array(n * 2), F = (arr, k) => new THREE.Float32BufferAttribute(arr, k), P = o.paint || {};
+  for (let i = 0; i < n; i++) { a.set(list.slice(i * st, i * st + 4), i * 4); b.set(list.slice(i * st + 4, i * st + 8), i * 4); if (o.visit) v.set(list.slice(i * st + 8, i * st + 10), i * 2); }
+  if (o.visit) g.setAttribute('iV', new THREE.InstancedBufferAttribute(v, 2));
   const S = o.shape || (o.shape = { position: F(o.pos, 3), normal: F(o.nrm, 3), aUV: F(o.uv, 2), aFlex: F(o.flex, 1), aPart: F(o.part, 1) });
   for (const k in S) g.setAttribute(k, S[k]); if (o.index) g.index = o.index; else { g.setIndex(o.idx); o.index = g.index; }
   g.setAttribute('iA', new THREE.InstancedBufferAttribute(a, 4)); g.setAttribute('iB', new THREE.InstancedBufferAttribute(b, 4)); g.instanceCount = n; g.boundingSphere = FAR;
   const V3 = (c) => new THREE.Vector3(...c), sh = P.shade || [0.2, 0.66], eye = o.eye || [0.37, 0.035, 0.03];
   const mat = o.mat || (o.mat = makeMat({
-    side: THREE.DoubleSide,
+    side: THREE.DoubleSide, defines: o.visit ? { VISIT: 1 } : {},
     uniforms: { uFlap: { value: new THREE.Vector4(o.vertical ? 1 : 0, o.amp, o.rate, o.bottom ? 1 : 0) }, uColA: { value: V3(o.colA) }, uColB: { value: V3(o.colB) }, uColC: { value: V3(o.colC || o.colA) }, uSee: { value: o.see }, uNeed: { value: new THREE.Vector2(o.min ?? 0.9, o.tidal ? 1 : 0) }, uRise: { value: new THREE.Vector2(...(o.rise || [0, 0])) }, uEye: { value: V3(eye) } },
     vs: /* glsl */`
       attribute float aFlex, aPart; attribute vec2 aUV; attribute vec4 iA, iB; uniform vec4 uFlap; uniform float uSee; uniform vec2 uNeed, uRise;
+      #ifdef VISIT
+      attribute vec2 iV;
+      #endif
       varying vec3 vW, vN, vL; varying vec2 vUV; varying float vPart, vSeed;
       void main(){
         float way = iB.w < 0.5 ? 1.0 : -1.0, ang = iB.x + uTime * iB.y / iA.z * way, wob = ang * 3.0 + iB.w * 9.0;
         float rr = iA.z * (1.0 + 0.25 * sin(wob));
-        vec2 c = iA.xy + vec2(cos(ang), sin(ang)) * rr;
+        vec2 c = iA.xy;
+        #ifdef VISIT
+        { float vp = smoothstep(0.2, 0.9, sin(uTime * 0.01 * (0.8 + 0.4 * iB.w) + iB.x * 3.0)) * smoothstep(-0.2, 0.6, uSeaM);          // every ten minutes or so, while the tide is above half, it comes in over the shallows (a minute and a half each way), keeping closer, and goes back
+          c += iV * vp; rr *= 1.0 - 0.6 * vp; }
+        #endif
+        c += vec2(cos(ang), sin(ang)) * rr;
         vec2 fwd = normalize(vec2(-sin(ang), cos(ang)) * rr + vec2(cos(ang), sin(ang)) * iA.z * 0.75 * cos(wob)) * way, right = vec2(-fwd.y, fwd.x);
         float sea = uSeaM * uVex, bed = groundY(c), size = iB.z;
         float y = uFlap.w > 0.5 ? bed + 0.06 * size : min(max(bed + 0.4 * size, sea - iA.w * uVex), sea - 0.16 * size);

@@ -33,7 +33,7 @@ export function makeWindows({ onChange } = {}) {
   addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || act || !e.target.closest) return; const w = e.target.closest('.win'); if (!w) return;
     for (const o of wins) o.style.zIndex = ''; w.style.zIndex = 6;          // (the one you touch comes to the front)
-    const size = !!e.target.closest('.win-rs'); if (!size && e.target.closest('input, select, textarea, a[href], .keys, .foot')) return;          // (sliders, links and the steering buttons are held and dragged for their own sake)
+    const size = !!e.target.closest('.win-rs'); if (!size && e.target.closest('input, select, textarea, a[href], .keys, .foot, #miniMap')) return;          // (sliders, links, the steering buttons and the mini map itself are held and dragged for their own sake: the mini map moves by its grip)
     act = { w, id: e.pointerId, size, x: e.clientX, y: e.clientY, on: false, finger: e.pointerType !== 'mouse' };
     if (size) e.preventDefault();
   }, true);

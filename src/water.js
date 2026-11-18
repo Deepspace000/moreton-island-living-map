@@ -45,11 +45,7 @@ export function buildWater(scene) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
 
-  const mat = makeMat({
-    transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
-    vs: /* glsl */`
+  const VS = /* glsl */`
       uniform vec4 uWaves[6]; uniform float uWavePh[6], uSurf;
       varying vec3 vW; varying vec2 vSlope; varying float vWaveH, vBreak;
       // The exposure map blurs to the land's low value right at the beach. Look about 250 m downhill (out to sea) instead,
@@ -94,7 +90,12 @@ export function buildWater(scene) {
         vW = wp.xyz;
         gl_Position = projectionMatrix * viewMatrix * wp;
         ${LOGV}
-      }`,
+      }`;
+  const mat = makeMat({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    vs: VS,
     fs: /* glsl */`
       uniform vec2 uWindDir; uniform float uChop, uSurf, uWhitecap, uRain, uSwell;
       varying vec3 vW; varying vec2 vSlope; varying float vWaveH, vBreak;
@@ -204,6 +205,23 @@ export function buildWater(scene) {
       }`,
   });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 10;
+  // The sea is see-through and does not hide itself, so in a big swell a near crest and the slope of the wave behind it were both drawn, one
+  // over the other: a doubled, ghostly surface. So first the same surface is drawn into the depth buffer alone, just before the sea, and the
+  // sea is then coloured only where it is the nearest water. (That depth is set back by a hair, about 0.4 % of the distance, so that the boats'
+  // wakes and spray, which ride a copy of the waves worked out on the CPU, are not lost just under it.) Whatever lies under the water and is
+  // drawn before it, the sea bed, the fish, the jellyfish, still shows through.
+  const pre = new THREE.Mesh(geo, makeMat({
+    transparent: true, depthWrite: true, colorWrite: false, side: THREE.DoubleSide, vs: VS,
+    fs: /* glsl */`varying vec3 vW;
+      void main(){
+        ${LOGF}
+        if(uSeaM - texture2D(uHeight, clamp(worldUV(vW.xz), 0.0, 1.0)).r < -0.25) discard;
+        #ifdef USE_LOGDEPTHBUF
+        gl_FragDepth += 3e-4;
+        #endif
+        gl_FragColor = vec4(0.0); }`,
+  }));
+  pre.name = 'seaDepth'; pre.frustumCulled = false; pre.renderOrder = 9.99; mesh.add(pre);
   scene.add(mesh);
   return mesh;
 }

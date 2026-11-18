@@ -37,7 +37,7 @@ function pyramid() {
 // o.where() says where you are: { x, z, hdg (0 north, clockwise), near (walking or riding) }.  o.go(x, z) is called for a click on the map.
 export function buildMinimap(F, o) {
   const root = o.root, canvas = o.canvas, ctx = canvas.getContext('2d'), base = document.createElement('canvas'), bctx = base.getContext('2d');
-  const L = pyramid(), bIn = root.querySelector('.mm-in'), bOut = root.querySelector('.mm-out');
+  const L = pyramid(), bIn = root.querySelector('.mm-in'), bOut = root.querySelector('.mm-out'), bHome = root.querySelector('.mm-home');
   const box = (pts) => { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (const p of pts) { if (p[0] < a) a = p[0]; if (p[1] < b) b = p[1]; if (p[0] > c) c = p[0]; if (p[1] > d) d = p[1]; } return [a, b, c, d]; };
   const lines = (arr, f) => (arr || []).filter(r => r.p && r.p.length > 1 && (!f || f(r))).map(r => ({ p: r.p, bb: box(r.p) }));
   const tracks = lines(F.roads, r => r.c === 1), streets = lines(F.roads, r => r.c === 0), paths = lines(F.roads, r => r.c > 1);
@@ -129,8 +129,18 @@ export function buildMinimap(F, o) {
   function zoomBy(n) { zoom[mode] = clamp(zoom[mode] + n, 0, MAXZ); buttons(); acc = 1; try { localStorage.setItem('mini:zoom', JSON.stringify(zoom)); } catch (e) { /* not remembered then */ } }
   const at = (clientX, clientY) => { const r = canvas.getBoundingClientRect(); return { x: cx + (clientX - r.left - cw / 2) * mpp, z: cz + (clientY - r.top - ch / 2) * mpp }; };
 
-  // (Dragging the map about the screen, and resizing it, is done by the windows: see windows.js. A drag does not count as a click.)
-  canvas.addEventListener('pointerdown', (e) => { finger = e.pointerType !== 'mouse'; });
+  // Dragging over the map looks around it, as on a web map: the map stops following you until the button that appears takes it back to
+  // where you are (moving the panel about the screen is done by its grip, and resizing it by its corner: see windows.js)
+  const pan = { x: 0, z: 0, on: false }, home = () => { pan.x = pan.z = 0; pan.on = false; if (bHome) bHome.hidden = true; acc = 1; };
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => { finger = e.pointerType !== 'mouse'; if (e.button === 0) drag = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false }; });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id || !mpp) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.on) { if (Math.hypot(dx, dy) < (finger ? 9 : 5)) return; drag.on = true; canvas.setPointerCapture(e.pointerId); root.classList.add('panning'); first = null; }
+    pan.x -= dx * mpp; pan.z -= dy * mpp; pan.on = true; if (bHome) bHome.hidden = false; drag.x = e.clientX; drag.y = e.clientY; acc = 1;
+  });
+  for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, (e) => { if (!drag || e.pointerId !== drag.id) return; if (drag.on) { root.classList.remove('panning'); first = null; } drag = null; });
+  if (bHome) bHome.onclick = home;
   let first = null, finger = false;            // (it takes two clicks on the same spot: one alone, or the end of a drag, does nothing; a finger gets a little more room and time than a mouse)
   canvas.addEventListener('click', (e) => {
     const now = performance.now();
@@ -148,7 +158,8 @@ export function buildMinimap(F, o) {
     const goal = fit / 2 ** zoom[mode], gliding = mpp && Math.abs(mpp / goal - 1) > 0.004;
     acc += dt; if (!gliding && acc < 0.066) return; acc = 0;
     mpp = !mpp ? goal : gliding ? Math.exp(Math.log(mpp) + (Math.log(goal) - Math.log(mpp)) * (1 - Math.exp(-dt * 9))) : goal;
-    cx = hold(w.x, T.sx / 2, cw * mpp); cz = hold(w.z, T.sz / 2, ch * mpp);
+    if (pan.on) { cx = Math.max(-T.sx / 2, Math.min(T.sx / 2, w.x + pan.x)); cz = Math.max(-T.sz / 2, Math.min(T.sz / 2, w.z + pan.z)); pan.x = cx - w.x; pan.z = cz - w.z; }          // (looked around: as far as the island's edge)
+    else { cx = hold(w.x, T.sx / 2, cw * mpp); cz = hold(w.z, T.sz / 2, ch * mpp); }
     const half = mpp / k * 0.5; if (!(bm === mpp && Math.abs(cx - bx) < half && Math.abs(cz - bz) < half)) paintBase(); else { cx = bx; cz = bz; }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(base, 0, 0); ctx.setTransform(k, 0, 0, k, 0, 0);
     // you: a blue dot, and a beam the way you are looking
