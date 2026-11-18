@@ -10,7 +10,7 @@ for (let t = 0; t < 4000 && !base; t++) { const x = -T.sx / 2 + 600 + Math.rando
 window.__bbase = base;
 const mat = CM.objectMat({ side: THREE.DoubleSide, defines: { BIRD: 1 } });
 const FLY = [['osprey', 'OSPREY', 1.2, [0.05, 0.07, 0.09]], ['brahminy', 'BRAHMINY', 0.95, [0.05, 0.07, 0.09]], ['whistling', 'WHISTLING', 1.0, [0.05, 0.07, 0.09]], ['wedgetail', 'WEDGETAIL', 1.65, [0.05, 0.085, 0.1]], ['peregrine', 'PEREGRINE', 0.8, [0.05, 0.085, 0.09]]];
-const GROUND = [['curlew', () => WB.CURLEW(), 24], ['godwit', () => WB.GODWIT(), 24], ['oystercatcher', () => WB.OYSTERCATCHER(), 24], ['stonecurlew', () => WB.STONECURLEW(), 24], ['cormorant_stand', () => WB.CORMORANT_STAND(false), 24], ['cormorant_dry', () => WB.CORMORANT_STAND(true), 24], ['swan', () => WB.BLACK_SWAN(), 14], ['cormorant_swim', () => WB.GREAT_CORMORANT(), 14]];
+const GROUND = [['curlew', () => WB.CURLEW(), 10], ['godwit', () => WB.GODWIT(), 10], ['oystercatcher', () => WB.OYSTERCATCHER(), 10], ['stonecurlew', () => WB.STONECURLEW(), 10], ['cormorant_stand', () => WB.CORMORANT_STAND(false), 10], ['cormorant_dry', () => WB.CORMORANT_STAND(true), 10], ['swan', () => WB.BLACK_SWAN(), 7], ['cormorant_swim', () => WB.GREAT_CORMORANT(), 7]];
 const names = [];
 FLY.forEach(([n, k, sc, sh], i) => {
   for (const flip of [0, 1]) {

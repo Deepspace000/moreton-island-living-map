@@ -13,6 +13,8 @@ import { waveAt } from './water.js';
 import { GB, makeLights } from './geo.js';
 import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodies.js';
 const loftGeo = (m) => (g) => { attr(g, 'position', m.pos, 3); attr(g, 'normal', m.nrm, 3); attr(g, 'aK', m.part, 1); g.setIndex(m.idx); };
+import { buildWildPlants } from './wildplants.js';
+import { critters, WILD_PAINT, WATER_DRAGON, MAJOR_SKINK, LAND_MULLET, GARDEN_SKINK, LEGLESS, CARPET_PYTHON, GREEN_TREE_SNAKE, BLACK_SNAKE, WHIPSNAKE, LONGNECK_TURTLE, BANDICOOT, LONGNOSE_BANDICOOT, BRUSHTAIL, RINGTAIL, WATER_RAT, FLYINGFOX_FLY, FLYINGFOX_WING, MICROBAT_FLY, MICROBAT_WING } from './wildland.js';
 import { OSPREY_FLY, OSPREY_WING, BRAHMINY_FLY, BRAHMINY_WING, WHISTLING_FLY, WHISTLING_WING, WEDGETAIL_FLY, WEDGETAIL_WING, PEREGRINE_FLY, PEREGRINE_WING, CURLEW, GODWIT, OYSTERCATCHER, STONECURLEW, CORMORANT_STAND, GREAT_CORMORANT, BLACK_SWAN, walkers } from './wildbirds.js';
 import { TAILOR, DART, TREVALLY, JEWFISH, LONGTOM, TARWHINE, SNAPPER, SWEETLIP, COD, MOSES, TUSK, MORWONG, MORAY, WPAINT } from './wildlife.js';
 import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
@@ -1187,6 +1189,45 @@ function buildLizards(scene) {
   return [scatter(scene, dq(14, 18, 20), 28, loftGeo(goanna()), body(true), 300, LIZARD_PAINT(true)), scatter(scene, dq(30, 38, 44), 3.6, loftGeo(bluetongue()), body(false), 70, LIZARD_PAINT(false))];
 }
 
+// ---------------------------------------------------------------- reptiles and mammals on the ground (wildland.js)
+// Placed from the map: lizards on the dry forest floor and the heath, snakes on the dunes and by the lakes, water dragons, turtles and water rats at the lakes,
+// bandicoots and possums out at night. (The wallabies and the goannas are the older, shader-placed ones above.)
+function buildWild(scene, F) {
+  const R = rng(6161), K = MOBILE ? 0.5 : 1, places = F.places.map(p => p.p);
+  const land = (x, z) => { if (Math.abs(x) > T.sx / 2 - 300 || Math.abs(z) > T.sz / 2 - 300) return null; const mk = maskAt(x, z); return mk.land > 0.92 ? mk : null; };
+  // n spots that pass the test, six in ten of them within walking distance of a settlement (where there are people to see them)
+  const pick = (n, ok, near = 0.6) => { const out = []; for (let t = 0; t < n * 80 && out.length < n; t++) { let x, z; if (R() < near && places.length) { const q = places[(R() * places.length) | 0], a = R() * 6.283, r = 60 + R() * R() * 2400; x = q[0] + Math.cos(a) * r; z = q[1] + Math.sin(a) * r; } else { x = (R() - .5) * T.sx * 0.8; z = (R() - .5) * T.sz * 0.9; } const mk = land(x, z); if (mk && ok(mk, heightAt(x, z), x, z)) out.push([x, z]); } return out; };
+  const lay = (pts) => pts.flatMap(([x, z]) => [x, z, R() * 6.283, R(), -1000]);
+  const inPoly = (pl, x, z) => { let c = false; for (let i = 0, j = pl.length - 1; i < pl.length; j = i++) { const a = pl[i], b = pl[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const lakes = F.lakes.filter(l => l.y !== undefined && l.p.length >= 8 && l.n);
+  const banks = [], water = [];
+  for (const l of lakes) {
+    const big = /Blue Lagoon|Mirapool|Heath Island/.test(l.n);
+    for (let i = 0, want = big ? 6 : 3; i < 80 && want > 0; i++) { const q = l.p[(R() * l.p.length) | 0], dx = q[0] - l.c[0], dz = q[1] - l.c[1], d = Math.hypot(dx, dz) || 1, x = q[0] + dx / d * (1 + R() * 3), z = q[1] + dz / d * (1 + R() * 3); if (heightAt(x, z) > 0.4 && !inPoly(l.p, x, z)) { banks.push([x, z]); want--; } }
+    let bb = [1e9, 1e9, -1e9, -1e9]; for (const q of l.p) { bb[0] = Math.min(bb[0], q[0]); bb[1] = Math.min(bb[1], q[1]); bb[2] = Math.max(bb[2], q[0]); bb[3] = Math.max(bb[3], q[1]); }
+    for (let t = 0, want = big ? 4 : 2; t < 200 && want > 0; t++) { const x = bb[0] + R() * (bb[2] - bb[0]), z = bb[1] + R() * (bb[3] - bb[1]); if (inPoly(l.p, x, z) && inPoly(l.p, x + 6, z) && inPoly(l.p, x - 6, z) && inPoly(l.p, x, z + 6) && inPoly(l.p, x, z - 6)) { water.push([x, z, l.y]); want--; } }
+  }
+  const forest = (mk, h) => mk.sand < 0.45 && h > 2 && h < 60, heath = (mk, h) => mk.sand < 0.6 && h > 1.8, dune = (mk, h) => mk.sand > 0.3 && h > 2.5 && h < 40, open = (mk, h) => mk.sand < 0.85 && h > 1.6;
+  const N = (n) => Math.round(n * K);
+  // ---- reptiles
+  critters(scene, WATER_DRAGON(), banks.flatMap(([x, z]) => [x, z, R() * 6.283, R(), -1000]), { name: 'waterdragons', scale: 1.0, pace: 0.8, step: 0.3, gait: 4, wave: [7, 0.03, 9], see: 320, paint: WILD_PAINT.waterdragon });
+  critters(scene, MAJOR_SKINK(), lay(pick(N(70), forest)), { name: 'majorskinks', scale: 1.0, pace: 1.4, step: 0.35, gait: 4, wave: [12, 0.02, 12], see: 220, paint: WILD_PAINT.majorskink });
+  critters(scene, LAND_MULLET(), lay(pick(N(40), (mk, h) => forest(mk, h) || heath(mk, h))), { name: 'landmullets', scale: 1.0, pace: 0.9, step: 0.3, gait: 4, wave: [10, 0.025, 9], see: 240, paint: WILD_PAINT.landmullet });
+  critters(scene, GARDEN_SKINK(), lay(pick(N(110), open)), { name: 'gardenskinks', scale: 1.3, pace: 1.2, step: 0.8, gait: 4, wave: [60, 0.006, 20], see: 80, paint: WILD_PAINT.gardenskink });
+  critters(scene, LEGLESS(), lay(pick(N(40), heath)), { name: 'leglesslizards', scale: 1.0, pace: 0.8, step: 0.35, gait: 1, wave: [14, 0.012, 9], see: 140, paint: WILD_PAINT.legless });
+  critters(scene, CARPET_PYTHON(), lay(pick(N(30), (mk, h) => dune(mk, h) || forest(mk, h))), { name: 'pythons', scale: 1.0, pace: 0.5, step: 0.12, gait: 1, wave: [4.6, 0.09, 2.2], see: 300, paint: WILD_PAINT.python });
+  critters(scene, GREEN_TREE_SNAKE(), lay(pick(N(36), forest)), { name: 'treesnakes', scale: 1.0, pace: 1.0, step: 0.25, gait: 1, wave: [7, 0.04, 6], see: 240, paint: WILD_PAINT.treesnake });
+  critters(scene, BLACK_SNAKE(), [...lay(pick(N(24), heath)), ...lay(banks.slice(0, 12))], { name: 'blacksnakes', scale: 1.0, pace: 0.9, step: 0.25, gait: 1, wave: [5.5, 0.06, 5], see: 280, paint: WILD_PAINT.blacksnake });
+  critters(scene, WHIPSNAKE(), lay(pick(N(50), heath)), { name: 'whipsnakes', scale: 1.0, pace: 6, step: 0.5, gait: 1, wave: [9, 0.035, 14], see: 220, paint: WILD_PAINT.whipsnake });
+  critters(scene, LONGNECK_TURTLE(), water.flatMap(([x, z, y]) => [x, z, R() * 6.283, R(), y - 0.03]), { name: 'turtles', scale: 1.1, pace: 5, step: 0.12, gait: 3, night: 2, water: 1, see: 300, paint: WILD_PAINT.turtle });
+  // ---- mammals (the night shift)
+  critters(scene, BANDICOOT(), lay(pick(N(80), heath, 0.7)), { name: 'bandicoots', scale: 1.0, pace: 3, step: 0.3, gait: 2, night: 1, see: 300, paint: WILD_PAINT.bandicoot });
+  critters(scene, LONGNOSE_BANDICOOT(), lay(pick(N(50), forest, 0.7)), { name: 'longnoses', scale: 1.0, pace: 3, step: 0.3, gait: 2, night: 1, see: 300, paint: WILD_PAINT.longnose });
+  critters(scene, BRUSHTAIL(), lay(pick(N(40), forest, 0.9)), { name: 'brushtails', scale: 1.0, pace: 1.6, step: 0.2, gait: 2, night: 1, see: 340, paint: WILD_PAINT.brushtail });
+  critters(scene, RINGTAIL(), lay(pick(N(36), forest, 0.8)), { name: 'ringtails', scale: 1.0, pace: 1.0, step: 0.2, gait: 2, night: 1, see: 260, paint: WILD_PAINT.ringtail });
+  critters(scene, WATER_RAT(), banks.flatMap(([x, z]) => [x + 1.5, z + 1, R() * 6.283, R(), -1000]), { name: 'waterrats', scale: 1.0, pace: 1.5, step: 0.3, gait: 2, night: 1, see: 240, paint: WILD_PAINT.waterrat });
+}
+
 // ---------------------------------------------------------------- pelicans on the wing
 // Australian pelicans in loose lines low over the water: a few slow beats, then a long glide. Each is its own object (body and two
 // hinged wings), so one can be followed, and flown: when it is, it goes where it is steered, and settles on the water if brought down to it.
@@ -1229,6 +1270,9 @@ function buildPelicans(scene, F) {
       ['wedgetail', WEDGETAIL_FLY(), WEDGETAIL_WING(), 1.7, [0.045, 0.08, 0.098], MOBILE ? 2 : 3, hills, { rad: 380, alt: 40, sp: 13, glide: 0.2, beats: 0.85, rate: 4.5, sweep: 0.4, zoom0: 10 }],
       ['peregrine', PEREGRINE_FLY(), PEREGRINE_WING(), 0.85, [0.04, 0.08, 0.085], MOBILE ? 2 : 3, cliffs, { rad: 140, alt: 20, sp: 17, glide: 0.1, beats: 0.45, rate: 9.5, sweep: 0.55, zoom0: 5 }],
     ];
+    // bats come out at dusk: grey-headed flying-foxes in loose lines over the bay and the forest, and a few small insect bats about the lights
+    KINDS.push(['flyingfox', FLYINGFOX_FLY(), FLYINGFOX_WING(), 1.5, [0.0, 0.07, 0.05], MOBILE ? 5 : 10, bay, { rad: 260, alt: 14, sp: 8, glide: 0.1, beats: -1, rate: 9, sweep: 0.62, zoom0: 5, night: 1 }]);
+    KINDS.push(['microbat', MICROBAT_FLY(), MICROBAT_WING(), 1.8, [0.0, 0.034, 0.03], MOBILE ? 4 : 8, bay, { rad: 60, alt: 2, sp: 6, glide: 0.1, beats: -1, rate: 24, sweep: 0.7, zoom0: 3, night: 1 }]);
     for (const [kind, bg, wg, sc, sh, n, at, o] of KINDS) for (let i = 0; i < n && at.length; i++) {
       const h = at[(i + (kind === 'brahminy' ? 2 : 0)) % at.length];
       make(bg, wg, sc, sh, { kind, home: [h[0] + (R() - .5) * 400, h[1] + (R() - .5) * 400], ...o, rad: o.rad * (0.8 + R() * 0.5), ang: R() * 6.283, way: R() < 0.5 ? 1 : -1, round: 1 });
@@ -1293,6 +1337,7 @@ function buildPelicans(scene, F) {
       const w = p.afloat ? 1.25 : 0.1 + p.beat * Math.sin(t * p.rate + p.ph) * p.sweep + (1 - p.beat) * p.glide;      // wings folded to the body, beating, or held out in the glide
       p.fold = (p.fold ?? 0) + ((p.afloat ? 1 : 0) - (p.fold ?? 0)) * Math.min(1, dt * 3);
       p.wl.rotation.set(-w * (1 - p.fold) - 0.2 * p.fold, -1.25 * p.fold, 0); p.wr.rotation.set(w * (1 - p.fold) + 0.2 * p.fold, 1.25 * p.fold, 0);
+      if (p.night) { const out = U.uNight.value > 0.4; if (p.m.visible !== out) p.m.visible = out; }
       p.m.position.set(p.x, p.y + (p.afloat ? 0 : p.beat * Math.sin(t * p.rate + p.ph + 1.2) * 0.06), p.z);
       p.roll = (p.roll ?? 0) + (bank - (p.roll ?? 0)) * Math.min(1, dt * 3);
       p.nose = (p.nose ?? 0) + ((p.afloat ? 0 : p.ctl ? p.ctl.climb * 0.18 : clamp((p.vy ?? 0) * 0.04, -0.2, 0.2)) - (p.nose ?? 0)) * (1 - Math.exp(-dt * 3));      // nose up in the climb, down in the slide
@@ -1311,10 +1356,13 @@ export function buildLife(scene, F) {
   const cars = buildCars(scene, F, lights), snork = buildSnorkelers(scene, F), birds = buildBirds(scene, F);
   const pelicans = buildPelicans(scene, F);
   buildSeaLife(scene, F);
+  buildWild(scene, F);
+  const plants = buildWildPlants(scene);
   return {
     update(dt, t, target, camDist, renderer) {
       for (const s of near) { s.g.on = camDist < s.range; if (s.g.on) s.set(target.x, target.z); }
       cars(dt, target, renderer); snork(dt, t); birds(dt, target); pelicans(dt, t);
+      plants(target, camDist);
       { // which cars' headlamps light the ground: the eight nearest to the view that are under way, once it is getting dark
         const L = U.uCarL.value, dark = U.uNight.value > 0.2, list = dark ? rideable.filter(c => !c.parked || c.drive).map(c => [c, (c.m.position.x - target.x) ** 2 + (c.m.position.z - target.z) ** 2]).sort((a, b) => a[1] - b[1]) : [];
         for (let i = 0; i < 8; i++) { const c = list[i] && list[i][0]; if (!c) { L[i].set(0, 0, 0, 0); continue; } const yaw = c.m.rotation.y, fx = Math.cos(yaw), fz = -Math.sin(yaw); L[i].set(c.m.position.x + fx * 3.4, c.m.position.z + fz * 3.4, fx, fz); } }

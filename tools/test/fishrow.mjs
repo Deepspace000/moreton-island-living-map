@@ -25,7 +25,7 @@ for (let t = 0; t < 4000 && !base; t++) { const x = -T.sx / 2 + 600 + Math.rando
 window.__base = base;
 const a = 0.314159, R0 = 30, rr = R0 * (1 + 0.25 * Math.sin(a * 3)), px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
 const mk = (name, i, o) => {
-  const [shape, nm, size0, A, B, Cc, eye] = o, size = size0 * 7, P = [base[0], base[1] + i * 9];
+  const [shape, nm, size0, A, B, Cc, eye] = o, size = size0 * 7, P = [base[0], base[1] + i * 40];
   const list = [P[0] - px, P[1] - pz, R0, 0, a, 0.00001, size, 0];
   const m = C.swimmers(MAP.scene, { ...W[shape], paint: W.WPAINT[nm], name: 'row_' + nm, amp: 0.0, rate: 1, colA: A, colB: B, colC: Cc, eye, see: 5000, min: 0, rise: [0.6, 0] }, list);
   window.__row.push(m); return P;

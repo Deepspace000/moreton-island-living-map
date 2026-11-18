@@ -54,18 +54,18 @@ function raptorWing(s) {
         const w0 = P(0.5, s0, dy), tg = norm([ax[0] + 2 * cu[0] * s0, ax[1] + 2 * cu[1] * s0, 1]), cw = C0 * (1 - s.taper * Math.pow(s0, s.tp));
         for (let i = 0; i < n; i++) {
           const k = n > 1 ? i / (n - 1) : 0.5, b0 = P(0.06 + k * 0.88, s0, dy), dx = s.fan * (0.45 - k), a = norm([tg[0] + dx, tg[1] + 0.05 * k, tg[2]]);
-          m.leaf([b0[0] - a[0] * 0.05, b0[1], b0[2] - 0.05], a, norm([a[2], 0, -a[0]]), s.fLen * (1 - 0.3 * Math.abs(k - 0.25)), cw / n * 0.95, { part: pg, flex: () => 0, ns: 8, nt: 4, tip: 0.75, curl: [-0.03 - 0.05 * k, 0.04, 0] });
+          m.leaf([b0[0] - a[0] * 0.05, b0[1], b0[2] - 0.05], a, norm([a[2], 0, -a[0]]), s.fLen * (1 - 0.3 * Math.abs(k - 0.25)) * (0.88 + 0.24 * hs(i, 3)), cw / n * 0.95, { part: pg, flex: () => 0, ns: 8, nt: 4, tip: 0.75, curl: [-0.03 - 0.05 * k, 0.04, 0] });
         }
       }
     }
-  }, [s.topCov, s.topFl, tipC(s.topFl, s.topFg), s.botCov, s.botFl, tipC(s.botFl, s.botFg), null], [1, 2, 2, 1, 2, 2, 1]);
+  }, [s.topCov, s.topFl, tipC(s.topFl, s.topFg), s.botCov, s.botFl, tipC(s.botFl, s.botFg), null], [1, 1, 2, 1, 1, 2, 1]);
 }
 // Osprey: white head with a dark mask, dark brown above, white below with a brown breast band, long narrow wings crooked at the wrist
 const OSPREY_S = {
   sc: [0.92, 0.82, 0.78], headR: 0.075, tailLen: 0.4, tailW: 0.12, tailTip: 2.0, top: [0.2, 0.14, 0.1], under: [0.94, 0.93, 0.9],
   head: (u, v) => { const a = Math.abs(((v + 0.5) % 1) - 0.5); return mx([0.95, 0.94, 0.9], [0.1, 0.07, 0.05], sm(0.12, 0.2, a) * (1 - sm(0.3, 0.4, a)) * sm(0.15, 0.4, u) * (1 - sm(0.8, 0.95, u))); },
   bill: [0.07, 0.07, 0.08], tailTop: bars([0.3, 0.24, 0.19], [0.14, 0.1, 0.08], 6), tailUnder: bars([0.78, 0.76, 0.7], [0.48, 0.42, 0.36], 6),
-  a: [-0.02, 0.48, 1], curl: [0.1, -0.86, 0], front: 0.07, covW: 0.1, secW: 0.15, len: 1.06, secLen: 0.96, tipC: 0.5, tipS: 0.48, fingers: 6, fan: 0.34, fLen: 0.34, lead: 0.07, fs: 0.7, taper: 0.5, tp: 1.8,
+  a: [-0.02, 0.48, 1], curl: [-0.03, -0.86, 0], front: 0.07, covW: 0.1, secW: 0.15, len: 1.06, secLen: 0.96, tipC: 0.5, tipS: 0.48, fingers: 6, fan: 0.46, fLen: 0.34, lead: 0.07, fs: 0.7, taper: 0.5, tp: 1.8,
   topCov: spot([0.24, 0.17, 0.12], [0.34, 0.26, 0.2], 7, 7, 0.6), topFl: (u, v) => mx([0.2, 0.14, 0.1], [0.3, 0.23, 0.17], sm(0.4, 0.6, Math.sin(v * 40) * 0.5 + 0.5) * 0.3), topFg: [0.07, 0.05, 0.045],
   botCov: (u, v) => mx(spot([0.94, 0.93, 0.9], [0.8, 0.72, 0.62], 6, 6, 0.5)(u, v), [0.22, 0.15, 0.1], sm(0.3, 0.4, v) * (1 - sm(0.5, 0.6, v)) * sm(0.15, 0.3, u) * (1 - sm(0.75, 0.9, u))), botFl: bars([0.78, 0.76, 0.72], [0.38, 0.33, 0.3], 7), botFg: [0.12, 0.1, 0.1],
 };
@@ -73,11 +73,11 @@ export const OSPREY_FLY = () => raptorBody(OSPREY_S);
 export const OSPREY_WING = () => raptorWing(OSPREY_S);
 // Brahminy kite: a chestnut kite with a white head and breast, black wing tips, short rounded tail, wings broad and rounded
 const BRAH_S = {
-  sc: [0.84, 0.8, 0.8], headR: 0.07, tailLen: 0.3, tailW: 0.11, tailTip: 1.8, top: [0.5, 0.22, 0.1], under: [0.52, 0.23, 0.11],
+  sc: [0.84, 0.8, 0.8], headR: 0.07, tailLen: 0.3, tailW: 0.11, tailTip: 1.8, top: [0.36, 0.17, 0.09], under: [0.4, 0.2, 0.11],
   head: [0.96, 0.95, 0.92], bill: [0.78, 0.74, 0.5], tailTop: (u, v) => mx([0.48, 0.21, 0.09], [0.95, 0.93, 0.88], sm(0.78, 0.95, v)), tailUnder: (u, v) => mx([0.52, 0.24, 0.1], [0.95, 0.93, 0.88], sm(0.78, 0.95, v)),
-  a: [-0.02, 0.24, 1], curl: [0.05, -0.32, 0], front: 0.1, covW: 0.15, secW: 0.19, len: 0.98, secLen: 0.9, tipC: 0.45, tipS: 0.42, fingers: 6, fan: 0.34, fLen: 0.36, lead: 0.07, fs: 0.7, taper: 0.48, tp: 1.8,
-  topCov: spot([0.5, 0.22, 0.1], [0.38, 0.15, 0.07], 8, 6, 0.6), topFl: spot([0.44, 0.19, 0.09], [0.3, 0.12, 0.06], 5, 14, 0.7), topFg: [0.07, 0.06, 0.06],
-  botCov: spot([0.54, 0.25, 0.12], [0.4, 0.16, 0.08], 8, 6, 0.6), botFl: spot([0.46, 0.2, 0.1], [0.3, 0.12, 0.06], 5, 14, 0.7), botFg: [0.08, 0.07, 0.07],
+  a: [-0.02, 0.24, 1], curl: [-0.05, -0.32, 0], front: 0.1, covW: 0.15, secW: 0.19, len: 0.98, secLen: 0.9, tipC: 0.45, tipS: 0.42, fingers: 6, fan: 0.46, fLen: 0.36, lead: 0.07, fs: 0.7, taper: 0.48, tp: 1.8,
+  topCov: spot([0.36, 0.17, 0.09], [0.26, 0.12, 0.07], 8, 6, 0.6), topFl: spot([0.32, 0.15, 0.08], [0.22, 0.1, 0.06], 5, 14, 0.7), topFg: [0.07, 0.06, 0.06],
+  botCov: spot([0.4, 0.2, 0.11], [0.3, 0.14, 0.08], 8, 6, 0.6), botFl: spot([0.34, 0.16, 0.09], [0.24, 0.11, 0.07], 5, 14, 0.7), botFg: [0.08, 0.07, 0.07],
 };
 export const BRAHMINY_FLY = () => { const g = raptorBody({ ...BRAH_S, top: BRAH_S.top, under: BRAH_S.under }); return g; };
 export const BRAHMINY_WING = () => raptorWing(BRAH_S);
@@ -85,7 +85,7 @@ export const BRAHMINY_WING = () => raptorWing(BRAH_S);
 const WHIST_S = {
   sc: [0.9, 0.78, 0.76], headR: 0.07, tailLen: 0.46, tailW: 0.11, tailTip: 2.0, top: [0.55, 0.42, 0.28], under: [0.8, 0.7, 0.54],
   head: (u, v) => mx([0.7, 0.58, 0.42], [0.46, 0.34, 0.22], sm(0.25, 0.5, v) * 0.5), bill: [0.2, 0.18, 0.16], tailTop: bars([0.5, 0.38, 0.26], [0.36, 0.27, 0.19], 7), tailUnder: bars([0.8, 0.7, 0.54], [0.62, 0.52, 0.38], 7),
-  a: [-0.02, 0.3, 1], curl: [0.06, -0.5, 0], front: 0.1, covW: 0.13, secW: 0.17, len: 1.06, secLen: 0.96, tipC: 0.5, tipS: 0.46, fingers: 6, fan: 0.32, fLen: 0.36, lead: 0.07, fs: 0.7, taper: 0.48, tp: 1.8,
+  a: [-0.02, 0.3, 1], curl: [-0.05, -0.5, 0], front: 0.1, covW: 0.13, secW: 0.17, len: 1.06, secLen: 0.96, tipC: 0.5, tipS: 0.46, fingers: 6, fan: 0.44, fLen: 0.36, lead: 0.07, fs: 0.7, taper: 0.48, tp: 1.8,
   topCov: spot([0.6, 0.47, 0.3], [0.44, 0.33, 0.21], 7, 6, 0.6), topFl: (u, v) => mx([0.46, 0.34, 0.22], [0.26, 0.19, 0.13], sm(0.3, 0.9, v)), topFg: [0.12, 0.09, 0.07],
   botCov: spot([0.84, 0.74, 0.57], [0.7, 0.58, 0.42], 7, 6, 0.5), botFl: (u, v) => mx([0.68, 0.58, 0.44], [0.24, 0.17, 0.12], sm(0.35, 0.8, v)), botFg: [0.14, 0.1, 0.08],
 };
@@ -93,9 +93,9 @@ export const WHISTLING_FLY = () => raptorBody(WHIST_S);
 export const WHISTLING_WING = () => raptorWing(WHIST_S);
 // Wedge-tailed eagle: all dark brown with a golden nape, the biggest of them, very broad fingered wings and a long diamond of a tail
 const WEDGE_S = {
-  sc: [1.05, 0.98, 0.95], headR: 0.085, billR: 0.03, tailLen: 0.7, tailW: 0.16, tailTip: 2.0, top: [0.17, 0.12, 0.09], under: [0.19, 0.14, 0.1],
-  head: (u, v) => mx([0.2, 0.14, 0.1], [0.6, 0.42, 0.2], sm(0.3, 0.6, u) * (1 - sm(0.1, 0.4, ((v + 0.5) % 1 > 0.5 ? 1 - ((v + 0.5) % 1) : ((v + 0.5) % 1)) * 2))), bill: [0.62, 0.55, 0.36], tailTop: (u, v) => mx([0.2, 0.14, 0.1], [0.3, 0.22, 0.16], sm(0.5, 1, v)), tailUnder: [0.22, 0.17, 0.13],
-  a: [-0.02, 0.2, 1], curl: [0.05, -0.22, 0], front: 0.1, covW: 0.19, secW: 0.21, len: 1.2, secLen: 0.96, tipC: 0.4, tipS: 0.38, fingers: 7, fan: 0.4, fLen: 0.46, lead: 0.09, fs: 0.66, taper: 0.4, tp: 1.9,
+  sc: [1.05, 0.98, 0.95], headR: 0.085, billR: 0.03, tailLen: 0.72, tailW: 0.14, tailTip: 0.55, top: [0.17, 0.12, 0.09], under: [0.19, 0.14, 0.1],
+  head: (u, v) => mx([0.2, 0.14, 0.1], [0.42, 0.3, 0.15], sm(0.3, 0.6, u) * (1 - sm(0.1, 0.4, ((v + 0.5) % 1 > 0.5 ? 1 - ((v + 0.5) % 1) : ((v + 0.5) % 1)) * 2))), bill: [0.62, 0.55, 0.36], tailTop: (u, v) => mx([0.2, 0.14, 0.1], [0.3, 0.22, 0.16], sm(0.5, 1, v)), tailUnder: [0.22, 0.17, 0.13],
+  a: [-0.02, 0.2, 1], curl: [-0.07, -0.22, 0], front: 0.1, covW: 0.19, secW: 0.21, len: 1.2, secLen: 0.96, tipC: 0.4, tipS: 0.38, fingers: 7, fan: 0.55, fLen: 0.46, lead: 0.09, fs: 0.66, taper: 0.4, tp: 1.9,
   topCov: spot([0.28, 0.2, 0.13], [0.16, 0.11, 0.08], 8, 6, 0.7), topFl: spot([0.16, 0.11, 0.08], [0.24, 0.17, 0.12], 6, 16, 0.6), topFg: [0.09, 0.07, 0.06],
   botCov: spot([0.22, 0.16, 0.11], [0.15, 0.1, 0.07], 8, 6, 0.7), botFl: spot([0.14, 0.1, 0.075], [0.24, 0.18, 0.13], 6, 16, 0.6), botFg: [0.09, 0.07, 0.06],
 };
@@ -150,28 +150,28 @@ const billTo = (a, b, k) => (u, v) => mx(a, b, sm(k - 0.12, k + 0.12, u));
 export const CURLEW = () => standing({
   body: [[0.2, 0.012, 0.016, 0], [0.16, 0.05, 0.045, 0.006], [0.07, 0.078, 0.066, 0.01], [-0.05, 0.082, 0.07, 0.008], [-0.15, 0.06, 0.052, 0], [-0.23, 0.03, 0.03, -0.012], [-0.3, 0.01, 0.014, -0.02]],
   tilt: 0.34, by: 0.3, neck: [0.15, 0.04, 0.026, 0.017, 0.02], head: [0.285, 0.545], hl: 0.075, hr: 0.019, hd: 0.01, eye: 0.0055, bill: { len: 0.165, r0: 0.0115, r1: 0.0035, drop: 0.1, bend: 0.55 },
-  leg: { x: -0.01, knee: 0.012, lean: -0.005, z: 0.03, r: 0.0075, toe: 0.05 }, wing: [0.1, 0.34, 0.075], tail: [0.12, 0.05],
+  leg: { x: -0.01, knee: 0.026, lean: -0.01, z: 0.03, r: 0.0095, toe: 0.055 }, wing: [0.1, 0.34, 0.075], tail: [0.12, 0.05],
   cols: { body: (u, v) => mx(spot([0.62, 0.5, 0.36], [0.28, 0.2, 0.14], 22, 9, 0.9)(u, v), [0.84, 0.76, 0.62], sm(0.55, 0.8, v)), wing: spot([0.5, 0.38, 0.26], [0.22, 0.16, 0.11], 5, 12, 0.9), head: spot([0.72, 0.62, 0.48], [0.3, 0.22, 0.15], 10, 14, 0.8), bill: billTo([0.76, 0.56, 0.48], [0.18, 0.12, 0.09], 0.7), leg: [0.38, 0.42, 0.45], eye: [0.04, 0.03, 0.025], tail: bars([0.52, 0.4, 0.28], [0.3, 0.22, 0.15], 6) },
 });
 // Bar-tailed godwit: neat and long-legged, pale below, mottled grey-brown above, the long bill tipped a little upward, pink at the base
 export const GODWIT = () => standing({
   body: [[0.17, 0.011, 0.015, 0], [0.135, 0.044, 0.04, 0.005], [0.06, 0.068, 0.058, 0.008], [-0.04, 0.072, 0.06, 0.006], [-0.13, 0.052, 0.046, 0], [-0.2, 0.026, 0.026, -0.01], [-0.26, 0.009, 0.012, -0.018]],
   tilt: 0.3, by: 0.27, neck: [0.12, 0.035, 0.022, 0.014, 0.012], head: [0.235, 0.455], hl: 0.062, hr: 0.016, hd: 0.0, eye: 0.0048, bill: { len: 0.108, r0: 0.0095, r1: 0.0032, drop: -0.02, bend: -0.16 },
-  leg: { x: -0.01, knee: 0.01, lean: -0.004, z: 0.026, r: 0.0058, toe: 0.04 }, wing: [0.09, 0.29, 0.06], tail: [0.1, 0.04],
+  leg: { x: -0.01, knee: 0.022, lean: -0.008, z: 0.026, r: 0.0075, toe: 0.045 }, wing: [0.09, 0.29, 0.06], tail: [0.1, 0.04],
   cols: { body: (u, v) => mx(spot([0.52, 0.47, 0.4], [0.26, 0.23, 0.2], 20, 8, 0.8)(u, v), [0.92, 0.88, 0.8], sm(0.5, 0.72, v)), wing: spot([0.46, 0.42, 0.36], [0.22, 0.2, 0.17], 5, 12, 0.9), head: (u, v) => mx([0.7, 0.64, 0.55], [0.4, 0.36, 0.3], sm(0.3, 0.1, Math.abs(((v + 0.5) % 1) - 0.5)) * 0.6), bill: billTo([0.86, 0.56, 0.5], [0.08, 0.07, 0.07], 0.6), leg: [0.14, 0.14, 0.16], eye: [0.03, 0.025, 0.02], tail: (u, v) => (Math.floor(v * 7) % 2 && v < 0.85 ? [0.1, 0.09, 0.09] : [0.92, 0.9, 0.86]) },
 });
 // Pied oystercatcher: stocky, black above and white below with a sharp line between, a bright orange-red chisel of a bill, red eye, pink legs
 export const OYSTERCATCHER = () => standing({
   body: [[0.18, 0.015, 0.02, 0], [0.145, 0.06, 0.056, 0.004], [0.06, 0.09, 0.082, 0.008], [-0.05, 0.095, 0.085, 0.006], [-0.14, 0.07, 0.06, 0], [-0.21, 0.035, 0.03, -0.01], [-0.26, 0.012, 0.014, -0.02]],
   tilt: 0.26, by: 0.22, belly: 0.95, neck: [0.14, 0.05, 0.04, 0.03, 0.01], head: [0.215, 0.35], hl: 0.078, hr: 0.025, hd: 0.0, eye: 0.0072, bill: { len: 0.09, r0: 0.0155, r1: 0.0055, drop: 0.08, bend: 0.04 },
-  leg: { x: -0.01, knee: 0.008, lean: -0.003, z: 0.032, r: 0.0085, toe: 0.04 }, wing: [0.1, 0.27, 0.07], tail: [0.08, 0.05],
+  leg: { x: -0.01, knee: 0.016, lean: -0.006, z: 0.032, r: 0.011, toe: 0.045 }, wing: [0.1, 0.27, 0.07], tail: [0.08, 0.05],
   cols: { body: (u, v) => mx([0.96, 0.96, 0.94], [0.04, 0.04, 0.05], Math.max(1 - sm(0.46, 0.58, v), 1 - sm(0.12, 0.24, u))), wing: (u, v) => mx([0.04, 0.04, 0.05], [0.95, 0.95, 0.93], sm(0.42, 0.5, u) * (1 - sm(0.62, 0.7, u)) * sm(0.15, 0.3, v)), head: [0.04, 0.04, 0.05], bill: [0.96, 0.34, 0.07], leg: [0.86, 0.5, 0.54], eye: [0.9, 0.1, 0.04], tail: (u, v) => mx([0.95, 0.95, 0.92], [0.05, 0.05, 0.06], sm(0.45, 0.7, v)) },
 });
 // Beach stone-curlew: a tall, upright, big-headed bird with a huge yellow eye, a thick bill, a black-and-white face and long yellow legs with knobbly knees
 export const STONECURLEW = () => standing({
   body: [[0.2, 0.015, 0.02, 0], [0.16, 0.06, 0.05, 0.004], [0.07, 0.088, 0.07, 0.01], [-0.05, 0.09, 0.072, 0.006], [-0.16, 0.065, 0.054, 0], [-0.26, 0.03, 0.03, -0.012], [-0.34, 0.01, 0.014, -0.02]],
   tilt: 0.62, by: 0.37, neck: [0.15, 0.04, 0.032, 0.022, 0.0], head: [0.2, 0.62], hl: 0.09, hr: 0.034, hd: 0.012, eye: 0.0145, pupil: 0.0075, bill: { len: 0.068, r0: 0.0175, r1: 0.007, drop: 0.0, bend: -0.28 },
-  leg: { x: -0.02, knee: 0.006, lean: 0.0, z: 0.034, r: 0.0095, toe: 0.05, knob: 0.7 }, wing: [0.1, 0.3, 0.075], tail: [0.12, 0.05],
+  leg: { x: -0.02, knee: 0.014, lean: 0.0, z: 0.034, r: 0.011, toe: 0.055, knob: 0.7 }, wing: [0.1, 0.3, 0.075], tail: [0.12, 0.05],
   cols: { body: (u, v) => mx(spot([0.52, 0.46, 0.36], [0.28, 0.24, 0.18], 20, 8, 0.8)(u, v), [0.9, 0.88, 0.82], sm(0.55, 0.78, v)), wing: (u, v) => mx(spot([0.44, 0.4, 0.32], [0.24, 0.21, 0.17], 5, 12, 0.7)(u, v), [0.92, 0.9, 0.86], sm(0.3, 0.4, u) * (1 - sm(0.5, 0.6, u)) * 0.8), head: (u, v) => { const a = Math.abs(((v + 0.5) % 1) - 0.5); return a < 0.09 ? [0.46, 0.4, 0.32] : a < 0.17 ? [0.95, 0.94, 0.9] : a < 0.3 ? [0.08, 0.07, 0.07] : [0.94, 0.92, 0.88]; }, bill: billTo([0.88, 0.8, 0.22], [0.06, 0.06, 0.06], 0.42), leg: [0.78, 0.82, 0.4], eye: [0.97, 0.88, 0.18], pupil: [0.02, 0.02, 0.02], tail: bars([0.42, 0.37, 0.3], [0.22, 0.19, 0.15], 5) },
 });
 // Great cormorant standing on the sand: bolt upright, the long hooked bill pointing down, black with a bronze scalloped back, a yellow
