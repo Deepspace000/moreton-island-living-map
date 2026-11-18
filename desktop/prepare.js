@@ -8,6 +8,12 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 for (const f of ['index.html', 'style.css', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png']) fs.copyFileSync(path.join(root, f), path.join(out, f));
 for (const d of ['src', 'lib', 'assets', 'tiles']) fs.cpSync(path.join(root, d), path.join(out, d), { recursive: true });
+// Text files with the line ends git stores (LF), as the website serves them: a Windows checkout gives them CRLF, and then the
+// hashes below would not match the files on the web, so a program built on Windows would fetch them all again, and an
+// update.json written on Windows and published would make every download fail its check.
+const TEXT = /\.(html|css|js|mjs|json|webmanifest|txt|md|svg)$|LICENSE$/i;
+const lf = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) lf(p); else if (TEXT.test(e.name)) { const s = fs.readFileSync(p, 'utf8'); if (s.includes('\r\n')) fs.writeFileSync(p, s.replace(/\r\n/g, '\n')); } } };
+lf(out);
 let n = 0, bytes = 0;
 const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else { n++; bytes += fs.statSync(p).size; } } };
 walk(out);

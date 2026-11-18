@@ -12,9 +12,9 @@ const SMOKE = !!process.env.MORETON_SMOKETEST;          // test run: open the ma
 const BUNDLED = process.env.MORETON_MAP_DIR ? path.resolve(process.env.MORETON_MAP_DIR) : app.isPackaged ? path.join(process.resourcesPath, 'map') : path.resolve(__dirname, '..');
 if (process.env.MORETON_USERDATA) app.setPath('userData', path.resolve(process.env.MORETON_USERDATA));
 
-// Updates. A built program holds the map as it was built; at each start it also looks at the map's own website for a newer
-// release (update.json: the release number and a hash for every file), downloads only the files that differ into
-// <data folder>/updates/<release>, and offers to load it. The newest release found, bundled or downloaded, is the one shown.
+// Updates. A built program holds the map as it was built; at each start, before the map loads, it looks at the map's own website
+// for a newer release (update.json: the release number and a hash for every file), downloads only the files that differ into
+// <data folder>/updates/<release>, and starts on it (see startUp). The newest release found, bundled or downloaded, is the one shown.
 const UPDATE_URL = (process.env.MORETON_UPDATE_URL || 'https://deepspace000.github.io/moreton-island-living-map/').replace(/\/?$/, '/');
 const UPDATES = path.join(app.getPath('userData'), 'updates');
 const readManifest = (dir) => { try { const m = JSON.parse(fs.readFileSync(path.join(dir, 'update.json'), 'utf8')); return m && m.release && m.files ? m : null; } catch (e) { return null; } };
@@ -46,6 +46,41 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let win = null;
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
+// The start. Before the map loads, the window shows a small page of its own that looks for a newer release, downloads it with a
+// progress bar, and only then starts the map, on the new release. With no connection, or if the site is slow to answer, the
+// map starts at once with what the program holds. "Start now" skips the wait: the download carries on behind the map and the
+// new release is offered when it is in.
+const SPLASH = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html><meta charset="utf-8"><title>Moreton Island</title>
+<style>html,body{margin:0;height:100%;background:radial-gradient(ellipse at center,#0d3a50 0%,#06202e 70%);color:#e8f3f6;font:15px/1.4 "Segoe UI",system-ui,sans-serif;user-select:none;cursor:default}
+.b{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,80vw);text-align:center}
+.t{font-size:34px;font-weight:300;letter-spacing:.04em}.s{margin:4px 0 26px;font-size:11px;letter-spacing:.3em;color:#9fc3cf}
+.bar{height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}.bar i{display:block;height:100%;width:0;background:#5fd4e6;transition:width .2s}
+#m{margin-top:14px;font-size:13px;color:#cfe3ea;min-height:1.4em}
+button{margin-top:18px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:rgba(255,255,255,.08);color:#e8f3f6;font:inherit;font-size:12px;cursor:pointer}
+button:hover{background:rgba(255,255,255,.16)}</style>
+<div class="b"><div class="t">Moreton Island</div><div class="s">MULGUMPIN · QUEENSLAND</div><div class="bar"><i id="p"></i></div><div id="m">Checking for updates…</div><button id="go" hidden>Start now</button></div>
+<script>window.set=(m,p,go)=>{document.getElementById('m').textContent=m;if(p!=null)document.getElementById('p').style.width=(p*100).toFixed(1)+'%';document.getElementById('go').hidden=!go;};
+document.getElementById('go').onclick=()=>{document.title='skip';};</script>`);
+let onSplash = false, started = false;
+const splash = (msg, p = null, go = false) => { if (onSplash && win && !win.isDestroyed()) win.webContents.executeJavaScript(`window.set && window.set(${JSON.stringify(msg)}, ${p == null ? 'null' : Number(p)}, ${!!go})`).catch(() => {}); };
+const updatesOn = () => !process.env.MORETON_MAP_DIR && (app.isPackaged || !!process.env.MORETON_UPDATE_URL) && !(SMOKE && !process.env.MORETON_UPDATE_URL);
+function startMap() {
+  if (started || !win) return; started = true; onSplash = false;
+  win.loadURL(HOME + 'index.html');
+  if (SMOKE) smoke(win);
+  if (process.env.MORETON_UPDATE_AUTO) win.webContents.once('did-finish-load', async () => { await new Promise(r => setTimeout(r, 3000)); console.log('AFTER-START ver', await win.webContents.executeJavaScript(`(document.getElementById('ver')||{}).textContent`).catch(() => '?')); app.quit(); });          // (self-test: report the release it started on, and quit)
+}
+async function startUp() {
+  if (!updatesOn()) return startMap();
+  onSplash = true;
+  win.loadURL(SPLASH);
+  await new Promise(r => win.webContents.once('did-finish-load', r));
+  await checkForUpdate({ startup: true });
+  if (started) return;          // "Start now" was pressed
+  if (ready) { MAP_DIR = ready; ready = null; splash('Starting the new release…', 1); await new Promise(r => setTimeout(r, 400)); }
+  startMap();
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 720, minHeight: 480,
@@ -64,8 +99,8 @@ function createWindow() {
     if (input.key === 'F5') win.webContents.reload();
   });
   win.on('closed', () => { win = null; });
-  win.loadURL(HOME + 'index.html');
-  if (SMOKE) smoke(win);
+  win.on('page-title-updated', (e, title) => { if (onSplash) { e.preventDefault(); if (title === 'skip') startMap(); } });          // (the start page keeps the window's own title; "Start now" says so through it)
+  startUp();
 }
 
 // (MORETON_SMOKETEST=1) what the map itself says once it is up: its release, the level of detail, the graphics chip, and any errors
@@ -94,41 +129,49 @@ function smoke(w) {
 }
 
 let ready = null, busy = false;          // ready: the folder of a downloaded release that is waiting to be loaded
-async function getBuf(url) { const r = await net.fetch(url, { signal: AbortSignal.timeout(60000), headers: { 'cache-control': 'no-cache' } }); if (!r.ok) throw new Error(url + ' ' + r.status); return Buffer.from(await r.arrayBuffer()); }
-async function checkForUpdate() {
-  if (busy || ready || process.env.MORETON_MAP_DIR || (!app.isPackaged && !process.env.MORETON_UPDATE_URL)) return;
+async function getBuf(url, ms = 60000) { const r = await net.fetch(url, { signal: AbortSignal.timeout(ms), headers: { 'cache-control': 'no-cache' } }); if (!r.ok) throw new Error(url + ' ' + r.status); return Buffer.from(await r.arrayBuffer()); }
+// Looks for a newer release and downloads it. At the start (startup) the start page shows how far it has got, and the release is
+// loaded by startUp; once the map is running, it is offered with "Load it now / Later" instead.
+async function checkForUpdate({ startup = false } = {}) {
+  if (busy || ready || !updatesOn()) return;
   busy = true;
   try {
     const have = readManifest(MAP_DIR);
     if (!have) return;
-    const want = JSON.parse((await getBuf(UPDATE_URL + 'update.json?t=' + Date.now())).toString('utf8'));
-    if (!want || !(want.release > have.release) || !want.files) return;
+    const want = JSON.parse((await getBuf(UPDATE_URL + 'update.json?t=' + Date.now(), startup ? 6000 : 30000)).toString('utf8'));          // (at the start, a slow answer is not waited for)
+    if (!want || !(want.release > have.release) || !want.files) { splash('Up to date', 1); return; }
     const dir = path.join(UPDATES, String(want.release));
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, '.partial'), '');          // until every file is in, a start must not use this folder
-    let fetched = 0;
+    // the files that are the same as the ones held are copied across; only the others are downloaded
+    const todo = [];
     for (const [rel, [size, h]] of Object.entries(want.files)) {
       const dest = path.resolve(dir, rel);
       if (!dest.startsWith(dir + path.sep)) throw new Error('bad path ' + rel);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       const old = have.files[rel];
       if (old && old[1] === h && old[0] === size) { try { fs.copyFileSync(path.join(MAP_DIR, rel), dest); if (hashOf(fs.readFileSync(dest)) === h) continue; } catch (e) { /* fall through and download it */ } }
-      const buf = await getBuf(UPDATE_URL + rel.split('/').map(encodeURIComponent).join('/'));
-      if (buf.length !== size || hashOf(buf) !== h) throw new Error('wrong file ' + rel);
-      fs.writeFileSync(dest, buf); fetched++;
+      todo.push([rel, size, h, dest]);
     }
+    const total = todo.reduce((s, t) => s + t[1], 0) || 1, MB = (b) => (b / 1048576).toFixed(1);
+    let got = 0;
+    const show = () => splash(`Downloading release ${want.release}: ${MB(got)} of ${MB(total)} MB`, got / total, true);
+    show();
+    const worker = async () => { while (todo.length) {          // four at a time
+      const [rel, size, h, dest] = todo.shift(), buf = await getBuf(UPDATE_URL + rel.split('/').map(encodeURIComponent).join('/'));
+      if (buf.length !== size || hashOf(buf) !== h) throw new Error('wrong file ' + rel);
+      fs.writeFileSync(dest, buf); got += size; show(); } };
+    const n = todo.length;
+    await Promise.all([worker(), worker(), worker(), worker()]);
     fs.writeFileSync(path.join(dir, 'update.json'), JSON.stringify(want));
     fs.rmSync(path.join(dir, '.partial'));
     ready = dir;
-    console.log(`UPDATE release ${want.release} downloaded (${fetched} new files)`);
-    if (process.env.MORETON_UPDATE_AUTO) {          // self-test: load it at once, report the release shown, quit
-      MAP_DIR = ready; ready = null; win.webContents.once('did-finish-load', async () => { await new Promise(r => setTimeout(r, 3000)); console.log('AFTER-RELOAD ver', await win.webContents.executeJavaScript(`(document.getElementById('ver')||{}).textContent`)); app.quit(); }); win.webContents.reloadIgnoringCache(); return;
-    }
-    if (SMOKE) return;
+    console.log(`UPDATE release ${want.release} downloaded (${n} new files, ${MB(total)} MB)`);
+    if ((startup && !started) || SMOKE) return;          // (at the start, startUp loads it)
     const r = await dialog.showMessageBox(win, { type: 'info', buttons: ['Load it now', 'Later'], defaultId: 0, cancelId: 1, title: 'Moreton Island', message: `A newer map is ready (release ${want.release}).`, detail: 'Load it now, or it opens the next time you start the program. Your settings are kept.' });
     if (r.response === 0 && win) { MAP_DIR = ready; ready = null; win.webContents.reloadIgnoringCache(); }
-  } catch (e) { console.log('UPDATE skipped:', e.message); }          // offline, or the site is mid-publish: try again later
+  } catch (e) { console.log('UPDATE skipped:', e.message); }          // offline, or the site is mid-publish: the map starts as it is, and it tries again later
   finally { busy = false; }
 }
 
@@ -143,8 +186,8 @@ app.whenReady().then(() => {
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
   });
-  createWindow();
-  setTimeout(checkForUpdate, Number(process.env.MORETON_UPDATE_DELAY) || 15000); setInterval(checkForUpdate, 4 * 3600 * 1000);
+  createWindow();          // (which looks for an update before the map starts)
+  setInterval(checkForUpdate, 4 * 3600 * 1000);          // and again every four hours while it runs
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
