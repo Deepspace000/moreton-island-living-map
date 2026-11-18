@@ -16,6 +16,7 @@ const NIGHT_ONLY = new Set(['stonecurlew', 'flyingfox', 'microbat', 'bandicoot',
 const DAY_ONLY = new Set([...GUIDE.filter(a => a.group === 'birds' && a.id !== 'stonecurlew').map(a => a.id), ...GUIDE.filter(a => a.group === 'insects').map(a => a.id)]);
 const HIGH = { dolphin: 250, dugong: 250, humpback: 800, whaler: 160, tigershark: 220, greenturtle: 160, maskray: 90, shovelnose: 90 };          // how high above the water the eye may be and still count (default 70 m)
 const FLY = { pelican: ['pelican', 500], eagle: ['seaeagle', 700], osprey: ['osprey', 450], brahminy: ['brahminy', 450], whistling: ['whistling', 450], wedgetail: ['wedgetail', 700], peregrine: ['peregrine', 400], flyingfox: ['flyingfox', 260], microbat: ['microbat', 120] };
+const CLOSE = new Set([...GUIDE.filter(a => a.group === 'fish' && a.id !== 'whaler' && a.id !== 'tigershark').map(a => a.id), 'sandcrab', 'bluecrab', 'rockcrab', 'octopus', 'jellyfish']);          // spotted only from about 5 m, as a small notice
 const band = (d) => d < 40 ? 0 : d < 250 ? 1 : 2;
 const BAND = ['Close by', 'Nearby', 'In the distance'];
 
@@ -40,7 +41,20 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
     while (box.children.length > 4) box.firstChild.remove();
   }
   const first = (t) => { const m = t.match(/^.*?[.!?](\s|$)/); return m ? m[0].trim() : t; };
-  function announce(list) {          // list: [id, distance] of animals just spotted for the first time
+  // a small notice at one of several places round the middle of the screen (the panels keep to the sides), one after the other
+  let slot = 0, notes = null; const SLOTS = [[30, 30], [70, 34], [28, 58], [72, 62], [50, 20], [50, 70]];
+  function note(id) {
+    const a = BY[id], c = counts(); notes = notes || Object.assign(document.createElement('div'), { id: 'spotnotes' }); if (!notes.isConnected) document.body.appendChild(notes);
+    const [x, y] = SLOTS[slot++ % SLOTS.length], el = document.createElement('div'); el.className = 'spot-note'; el.style.left = x + '%'; el.style.top = y + '%'; el.dataset.id = id;
+    el.innerHTML = `<img alt="" src="${img(id)}"><div><small>New animal spotted</small><b>${esc(a.name)}</b><p>${esc(first(a.text))}</p><span>${c.total} of ${c.max} spotted</span></div>`;
+    const kill = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
+    el.addEventListener('click', () => { openGuide(id); kill(); }); for (const ev of ['pointerdown', 'pointerup']) el.addEventListener(ev, (e) => e.stopPropagation());
+    notes.appendChild(el); requestAnimationFrame(() => el.classList.add('in')); setTimeout(kill, 7000); while (notes.children.length > 5) notes.firstChild.remove();
+  }
+  function announce(all) {          // all: [id, distance] of animals just spotted for the first time
+    const near = all.filter(([id]) => CLOSE.has(id)), list = all.filter(([id]) => !CLOSE.has(id));
+    if (near.length <= 3) near.forEach(([id]) => note(id)); else list.push(...near);
+    if (!list.length) return;
     const c = counts();
     if (list.length === 1) {
       const a = BY[list[0][0]];
@@ -73,19 +87,24 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
     const r = it.ref; if (r.q) return out.copy(r.q.m.position);
     return entryPos(r.src, r.i, U.uTime.value, U.uSeaM.value * VEX, VEX, (x, z) => Math.max(meshY(x, z), U.uSeaM.value * VEX), out);
   };
-  function clearFocus() { if (!focus) return; for (const it of focus.items) it.el.remove(); focus = null; }
+  // Every frame has its own clock: it stays at least 2 seconds, then any key or tap takes it away. A fish's frame also goes by itself after 6 s,
+  // and the view is never turned for a fish: the swimmer keeps going. Other animals turn the view to the nearest of them (not while riding).
+  function clearFocus(onlyOld) { if (!focus) return; focus.items = focus.items.filter(it => { if (onlyOld && now - it.t0 < 2) return true; it.el.remove(); return false; }); if (!focus.items.length) focus = null; }
   function startFocus(items) {
-    clearFocus();
-    items.sort((a, b) => a.d - b.d); items = items.slice(0, 6);
-    for (const it of items) {
+    items.sort((a, b) => a.d - b.d);
+    focus = focus || { items: [], turnTo: null, tTurn: 0 };
+    for (const it of items.slice(0, 6)) {
       const el = document.createElement('div'); el.className = 'spot-frame'; el.innerHTML = '<i></i><span>' + esc(BY[it.id].name) + '</span>'; frames().appendChild(el); it.el = el;
-      it.size = SIZE[it.id] || (it.ref.q ? 1.5 : 0.7);
+      it.size = SIZE[it.id] || (it.ref.q ? 1.5 : 0.7); it.t0 = now; it.close = CLOSE.has(it.id); focus.items.push(it);
     }
-    focus = { items, t0: now, turn: !state().riding };
+    while (focus.items.length > 6) focus.items.shift().el.remove();
+    const far = items.find(it => !CLOSE.has(it.id)); if (far && !state().riding) { focus.turnTo = far; focus.tTurn = now; }
   }
   let layer = null; const frames = () => layer || (layer = Object.assign(document.createElement('div'), { id: 'spotframes' }), document.body.appendChild(layer), layer);
   function updateFocus(dt) {
     if (!focus) return;
+    for (const it of focus.items.slice()) if (it.close && now - it.t0 > 6) { it.el.remove(); focus.items.splice(focus.items.indexOf(it), 1); }
+    if (!focus.items.length) { focus = null; return; }
     const W = innerWidth, H = innerHeight, k = H / 2 / Math.tan(camera.fov * Math.PI / 360);
     for (const it of focus.items) {
       worldPos(it, vp); const d = vp.distanceTo(camera.position); it.p = it.p || new THREE.Vector3(); it.p.copy(vp);
@@ -94,19 +113,17 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
       const el = it.el; el.style.display = on ? '' : 'none'; if (!on) continue;
       el.style.width = el.style.height = half * 2 + 'px'; el.style.left = ((vp.x + 1) / 2 * W - half) + 'px'; el.style.top = ((1 - vp.y) / 2 * H - half) + 'px';
     }
-    // turn toward the nearest: on foot the way it looks, from the map the point it looks at (not while riding, which has the controls)
-    if (focus.turn && now - focus.t0 < 2.5) {
-      const it = focus.items[0], p = it.p, f = 1 - Math.exp(-dt * 4);
-      if (p) {
-        if (walk.active) {
-          const dx = p.x - camera.position.x, dy = p.y - camera.position.y, dz = p.z - camera.position.z, yaw = Math.atan2(dx, -dz), pit = Math.atan2(dy, Math.hypot(dx, dz));
-          let dyaw = yaw - walk.yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw)); walk.yaw += dyaw * f; walk.pitch += (Math.max(-1.2, Math.min(1.2, pit)) - walk.pitch) * f;
-        } else if (!state().riding && controls) controls.target.lerp(p, f);
-      }
+    // turn toward the nearest of the others: on foot the way it looks, from the map the point it looks at
+    const t = focus.turnTo;
+    if (t && now - focus.tTurn < 2.5 && t.p && !state().riding) {
+      const p = t.p, f = 1 - Math.exp(-dt * 4);
+      if (walk.active) {
+        const dx = p.x - camera.position.x, dy = p.y - camera.position.y, dz = p.z - camera.position.z, yaw = Math.atan2(dx, -dz), pit = Math.atan2(dy, Math.hypot(dx, dz));
+        let dyaw = yaw - walk.yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw)); walk.yaw += dyaw * f; walk.pitch += (Math.max(-1.2, Math.min(1.2, pit)) - walk.pitch) * f;
+      } else if (controls) controls.target.lerp(p, f);
     }
   }
-  // after the first two seconds any key (or a tap) takes the frame away
-  const away = () => { if (focus && now - focus.t0 >= 2) clearFocus(); };
+  const away = () => clearFocus(true);
   addEventListener('keydown', away, true); addEventListener('pointerdown', away, true);
 
   // ---- the looking
@@ -124,12 +141,12 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
       const id = s.id; if (seen.has(id)) continue;
       if (NIGHT_ONLY.has(id) ? !dark : (DAY_ONLY.has(id) && dark)) continue;
       if (alt > (HIGH[id] || 70)) continue;
-      const lim = s.see > 150 ? s.see : Math.max(14, s.see * squeeze); let best = 1e9, bi = -1;
+      const close = CLOSE.has(id), lim = close ? 5 : s.see > 150 ? s.see : Math.max(14, s.see * squeeze); let best = 1e9, bi = -1;
       for (let i = 0; i < s.n; i++) {
         const dx = s.xz[i * 2] - cx, dz = s.xz[i * 2 + 1] - cz, d2 = dx * dx + dz * dz, L = lim + s.rad[i];
         if (d2 > L * L) continue;
         const d = Math.sqrt(d2);
-        if (d > 14 && fh > 0.3 && (dx * fx + dz * fz) / (d * fh) < 0.45) continue;          // in front of the eye (within about 63 degrees)
+        if (d > (close ? 2.5 : 14) && fh > 0.3 && (dx * fx + dz * fz) / (d * fh) < (close ? 0.1 : 0.45)) continue;          // in front of the eye (within about 63 degrees)
         if (d < best) { best = d; bi = i; }
       }
       if (best < 1e8) see(id, best, { src: s, i: bi });

@@ -444,3 +444,15 @@ body.guide-open #spots { z-index: 35; }
 .spot-frame span { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 8px; background: rgba(8, 28, 40, .88); border: 1px solid rgba(127, 227, 212, .5); color: #fff; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 @keyframes spotpulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .spot-frame { animation: none; } }
+
+/* small notices for the fish: they come up at different places on the screen as one swims close */
+#spotnotes { position: fixed; inset: 0; z-index: 24; pointer-events: none; }
+.spot-note { position: absolute; width: 250px; transform: translate(-50%, -50%) scale(.94); display: flex; gap: 9px; padding: 8px; pointer-events: auto; cursor: pointer; background: rgba(8, 28, 40, .88); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 26px rgba(0, 0, 0, .4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .35s, transform .35s; }
+.spot-note.in { opacity: 1; transform: translate(-50%, -50%); }
+.spot-note.out { opacity: 0; transform: translate(-50%, -50%) scale(.96); }
+.spot-note img { width: 64px; height: 48px; object-fit: cover; border-radius: 7px; flex: none; }
+.spot-note small { display: block; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.spot-note b { display: block; font-size: 13.5px; font-weight: 600; }
+.spot-note p { margin: 2px 0 0; font-size: 11.5px; line-height: 1.35; color: #d5e6ec; }
+.spot-note span { display: block; margin-top: 3px; font-size: 10.5px; color: var(--dim); }
+@media (max-width: 560px) { .spot-note { width: 210px; } }
