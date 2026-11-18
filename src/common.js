@@ -190,8 +190,8 @@ vec3 featherPaint(vec3 alb, vec3 fx){
     alb *= (0.92 + 0.12 * hash12(floor(c))) * (0.95 + 0.08 * fine);
   } else if(kind < 2.5 || kind > 4.5){ // flight feathers: long vanes, a shaft down the middle of each, fine barbs slanting off it
     float nF = kind > 4.5 ? 1.0 : 12.0, along = kind > 4.5 ? q.y : q.x, fi = (kind > 4.5 ? q.x : q.y) * nF, ff = fract(fi) - 0.5, k = 1.0 - smoothstep(0.25, 0.9, fwidth(fi) * (kind > 4.5 ? 0.2 : 1.0));
-    if(kind < 4.5) alb *= 1.0 - k * mix(0.45, 0.3, pale) * smoothstep(0.34, 0.5, abs(ff));                              // the dark slot between one feather and the next
-    alb = mix(alb, mix(alb + 0.2, alb * 0.7, pale), k * (1.0 - smoothstep(0.02, 0.07, abs(ff))) * 0.8);      // the shaft
+    if(kind < 4.5) alb *= 1.0 - k * mix(0.2, 0.14, pale) * smoothstep(0.34, 0.5, abs(ff));                              // the dark slot between one feather and the next
+    alb = mix(alb, mix(alb * 1.15 + 0.02, alb * 0.75, pale), k * (1.0 - smoothstep(0.02, 0.07, abs(ff))) * 0.45);      // the shaft
     alb *= 1.0 - k * 0.14 * sin((along * 46.0 + abs(ff) * 26.0) * 3.0);                                  // barbs
     alb *= (0.92 + 0.12 * hash12(vec2(floor(fi), 3.0))) * (0.95 + 0.08 * fine);
   } else if(kind < 3.5) alb *= 0.88 + 0.16 * texture2D(uNoise, vec2(q.x * 3.0, q.y * 14.0)).g;           // bare skin and bill: smooth, streaked along its length

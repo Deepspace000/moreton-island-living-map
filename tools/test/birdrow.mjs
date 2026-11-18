@@ -21,7 +21,7 @@ FLY.forEach(([n, k, sc, sh], i) => {
   names.push(n);
 });
 GROUND.forEach(([n, f, sc], i) => {
-  const g = new THREE.Group(), m = new THREE.Mesh(f(), mat); g.add(m); g.scale.setScalar(sc); g.position.set(base[0] + 300, sea + 1, base[1] + i * 60); m.frustumCulled = false; MAP.scene.add(g); window.__bt.push(g); names.push(n);
+  const g = new THREE.Group(), m = new THREE.Mesh(f(), mat); g.add(m); g.scale.setScalar(sc * 0.16); g.position.set(base[0] + 300, sea * 1.7 + 0.05, base[1] + i * 60); m.frustumCulled = false; MAP.scene.add(g); window.__bt.push(g); names.push(n);
 });
 window.__bnames = names;
 window.__birdShots = async (only) => {
@@ -29,9 +29,9 @@ window.__birdShots = async (only) => {
   for (let i = 0; i < FLY.length; i++) { const n = FLY[i][0]; if (only && !only.includes(n)) continue; const sc = FLY[i][2] * 4, D = sc * 2.2;
     for (const [tag, dz, cx, cy, cz] of [["under", 80, 0.55, 20, -0.8], ['over', 0, 0.55, 20, -0.8], ['plan', 0, 0.02, 30, -0.02]]) { const z = base[1] + i * 600 + dz; out.push(await MAP.shot(`bird_${n}_${tag}.jpg`, { cam: [base[0] + D * cx, sea + cy, z + D * cz, base[0], sea + 3, z], min: 690, wx: 'clear' })); }
   }
-  for (let i = 0; i < GROUND.length; i++) { const n = GROUND[i][0]; if (only && !only.includes(n)) continue; const z = base[1] + i * 60, sc = GROUND[i][2];
-    out.push(await MAP.shot(`bird_${n}_side.jpg`, { cam: [base[0] + 300 + 0.5 * sc * 2.2, sea + 13.5, z + 0.3 * sc * 2.2, base[0] + 300, sea + 1 + 0.35 * sc, z], min: 690, wx: 'clear' }));
-    out.push(await MAP.shot(`bird_${n}_front.jpg`, { cam: [base[0] + 300 + 0.35 * sc * 2.2, sea + 13.5, z + 0.95 * sc * 2.2, base[0] + 300, sea + 1 + 0.35 * sc, z], min: 690, wx: 'clear' })); }
+  for (let i = 0; i < GROUND.length; i++) { const n = GROUND[i][0]; if (only && !only.includes(n)) continue; const z = base[1] + i * 60, D = 2.2;
+    out.push(await MAP.shot(`bird_${n}_side.jpg`, { walk: [base[0] + 300 + 0.1, z + D, 0.0, 0.02], min: 690, wx: 'clear' }));
+    out.push(await MAP.shot(`bird_${n}_front.jpg`, { walk: [base[0] + 300 + D, z + 0.1, -Math.PI / 2, 0.02], min: 690, wx: 'clear' })); }
   return out.length;
 };
 names.join(',');

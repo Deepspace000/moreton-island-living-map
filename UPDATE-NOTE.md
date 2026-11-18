@@ -1,4 +1,4 @@
-# Moreton Island Simulator: update note (release 143)
+# Moreton Island Simulator: update note (release 154)
 
 A living 3D map of Moreton Island (Mulgumpin), Queensland, that you can fly over, walk across, drive, sail and dive in. It runs in the browser and, now, as a Windows program of its own. This note says how it was built, stage by stage, and what has just changed.
 

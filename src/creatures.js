@@ -46,9 +46,9 @@ export class Shape {
     }, 1, () => 1);
   }
   // a leaf-shaped fin or flipper from a point: along a (bending by curl), spread across c
-  leaf(base, a, c, len, wid, { curl = [0, 0, 0], part = 1, flex, nt = 6, ns = 8, tip = 0.7 } = {}) {
+  leaf(base, a, c, len, wid, { curl = [0, 0, 0], part = 1, flex, nt = 6, ns = 8, tip = 0.7, blunt = false } = {}) {
     this.surf(nt, ns, (t, s) => {
-      const w = wid * Math.pow(Math.sin(PI * Math.pow(s * 0.97 + 0.015, tip)), 0.8) * (t * 2 - 1);
+      const w = (blunt ? wid * Math.sqrt(Math.min(1, s / 0.1)) * Math.pow(Math.max(0, 1 - Math.pow(s, 3)), 0.55) : wid * Math.pow(Math.sin(PI * Math.pow(s * 0.97 + 0.015, tip)), 0.8)) * (t * 2 - 1);
       return [0, 1, 2].map(i => base[i] + a[i] * len * s + curl[i] * len * s * s + c[i] * w);
     }, part, flex);
   }

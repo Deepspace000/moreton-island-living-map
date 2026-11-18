@@ -25,9 +25,9 @@ for (let t = 0; t < 4000 && !base; t++) { const x = -T.sx / 2 + 600 + Math.rando
 window.__base = base;
 const a = 0.314159, R0 = 30, rr = R0 * (1 + 0.25 * Math.sin(a * 3)), px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
 const mk = (name, i, o) => {
-  const [shape, nm, size0, A, B, Cc, eye] = o, size = size0 * 7, P = [base[0], base[1] + i * 40];
+  const [shape, nm, size0, A, B, Cc, eye] = o, size = size0 * 1.8, P = [base[0], base[1] + i * 40];
   const list = [P[0] - px, P[1] - pz, R0, 0, a, 0.00001, size, 0];
-  const m = C.swimmers(MAP.scene, { ...W[shape], paint: W.WPAINT[nm], name: 'row_' + nm, amp: 0.0, rate: 1, colA: A, colB: B, colC: Cc, eye, see: 5000, min: 0, rise: [0.6, 0] }, list);
+  const m = C.swimmers(MAP.scene, { ...W[shape], paint: W.WPAINT[nm], name: 'row_' + nm, amp: 0.0, rate: 1, colA: A, colB: B, colC: Cc, eye, see: 5000, min: 0, rise: [0.5, 0] }, list);
   window.__row.push(m); return P;
 };
 specs.forEach((s, i) => mk(s[1], i, s));
@@ -38,3 +38,8 @@ MAP.controls.target.set(mid[0], MAP.U.uSeaM.value + 0.6, mid[1]);
 MAP.camera.position.set(mid[0] + 20, MAP.U.uSeaM.value + 3, mid[1]);
 for (let i = 0; i < 6; i++) { MAP.frame(); await new Promise(r => setTimeout(r, 80)); }
 window.__res = ({ base, sea: MAP.U.uSeaM.value, cam: MAP.camera.position.toArray(), n: window.__row.length });
+
+window.__fishShots = async (only) => { const b = window.__base, out = [];
+  for (let i = 0; i < specs.length; i++) { const nm = specs[i][1]; if (only && !only.includes(nm)) continue; const fz = b[1] + i * 40, fx = b[0] + 0.5, S = specs[i][2] * 1.8, D = 1.3 + 1.7 * S;
+    out.push(await MAP.shot('fish_' + nm + '.jpg', { walk: [fx + D, fz + 0.3, -Math.PI / 2 + 0.12, -0.05], min: 690, wx: 'clear' })); }
+  return out.length; };
