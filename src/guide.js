@@ -150,20 +150,25 @@ export function makeGuide() {
   const src = (id, k) => 'assets/guide/' + id + (k > 1 ? '_' + k : '') + '.jpg';
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const isAnimal = (a) => a.group !== 'trees' && a.group !== 'plants';
+  // An animal you have not spotted yet keeps its secrets: its picture is blurred, its name and Latin name, what it is and where to look are
+  // hidden (only its group shows), and a search does not find it by them. Trees and plants are not spotted, so they are always shown.
+  const hidden = (a) => isAnimal(a) && !seen.has(a.id);
+  const groupName = (a) => (GROUPS.find(g => g[0] === a.group) || [0, a.group])[1];
   chips.innerHTML = [...GROUPS, ['new', 'Not seen yet']].map(([k, t]) => `<button data-g="${k}" class="${k === 'all' ? 'on' : ''}">${t}</button>`).join('') + '<button data-g="ach" class="gd-achbtn">Achievements</button>';
   function head() { const c = counts(); prog.innerHTML = `Spotted <b>${c.total}</b> of ${c.max} animals<i style="width:${Math.round(100 * c.total / c.max)}%"></i>`; }
   function draw() {
     const q = search.value.trim().toLowerCase();
-    shown = GUIDE.filter(a => (group === 'all' || a.group === group || (group === 'new' && isAnimal(a) && !seen.has(a.id))) && (!q || (a.name + ' ' + a.latin + ' ' + a.where).toLowerCase().includes(q)));
-    grid.innerHTML = shown.map(a => { const st = isAnimal(a) ? (seen.has(a.id) ? ' seen' : ' unseen') : ''; return `<button class="gd-card${st}" data-id="${a.id}">${a.n ? `<img loading="lazy" alt="" src="${src(a.id, 1)}">` : '<span class="gd-none">no picture</span>'}<b>${esc(a.name)}</b><i>${esc(a.latin || ' ')}</i>${st ? `<em>${st === ' seen' ? 'Spotted' : 'Not seen yet'}</em>` : ''}</button>`; }).join('') || '<p class="gd-empty">Nothing matches that.</p>';
+    shown = GUIDE.filter(a => (group === 'all' || a.group === group || (group === 'new' && isAnimal(a) && !seen.has(a.id))) && (!q || (hidden(a) ? '' : a.name + ' ' + a.latin + ' ' + a.where).toLowerCase().includes(q)));
+    grid.innerHTML = shown.map(a => { const st = isAnimal(a) ? (seen.has(a.id) ? ' seen' : ' unseen') : ''; return `<button class="gd-card${st}" data-id="${a.id}">${a.n ? `<img loading="lazy" alt="" src="${src(a.id, 1)}">` : '<span class="gd-none">no picture</span>'}<b>${hidden(a) ? '???' : esc(a.name)}</b><i>${hidden(a) ? esc(groupName(a)) : esc(a.latin || ' ')}</i>${st ? `<em>${st === ' seen' ? 'Spotted' : 'Not seen yet'}</em>` : ''}</button>`; }).join('') || '<p class="gd-empty">Nothing matches that.</p>';
     count.textContent = shown.length + (shown.length === 1 ? ' entry' : ' entries'); head();
   }
   function show(id) {
     const a = GUIDE.find(x => x.id === id); if (!a) return; open = a;
     const st = isAnimal(a) ? (seen.has(a.id) ? '<span class="gd-tag seen">Spotted</span>' : '<span class="gd-tag">Not seen yet</span>') : '';
     page.innerHTML = `<div class="gd-top"><button class="gd-back">← All entries</button><span class="gd-nav"><button class="gd-prev" title="Previous">‹</button><button class="gd-next" title="Next">›</button></span></div>` +
-      (a.n ? `<div class="gd-pic"><img alt="${esc(a.name)}" src="${src(a.id, 1)}"></div>` + (a.n > 1 ? `<div class="gd-thumbs">${Array.from({ length: a.n }, (_, k) => `<button data-k="${k + 1}" class="${k ? '' : 'on'}"><img alt="" src="${src(a.id, k + 1)}"></button>`).join('')}</div>` : '') : '') +
-      `<h3>${esc(a.name)} ${st}</h3>${a.latin ? `<p class="gd-latin">${esc(a.latin)}</p>` : ''}<p>${esc(a.text)}</p><p class="gd-where"><b>In the map</b> ${esc(a.where)}</p>`;
+      (a.n ? `<div class="gd-pic${hidden(a) ? ' unseen' : ''}"><img alt="${hidden(a) ? '' : esc(a.name)}" src="${src(a.id, 1)}"></div>` + (a.n > 1 ? `<div class="gd-thumbs${hidden(a) ? ' unseen' : ''}">${Array.from({ length: a.n }, (_, k) => `<button data-k="${k + 1}" class="${k ? '' : 'on'}"><img alt="" src="${src(a.id, k + 1)}"></button>`).join('')}</div>` : '') : '') +
+      (hidden(a) ? `<h3>??? ${st}</h3><p class="gd-latin">${esc(groupName(a))}</p><p>You have not spotted this one yet. Its name, and what it is, show here once you have.</p>`
+        : `<h3>${esc(a.name)} ${st}</h3>${a.latin ? `<p class="gd-latin">${esc(a.latin)}</p>` : ''}<p>${esc(a.text)}</p><p class="gd-where"><b>In the map</b> ${esc(a.where)}</p>`);
     page.hidden = false; grid.parentElement.hidden = true; page.scrollTop = 0;
   }
   function achievements() {

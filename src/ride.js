@@ -341,8 +341,8 @@ export function makeRide(camera, canvas, cars, getBoats, env = {}) {
   $('hmTake').onclick = () => take(!R.helm);
   $('hmCamp').onclick = () => { const p = R.bird; if (p && p.kind === 'walker') { p.askCamp = !p.camped; if (R.helm && !p.camped) take(false); } };
   $('rideOut').onclick = () => R.zoomBy(1.6); $('rideIn').onclick = () => R.zoomBy(1 / 1.6);
-  const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], ArrowDown: [0, -1] };          // (in a car or a boat S brakes, stops and backs, as the down arrow does; flying or on foot it is the slow key, below)
-  const vehicle = () => R.helm && (R.car || R.boat);
+  const KEY = { KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0], KeyW: [0, 1], ArrowUp: [0, 1], ArrowDown: [0, -1] };          // (in a car or a boat S brakes, stops and backs, as the down arrow does; on foot it stops you; flying it is the slow key, below)
+  const vehicle = () => R.helm && (R.car || R.boat || (R.bird && (R.bird.kind === 'person' || R.bird.kind === 'walker')));
   let lookK = 0, tiltK = 0;          // riding along without the controls, the same keys turn your head: A D look left and right, W S up and down
   addEventListener('keydown', (e) => { if (!R.active) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') fast = true; if (e.code === 'KeyS') { if (vehicle()) gas = -1; else slow = true; if (R.helm) e.preventDefault(); } if (e.code === 'KeyH') return take(!R.helm); if (e.code === 'Minus' || e.code === 'NumpadSubtract') return R.zoomBy(1.4); if (e.code === 'Equal' || e.code === 'NumpadAdd') return R.zoomBy(1 / 1.4); const k = KEY[e.code]; if (k && R.helm) { if (k[0]) steer = k[0]; if (k[1]) gas = k[1]; e.preventDefault(); } else if (!R.helm) { if (k && k[0]) lookK = k[0]; if (k && k[1]) tiltK = k[1]; if (e.code === 'KeyS') tiltK = -1; if (k) e.preventDefault(); } });
   addEventListener('blur', () => { fast = slow = false; lookK = tiltK = 0; });

@@ -417,7 +417,7 @@ function buildCars(scene, F, lights) {
   tg.setAttribute('position', tpa); tg.setAttribute('aD', tda); tg.setIndex(ti); tg.boundingSphere = FAR;
   const tmesh = new THREE.Mesh(tg, makeMat({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    vs: /* glsl */`attribute vec3 aD; varying vec3 vD, vW; void main(){ vD = aD; vW = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+    vs: /* glsl */`attribute vec3 aD; varying vec3 vD, vW; void main(){ vD = aD; vec3 p = position; if(aD.z > -1e5) p.y += drawnY(p.xz) - groundY(p.xz); vW = p; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); ${LOGV} }`,          // (on the ground as it is drawn: see drawnY)
     fs: /* glsl */`varying vec3 vD, vW;
       void main(){ ${LOGF}
         float age = uTime - vD.z, a = clamp(1.0 - age / 150.0, 0.0, 1.0) * step(-1e5, vD.z) * smoothstep(0.15, 0.7, (vW.y - uSeaM * uVex) / uVex);
@@ -719,6 +719,24 @@ function buildSeaLife(scene, F) {
   for (let i = 0; i < 12 * K; i++) { const s = deep(25, 400, true); if (!s) continue; const n = R() < 0.55 ? 2 : 1; for (let j = 0; j < n; j++) whales.push(s[0] + j * 28, s[1] + j * 20, 220 + R() * 260, 3 + R() * 4, R() * 6.283 + j * 0.05, 2.0 + R() * 0.5, 14.5 * (j && R() < 0.6 ? 0.45 : 0.9 + R() * 0.2), R() * 0.4); }
   const bigSharks = [];
   for (let i = 0; i < 30 * K; i++) { const s = deep(8, 80, false); if (s) bigSharks.push(s[0], s[1], 40 + R() * 90, 2 + R() * Math.min(6, s[2] * 0.4), R() * 6.283, 1.0 + R() * 0.6, 2.6 + R() * 1.6, R()); }
+  // Patch reefs all round the island: the reef fish do not live only at the wrecks. Small rocky patches in 2.5 to 10 m of water, spread
+  // evenly round the island (so many in each eighth of it), each with a mix of four or five kinds of reef fish, fewer than at a wreck
+  // (about four in ten). The sea bed puts rocks, weed and a little coral at each (seabed.js reads them from F.fishPatches).
+  const patches = []; { const cx = 1500, cz = 0, per = Math.round(9 * K);
+    for (let sec = 0; sec < 8; sec++) for (let n = 0, t = 0; n < per && t < 3000; t++) { const s = anywhere(2.5, 10); if (!s) continue;
+      const a = Math.atan2(s[1] - cz, s[0] - cx), k = Math.floor(((a + Math.PI) / (2 * Math.PI)) * 8) % 8; if (k !== sec) continue;
+      if (patches.some(p => Math.hypot(p[0] - s[0], p[1] - s[1]) < 250)) continue;          // (not two on top of each other)
+      const kinds = []; while (kinds.length < 4 + (R() < 0.5 ? 1 : 0)) { const c = (R() * 11) | 0; if (!kinds.includes(c)) kinds.push(c); }
+      patches.push([s[0], s[1], s[2], kinds]); n++; } }
+  F.fishPatches = patches;
+  for (const [x, z, d, kinds] of patches) {          // the older reef fish (the newer kinds are added with the rest of wildlife.js, below)
+    const dd = Math.max(d, 2.2);
+    if (kinds.includes(0)) school(stripey, x, z, dd, Math.round(8 * K), 4 + R() * 4, 0.8);
+    if (kinds.includes(1)) school(blue, x, z, dd, Math.round(10 * K), 3 + R() * 4, 0.5);
+    if (kinds.includes(2)) school(bream, x + 6, z, dd, Math.round(6 * K), 9 + R() * 6, 1.1);
+    if (kinds.includes(3)) school(neon, x, z, dd, Math.round(9 * K), 2.5 + R() * 2.5, 0.42);
+    if (kinds.includes(4)) school(humbug, x, z, dd, Math.round(5 * K), 2 + R() * 2, 0.4);
+  }
   const SILV = [0.86, 0.89, 0.9];
   swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'bream', amp: 0.13, rate: 8, colA: [0.34, 0.38, 0.36], colB: SILV, colC: [0.45, 0.47, 0.42], see: 420 }, bream);
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'blue', amp: 0.15, rate: 13, colA: [0.10, 0.42, 0.50], colB: [0.80, 0.92, 0.80], colC: [0.5, 0.7, 0.6], eye: [0.39, 0.012, 0.02], see: 300, min: 0.5 }, blue);
@@ -761,6 +779,15 @@ function buildSeaLife(scene, F) {
     for (let t = 0; t < 36 * K; t++) { const s = anywhere(5, 22); if (s && R() < 0.8) { one(jew, s[0], s[1], 6 + R() * 10, s[2], 1.4, 0.3); if (R() < 0.5) one(jew, s[0] + 8, s[1] + 5, 6 + R() * 10, s[2], 1.2, 0.3); } }          // jewfish over the deeper holes and banks
     for (let t = 0; t < 40 * K; t++) { const s = anywhere(6, 30); if (s) { for (let i = 0; i < 1 + ((R() * 3) | 0); i++) one(snap, s[0] + R() * 12, s[1] + R() * 12, 6 + R() * 10, s[2], 0.75, 0.35); school(trev, s[0], s[1], s[2], 5, 10 + R() * 8, 0.9); } }
     for (let t = 0; t < 40 * K; t++) { const s = anywhere(1.5, 7); if (s) school(squi, s[0], s[1], s[2], 7 + ((R() * 5) | 0), 3 + R() * 4, 0.3); }
+    // and the newer reef fish at the patch reefs round the island too (kinds 5 to 10), fewer than at a wreck
+    for (const [x, z, d, kinds] of patches) { const dd = Math.max(d, 2.2), at = (r) => [x + (R() - .5) * r, z + (R() - .5) * r];
+      if (kinds.includes(5)) school(mose, x, z, dd, Math.round(5 * K), 5 + R() * 5, 0.42);
+      if (kinds.includes(6)) for (let i = 0; i < 2; i++) { const p = at(12); one(cod, p[0], p[1], 0.6 + R() * 1.4, 0, 0.95, 0.15); }
+      if (kinds.includes(7)) { const p = at(14); one(tusk, p[0], p[1], 3 + R() * 4, dd, 0.5, 0.3); }
+      if (kinds.includes(8)) for (let i = 0; i < 2; i++) { const p = at(16); one(morw, p[0], p[1], 3 + R() * 4, dd, 0.56, 0.25); }
+      if (kinds.includes(9)) { const p = at(10); one(eel, p[0], p[1], 0.5 + R() * 1.0, 0, 0.75, 0.1); }
+      if (kinds.includes(10)) for (let i = 0; i < 2; i++) { const p = at(18); one(swee, p[0], p[1], 3 + R() * 5, dd, 0.66, 0.35); }
+    }
     { const c = F.lights.find(l => /Cape/.test(l.n || ''))?.p; if (c) for (let t = 0; t < 22; t++) { const s = spot(c[0] + 100, c[1] + 100, 1100, 3, 25); if (s) { school(morw, s[0], s[1], s[2], 3, 6, 0.58); one(jew, s[0], s[1], 5, s[2], 1.3, 0.3); one(swee, s[0], s[1], 5, s[2], 0.66, 0.3); one(eel, s[0], s[1], 0.8, 0, 0.8, 0.1); one(tusk, s[0], s[1], 4, s[2], 0.5, 0.3); one(cod, s[0], s[1], 1, 0, 1.0, 0.15); } } }       // the rocky ground off Cape Moreton
     const S = [0.86, 0.89, 0.9];
     swimmers(scene, { ...TAILOR, paint: WPAINT.tailor, name: 'tailor', amp: 0.16, rate: 11, colA: [0.2, 0.36, 0.38], colB: [0.86, 0.9, 0.9], colC: [0.5, 0.58, 0.55], eye: [0.39, 0.015, 0.02], see: 420, min: 0.8 }, tailor);

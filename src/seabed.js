@@ -156,6 +156,7 @@ export function buildSeabed(scene, F, o) {
   }
   for (const [, c] of shipBy) if (depth(c[0], c[1]) > 0.2) site(c[0], c[1], 11, 1.6, true, true);
   for (const s of o.reefs || []) site(s[0], s[1], 9, 1.3, true);
+  for (const p of F.fishPatches || []) site(p[0], p[1], 6 + R() * 3, 0.9, false);          // the patch reefs whose fish life.js placed: rocks, weed and a little coral under them
   // and many smaller places in the shallows all round the island
   for (let t = 0, made = 0; t < 9000 && made < 120 * K; t++) { const x = (R() - 0.5) * (T.sx - 1200), z = (R() - 0.5) * (T.sz - 1200), d = depth(x, z); if (d < 0.7 || d > 7 || maskAt(x, z).shore < -900) continue; made++; site(x, z, 3.5 + R() * 4, 0.5 + R() * 0.5, false); }
 

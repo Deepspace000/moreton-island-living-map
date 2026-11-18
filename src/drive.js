@@ -196,7 +196,7 @@ export function buildRuts(scene, F) {
   if (idx.length) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aD', new THREE.Float32BufferAttribute(ad, 2)); g.setIndex(idx); g.boundingSphere = FARS;
     const m = new THREE.Mesh(g, makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-      vs: /* glsl */`attribute vec2 aD; varying vec2 vD; varying vec3 vW; void main(){ vD = aD; vW = position; gl_Position = length(position - cameraPosition) > 520.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+      vs: /* glsl */`attribute vec2 aD; varying vec2 vD; varying vec3 vW; void main(){ vD = aD; vec3 p = position; bool far = length(p - cameraPosition) > 520.0; if(!far) p.y += drawnY(p.xz) - groundY(p.xz); vW = p; gl_Position = far ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(p, 1.0); ${LOGV} }`,          // (on the ground as it is drawn: see drawnY)
       fs: /* glsl */`varying vec2 vD; varying vec3 vW;
         void main(){ ${LOGF}
           float e = abs(vD.y), n = texture2D(uNoise, vW.xz * 0.37).r, groove = 1.0 - smoothstep(0.5, 0.8, e + (n - 0.5) * 0.25), lip = smoothstep(0.55, 0.82, e) * (1.0 - smoothstep(0.86, 1.0, e));
@@ -256,7 +256,7 @@ export function buildPuddles(scene, F) {
   const rip = []; for (let i = 0; i < 8; i++) rip.push(new THREE.Vector4(0, 0, -1e6, 0)); let ripI = 0;
   const mesh = new THREE.Mesh(g, makeMat({
     uniforms: { uRip: { value: rip } }, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-    vs: /* glsl */`attribute vec3 aE; varying vec3 vE, vW; void main(){ vE = aE; vW = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); ${LOGV} }`,
+    vs: /* glsl */`attribute vec3 aE; varying vec3 vE, vW; void main(){ vE = aE; vec3 p = position; p.y += drawnY(p.xz) - groundY(p.xz); vW = p; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); ${LOGV} }`,          // (the puddles lie in the ruts, on the ground as it is drawn)
     fs: /* glsl */`varying vec3 vE, vW; uniform vec4 uRip[8];
       void main(){ ${LOGF}
         float r = length(vE.xy), lit = max(uLightDir.y, 0.0) * cloudShadow(vW);

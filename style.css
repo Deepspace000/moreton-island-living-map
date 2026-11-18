@@ -455,3 +455,8 @@ body.guide-open #spots { z-index: 35; }
 .spot-toast.spot-note { display: flex; gap: 8px; }
 .spot-note img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; flex: none; }
 @media (max-width: 560px) { #spots { top: 18%; width: min(260px, calc(100vw - 24px)); } }
+
+/* the Wildlife guide: an animal not spotted yet shows only as a blur (guide.js hides its name and what it is) */
+.gd-card.unseen img, .gd-pic.unseen img, .gd-thumbs.unseen img { filter: blur(10px) saturate(.55) brightness(.82); clip-path: inset(0 round 11px 11px 0 0); }
+.gd-pic.unseen img { clip-path: inset(0 round 12px); } .gd-thumbs.unseen img { clip-path: inset(0); }
+.gd-card.unseen b { letter-spacing: .12em; color: var(--dim); }

@@ -628,11 +628,12 @@ export function buildTerrain(scene) {
     const g = new THREE.Mesh(grid, m); g.frustumCulled = false; g.matrixAutoUpdate = false; scene.add(g); mats.push(m);
   }
   follow = (x, z) => {
+    U.uClipInfo.value.set(K, hn, 0, 0); U.uBaseG.value.set(-T.sx / 2, -T.sz / 2, D[0], D[1]);          // (for drawnY in common.js: where the ground is drawn)
     for (let l = 1; l <= K; l++) {
       const dx = D[0] / 2 ** l, dz = D[1] / 2 ** l;
       // grid point (0, 0) sits on a point of the next coarser grid
       const ox = Math.round((x + T.sx / 2) / (2 * dx)) * 2 * dx - T.sx / 2, oz = Math.round((z + T.sz / 2) / (2 * dz)) * 2 * dz - T.sz / 2;
-      mats[l].uniforms.uGrid.value.set(ox, oz, dx, dz);
+      mats[l].uniforms.uGrid.value.set(ox, oz, dx, dz); if (l <= 8) U.uClip.value[l - 1].set(ox, oz, dx, dz);
       mats[l - 1].uniforms.uHole.value.set(ox, oz, hn * dx * 0.955, hn * dz * 0.955);
     }
   };

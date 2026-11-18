@@ -32,7 +32,7 @@ export const U = {
   uFogCol: v3(.6, .7, .85), uFogSun: v3(.9, .8, .7), uFogDens: f(0.000012),
   uZenith: v3(.1, .26, .62), uHorizon: v3(.55, .72, .9), uSunGlow: v3(1, .8, .5), uNight: f(0), uOvercast: f(0), uUnder: f(0),
   uMoonLit: f(1), uStarRot: f(0),
-  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
+  uDetail: { value: null }, uDetRect: { value: new THREE.Vector4(0, 0, 1, 0) }, uContour: f(0), uCirrus: f(0.6), uWalk: f(0), uCarL: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uClip: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uClipInfo: { value: new THREE.Vector4(0, 128, 0, 0) }, uBaseG: { value: new THREE.Vector4(0, 0, 1, 1) },
   uFlat: { value: Array.from({ length: 24 }, () => new THREE.Vector4(1e9, 1e9, 0, 0)) }, uFlatC: { value: new THREE.Vector4(0, 0, 0, 0) },
   uHeight: { value: null }, uOver: { value: null }, uYard: { value: null }, uYardO: { value: new THREE.Vector4(0, 0, 1, 1) }, uMask: { value: null }, uAlbedo: { value: null }, uNoise: { value: null }, uWaterTex: { value: null },
   uWorld: { value: new THREE.Vector4(1, 1, 1, 1) }, uHTex: { value: new THREE.Vector2(1, 1) }, uMpp: f(17),
@@ -76,6 +76,36 @@ float groundH(vec2 xz){
 }
 // world y of the drawn ground (dips slightly at the waterline so the per-pixel shoreline decides where water shows)
 float groundY(vec2 xz){ float h = groundH(xz); return (h - 0.75 * max(0.0, 1.0 - abs(h) / 1.7)) * uVex; }
+// The ground as it is drawn, not the smooth curve: the island's mesh and the finer grids that follow the view (terrain.js) are flat
+// triangles, a few metres across under the view and tens of metres further out, so over a rise the drawn ground lies below the
+// smooth curve and in a hollow above it. Anything laid on the sand (wheel ruts, tyre marks, puddles) is lifted or lowered by the
+// difference, drawnY(xz) - groundY(xz), so it lies on what is drawn instead of hovering over it or sinking into it.
+// uClip[l]: the grid of level l + 1 (x, z of its point (0, 0), and its spacing); uClipInfo: the number of levels, and the number
+// of cells from a grid's middle to its edge; uBaseG: the island's own mesh (the corner of the island, and its spacing).
+uniform vec4 uClip[8], uClipInfo, uBaseG;
+float drawnVtx(vec2 o, vec2 sp, vec2 ij, float clip){
+  vec2 xz = o + ij * sp; float y = groundY(xz);
+  if(clip > 0.5){          // toward a grid's edge its in-between points slide onto the next coarser grid (as in the terrain's own shader)
+    float m = smoothstep(0.78, 0.92, max(abs(ij.x), abs(ij.y)) / uClipInfo.y); vec2 odd = mod(ij, 2.0);
+    if(m > 0.0 && odd.x + odd.y > 0.5){ vec2 o2 = vec2(odd.x, -odd.y) * sp; y = mix(y, 0.5 * (groundY(xz + o2) + groundY(xz - o2)), m); }
+  }
+  return y;
+}
+float drawnTri(vec2 xz, vec2 o, vec2 sp, float clip){          // each cell is two triangles, split from its (1, 0) corner to its (0, 1) corner
+  vec2 f = (xz - o) / sp, ij = floor(f), t = f - ij;
+  float ya = drawnVtx(o, sp, ij, clip), yb = drawnVtx(o, sp, ij + vec2(1.0, 0.0), clip), yc = drawnVtx(o, sp, ij + vec2(0.0, 1.0), clip);
+  if(t.x + t.y < 1.0) return ya + (yb - ya) * t.x + (yc - ya) * t.y;
+  float yd = drawnVtx(o, sp, ij + vec2(1.0, 1.0), clip);
+  return yd + (yc - yd) * (1.0 - t.x) + (yb - yd) * (1.0 - t.y);
+}
+float drawnY(vec2 xz){
+  for(int l = 7; l >= 0; l--){          // the finest grid that covers the spot draws it (each one cuts a hole in the coarser one)
+    if(float(l) >= uClipInfo.x) continue;
+    vec4 g = uClip[l]; vec2 r = abs(xz - g.xy) / (g.zw * uClipInfo.y);
+    if(r.x < 0.955 && r.y < 0.955) return drawnTri(xz, g.xy, g.zw, 1.0);
+  }
+  return drawnTri(xz, uBaseG.xy, uBaseG.zw, 0.0);
+}
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 // The two great sand blows north of the Micat's landing (the owner's photographs from the ferry): bare faces of sand that run from the beach
 // up through the forest wall nearly to the ridge. Each is x, z of its middle, half its length along the shore, half its depth inland.

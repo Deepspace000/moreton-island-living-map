@@ -210,7 +210,6 @@ function exitRide() {
   camera.position.set(m.position.x - Math.cos(yaw) * far, m.position.y + far * 0.55, m.position.z + Math.sin(yaw) * far);
   resize();
 }
-ride.onExit = exitRide;
 // A click on the mini map while you ride: whatever you are in heads for that spot. It takes the controls to do it, slows as it gets there and
 // stops (a plane or a bird just comes over the spot); steer by hand, or leave, and it lets go. A car goes straight there over the ground.
 let goal = null;
@@ -228,13 +227,16 @@ function stepGoal() {
   if (d < goal.best - 4) { goal.best = d; goal.since = acc; }
   if (d < near || acc - goal.since > 12) { if (d >= near) { if (ride.car && o.drive) o.drive.throttle = 0; if (foot) o.pace = 0; } if (foot) o.autoGo = false; goal = null; ride.autoSteer = null; }          // there, or it cannot get any nearer (land in a boat's way, the sea or a tree in a car's)
 }
-// Getting out of the vehicle you are in (the Get out button, or G): on foot beside a 4WD, in the water beside a boat, falling from a plane in flight
+// Getting out of the vehicle you are in (Leave the car / boat, the Get out button, or G): on foot beside a 4WD, in the water beside a boat,
+// seen through your own eyes, as after a double-click on the ground, so W A S D walk you about; falling from a plane in flight, seen from behind.
 const say = (txt) => { const h = $('hint'); h.textContent = txt; h.style.opacity = 1; clearTimeout(say.t); say.t = setTimeout(() => { h.style.opacity = 0; }, 6000); };
 function getOut() {
   if (!ride.active || !aboard) return; const veh = ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane' ? ride.bird : null); if (!veh) return;
   const kind = ride.car ? 'car' : ride.boat ? 'boat' : 'plane', view = ride.zoom; stopTour(); exitRide();
-  enterRide({ kind: 'bird', obj: aboard.leave(veh, kind), control: true }); ride.setView(1); syncTravel();
+  const me = aboard.leave(veh, kind); enterRide({ kind: 'bird', obj: me, control: true }); ride.setView(me.state === 'fall' ? 1 : 0); syncTravel();
 }
+// Leave the car / boat / yacht / jet ski steps out of it too (and a plane on the ground); Esc or M still go back up to the map
+ride.onExit = () => { const veh = ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane' ? ride.bird : null); if (veh && aboard) getOut(); else exitRide(); };
 { const b = document.createElement('button'); b.id = 'getOut'; b.className = 'pill'; b.textContent = 'Get out'; b.title = 'Get out of the vehicle (G)'; b.onclick = getOut; document.body.appendChild(b); }
 addEventListener('keydown', (e) => { if (e.code === 'KeyG' && ride.active) getOut(); });
 // ---------- the Travel menu: go along with the nearest 4WD, boat, yacht, jet ski, pelican or sea eagle, watching or in control ----------
@@ -283,7 +285,7 @@ function syncHelp() {
     else if (k === 'car') t = 'A D steer · W faster · S or down arrow brakes, stops, then reverses · hold Shift to go faster · H to let it drive itself' + out + ' · M for the map';
     else if (k === 'boat') t = 'A D steer · W faster · S or down arrow slows it to a stop · hold Shift to go faster · H to let it go on by itself' + out + ' · M for the map';
     else if (k === 'walker') t = 'A D turn · W faster · down arrow slower · hold Shift to run, S to slow down · H to let them walk on · M for the map';
-    else if (k === 'person') t = 'Hold the mouse button on the view to walk, towards the left or the right to turn that way · or W to walk, A D to turn, down arrow to stop · the box at the bottom left has Forward, Stop and three speeds · hold Shift to go faster, S slower · scroll out to see yourself · double-click a vehicle to get in · M for the map';
+    else if (k === 'person') t = 'Hold the mouse button on the view to walk, towards the left or the right to turn that way · or W to walk, A D to turn, S or down arrow to stop · the box at the bottom left has Forward, Stop and three speeds · hold Shift to go faster · scroll out to see yourself · double-click a vehicle to get in · M for the map';
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
   } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
