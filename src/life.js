@@ -1369,3 +1369,5 @@ export function buildLife(scene, F) {
     },
   };
 }
+// (for the pictures of the animals in the glossary: tools/test/studio.mjs places single animals with these)
+export const STUDIO = { scatter, loftGeo, jellyfish };

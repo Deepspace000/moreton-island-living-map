@@ -198,9 +198,10 @@ export function buildSeabed(scene, F, o) {
         vCol = col; vW = wp;
         gl_Position = length(wp - cameraPosition) > ${SEEN * 0.6}.0 || groundY(home) > uSeaM * uVex - 0.1 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
         ${LOGV} }`, fs: FS })); m.frustumCulled = false; scene.add(m); meshes.push(m); return m; };
-  crawl(crabGeo, crabs, /* glsl */`float s = sin(uTime * iB.z + iA.z), going = 1.0 - smoothstep(0.3, 0.55, abs(s)); vec2 side = vec2(-sin(face), cos(face));
+  const CRAB_BODY = /* glsl */`float s = sin(uTime * iB.z + iA.z), going = 1.0 - smoothstep(0.3, 0.55, abs(s)); vec2 side = vec2(-sin(face), cos(face));
         home += side * (smoothstep(-0.45, 0.45, s) * 2.0 - 1.0) * iB.y; lp.y += abs(sin(uTime * 15.0 + aX.x)) * aX.y * going;
-        tint = iB.w < 0.35 ? vec3(0.62, 0.5, 0.36) : iB.w < 0.7 ? vec3(0.3, 0.42, 0.62) : vec3(0.5, 0.2, 0.12);            // sand crab, blue swimmer, red-brown rock crab`);
+        tint = iB.w < 0.35 ? vec3(0.62, 0.5, 0.36) : iB.w < 0.7 ? vec3(0.3, 0.42, 0.62) : vec3(0.5, 0.2, 0.12);            // sand crab, blue swimmer, red-brown rock crab`;
+  crawl(crabGeo, crabs, CRAB_BODY);
   // octopuses: a round mantle, a head with two eyes, eight arms that lie on the bed and curl. aX = arm's phase, how far along the arm (below 0: the body), the arm's bearing
   const octoGeo = build((v, I) => {
     const SK = [1, 1, 1], b = ICO1.count; for (let i = 0; i < b; i++) { const nx = ICO1.getX(i), ny = ICO1.getY(i), nz = ICO1.getZ(i); I.push(v(-0.3 + nx * 0.3, 0.24 + ny * 0.22, nz * 0.22, SK, 0.75 + 0.35 * Math.max(0, ny) + 0.12 * Math.sin(nx * 17 + nz * 13), 0, -1, 0)); }
@@ -210,10 +211,11 @@ export function buildSeabed(scene, F, o) {
       for (let j = 0; j <= N; j++) { const u = j / N, r = 0.055 * (1 - u) + 0.008, d = 0.1 + u * 0.9, y = 0.06 * (1 - u) + r; for (let q = 0; q < S; q++) { const a = q / S * 6.2832; base.push(v(dx * d - dz * Math.cos(a) * r, y + Math.sin(a) * r, dz * d + dx * Math.cos(a) * r, SK, (0.7 + 0.3 * Math.sin(a)) * (0.85 + 0.25 * ((j + k) % 2)), k * 0.9, u, an)); } }
       for (let j = 0; j < N; j++) for (let q = 0; q < S; q++) { const a0 = base[j * S + q], a1 = base[j * S + (q + 1) % S], b0 = base[(j + 1) * S + q], b1 = base[(j + 1) * S + (q + 1) % S]; I.push(a0, b0, a1, a1, b0, b1); } }
   });
-  crawl(octoGeo, octos, /* glsl */`home += vec2(sin(uTime * 0.07 * iB.z + iA.z), cos(uTime * 0.05 * iB.z + iA.z * 1.3)) * iB.y; face += sin(uTime * 0.11 + iA.z) * 0.8;
+  const OCTO_BODY = /* glsl */`home += vec2(sin(uTime * 0.07 * iB.z + iA.z), cos(uTime * 0.05 * iB.z + iA.z * 1.3)) * iB.y; face += sin(uTime * 0.11 + iA.z) * 0.8;
         if(aX.y < 0.0){ lp.xyz = vec3(-0.3, 0.24, 0.0) + (lp - vec3(-0.3, 0.24, 0.0)) * (1.0 + 0.07 * sin(uTime * 2.2 + iA.z) * step(lp.x, -0.05)); }
         else { float u = aX.y, wv = sin(uTime * 1.4 + aX.x + u * 5.0 + iA.z) * 0.17 * u; lp.xz += vec2(-sin(aX.z), cos(aX.z)) * wv; lp.y += max(0.0, sin(uTime * 0.9 + aX.x * 1.7 + u * 3.0 + iA.z)) * 0.14 * u * u; }
-        tint = mix(vec3(0.55, 0.2, 0.12), vec3(0.62, 0.5, 0.36), 0.5 + 0.5 * sin(uTime * 0.23 + iA.z * 3.0)) * (0.8 + 0.4 * iB.w);            // it changes colour as it goes`);
+        tint = mix(vec3(0.55, 0.2, 0.12), vec3(0.62, 0.5, 0.36), 0.5 + 0.5 * sin(uTime * 0.23 + iA.z * 3.0)) * (0.8 + 0.4 * iB.w);            // it changes colour as it goes`;
+  crawl(octoGeo, octos, OCTO_BODY);
   // very small fish in tight groups, and rays on the sand by the wrecks
   if (fry.length) swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'fry', amp: 0.18, rate: 17, colA: [0.36, 0.44, 0.34], colB: [0.92, 0.94, 0.9], colC: [0.6, 0.66, 0.56], eye: [0.39, 0.012, 0.02], see: 150, min: 0.3 }, fry);
   if (chromis.length) swimmers(scene, { ...DAMSEL, paint: PAINT.neon, name: 'chromis', amp: 0.16, rate: 16, colA: [0.1, 0.62, 0.55], colB: [0.5, 0.9, 0.7], colC: [0.1, 0.5, 0.6], see: 150, min: 0.3 }, chromis);
@@ -221,6 +223,6 @@ export function buildSeabed(scene, F, o) {
   if (sergeants.length) swimmers(scene, { ...DAMSEL, paint: PAINT.sergeant, name: 'sergeants', amp: 0.13, rate: 10, colA: [0.74, 0.72, 0.36], colB: [0.92, 0.92, 0.84], colC: [0.6, 0.62, 0.42], see: 320, min: 0.6 }, sergeants);
   if (bream.length) swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'reefbream', amp: 0.13, rate: 8, colA: [0.36, 0.4, 0.38], colB: [0.86, 0.89, 0.9], colC: [0.46, 0.48, 0.43], see: 420, min: 0.8 }, bream);
   if (rays.length) swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'wreckrays', vertical: 1, bottom: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 600, min: 0.25 }, rays);
-  return { meshes, lists: { crabs, octos }, count: { verts, sergeants: sergeants.length / 8, bream: bream.length / 8, crabs: crabs.length / 8, octopus: octos.length / 8, fry: fry.length / 8, chromis: chromis.length / 8, rays: rays.length / 8, chunks: chunks.size },
+  return { studio: { crab: (list) => crawl(crabGeo, list, CRAB_BODY), octo: (list) => crawl(octoGeo, list, OCTO_BODY) }, meshes, lists: { crabs, octos }, count: { verts, sergeants: sergeants.length / 8, bream: bream.length / 8, crabs: crabs.length / 8, octopus: octos.length / 8, fry: fry.length / 8, chromis: chromis.length / 8, rays: rays.length / 8, chunks: chunks.size },
     update(camDist) { const on = camDist < 1600; for (const m of meshes) if (m.visible !== on) m.visible = on; } };
 }

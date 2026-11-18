@@ -27,6 +27,7 @@ import { rideable, flyers } from './life.js';
 import { carPace, probe, OPT } from './drive.js';
 import { buildAboard } from './avatar.js';
 import { buildSeabed } from './seabed.js';
+import { makeGuide } from './guide.js';
 import { buildMinimap } from './minimap.js';
 import { makeWindows } from './windows.js';
 import { makeMenu } from './menu.js';
@@ -361,6 +362,8 @@ function syncButtons() { $('btLive').classList.toggle('on', st.live); $('btPlay'
 let showLabels = Q.get('labels') !== '0', showClouds = true;
 $('btLabels').classList.toggle('on', showLabels);
 $('btLabels').onclick = (e) => { showLabels = !showLabels; e.currentTarget.classList.toggle('on', showLabels); };
+const guide = makeGuide(); $('btGuide').onclick = () => guide.toggle();
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && guide.isOpen) guide.close(); });
 $('btClouds').onclick = (e) => { showClouds = !showClouds; e.currentTarget.classList.toggle('on', showClouds); };
 $('btSpin').onclick = (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); };
 $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.position.distanceTo(controls.target), 0, null);

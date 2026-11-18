@@ -1,4 +1,4 @@
-# Moreton Island Simulator: update note (release 154)
+# Moreton Island Simulator: update note (release 155)
 
 A living 3D map of Moreton Island (Mulgumpin), Queensland, that you can fly over, walk across, drive, sail and dive in. It runs in the browser and, now, as a Windows program of its own. This note says how it was built, stage by stage, and what has just changed.
 
@@ -28,6 +28,8 @@ Everything below was made in order, one round at a time. After each round the re
 - **The island's wildflowers.** Wallum and saw banksias, heathy and beaked parrot peas, wedding bush, devil's rice, showy guinea flower, native sarsaparilla, wallum geebung, mat rush, blue flax lily, cotton trees near the coast, and the weed asparagus fern, planted by habitat across the heath and dunes.
 - **Weather and sea.** Weather now drifts by default; bigger swells build faster; S brakes in a vehicle.
 - **A Windows program.** The same map as an ordinary Windows program (portable file, installer, or plain folder), in its own window with no browser; it works offline except for the live weather. F11 for full screen.
+
+**Release 155: the Wildlife guide.** A new Wildlife button in the bar at the bottom opens a guide to every animal in the map: 79 of them (birds, fish and sharks, other sea life, reptiles, mammals and insects). Each has pictures of the map's own model on a plain backdrop, its name, its Latin name, what it is, and where and when to look for it. You can search, filter by group, and step through with the arrow keys. The pictures are made by `tools/test/studio.mjs` and cut by `tools/make_guide_images.py`. The Windows program now also updates itself from the website (see `desktop/README.md`).
 
 ## Controls in one place
 
