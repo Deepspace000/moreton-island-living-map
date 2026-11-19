@@ -372,12 +372,13 @@ addEventListener('keydown', (e) => { if (e.code === 'Escape' && guide.isOpen) gu
 $('btClouds').onclick = (e) => { showClouds = !showClouds; e.currentTarget.classList.toggle('on', showClouds); };
 $('btSpin').onclick = (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); };
 $('btNorth').onclick = () => flyTo(controls.target.x, controls.target.z, camera.position.distanceTo(controls.target), 0, null);
-// ---------- sound: starts on the button (browsers need a tap first); if it was on last time, the first tap anywhere brings it back ----------
+// ---------- sound: off until the Sound button turns it on; if it was turned on last time, the first tap anywhere brings it back ----------
+// (remembered as 'soundOn': the older 'sound', which every visit set by itself, is not read, so the map starts muted once for everyone)
 const btSound = $('btSound');
-const setSound = (v) => { if (sound.on !== v) sound.toggle(); btSound.classList.toggle('on', sound.on); try { localStorage.setItem('sound', sound.on ? '1' : '0'); } catch (e) { /* not remembered then */ } };
+const setSound = (v) => { if (sound.on !== v) sound.toggle(); btSound.classList.toggle('on', sound.on); try { localStorage.setItem('soundOn', sound.on ? '1' : '0'); } catch (e) { /* not remembered then */ } };
 btSound.onclick = () => setSound(!sound.on);
 // (Safari, and so every iPad, lets sound start only from a finished tap, a click or a key: a finger going down is not enough)
-try { if (localStorage.getItem('sound') !== '0') { const evs = ['pointerup', 'touchend', 'click', 'keydown'], go = (e) => { for (const ev of evs) removeEventListener(ev, go, true); if (e.target !== btSound && !sound.on) setSound(true); }; for (const ev of evs) addEventListener(ev, go, true); } } catch (e) { /* storage can be blocked */ }
+try { if (localStorage.getItem('soundOn') === '1') { const evs = ['pointerup', 'touchend', 'click', 'keydown'], go = (e) => { for (const ev of evs) removeEventListener(ev, go, true); if (e.target !== btSound && !sound.on) setSound(true); }; for (const ev of evs) addEventListener(ev, go, true); } } catch (e) { /* storage can be blocked */ }
 for (const ev of ['pointerup', 'touchend', 'keydown']) addEventListener(ev, () => sound.wake(), true);          // (and after a phone call, or a drag that did not count as a tap, the next tap starts it again)
 // ---------- the right mouse button: the app's own menu, in place of the browser's ("Save image as...") ----------
 const menu = makeMenu();
