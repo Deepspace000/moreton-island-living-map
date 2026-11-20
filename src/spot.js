@@ -29,7 +29,7 @@ const SEE_SWIM = { baitfish: 30, hardyhead: 25, whiting: 25, neon: 25, humbug: 2
 export function spotSwim(name, list, stride) { const id = SWIM[name]; if (id) spotAt(id, list, stride, SEE_SWIM[id] || 50, { radAt: 2, move: 'swim' }); }
 
 // birds on foot (wildbirds.js walkers): [x, z, turn, phase]
-const WALK = { oystercatchers: ['oystercatcher', 140], curlews: ['curlew', 220], godwits: ['godwit', 200], stonecurlews: ['stonecurlew', 120], cormorants: ['greatcormorant', 180], cormorantsdry: ['greatcormorant', 180] };
+const WALK = { oystercatchers: ['oystercatcher', 140], curlews: ['curlew', 220], godwits: ['godwit', 200], stonecurlews: ['stonecurlew', 120], bushcurlews: ['bushcurlew', 120], cormorants: ['greatcormorant', 180], cormorantsdry: ['greatcormorant', 180] };
 export function spotWalk(name, list) { const w = WALK[name]; if (w) spotAt(w[0], list, 4, w[1], { rad: 20 }); }
 
 // reptiles and mammals (wildland.js critters): [x, z, turn, phase, y]

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { spotWalk } from './spot.js';
 import { Shape, bird } from './creatures.js';
-import { makeMat, nearOnly, FEATHER_GLSL, LOGV, LOGF } from './common.js';
+import { makeMat, nearOnly, byPlace, FEATHER_GLSL, LOGV, LOGF } from './common.js';
 
 const PI = Math.PI, FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -182,6 +182,14 @@ export const STONECURLEW = () => standing({
   leg: { x: -0.02, knee: 0.007, lean: 0.0, z: 0.034, r: 0.0125, toe: 0.055, knob: 0.8 }, wing: [0.1, 0.3, 0.075], tail: [0.12, 0.05],
   cols: { body: (u, v) => mx(spot([0.52, 0.46, 0.36], [0.28, 0.24, 0.18], 20, 8, 0.8)(u, v), [0.9, 0.88, 0.82], sm(0.55, 0.78, v)), wing: (u, v) => mx(spot([0.44, 0.4, 0.32], [0.24, 0.21, 0.17], 5, 12, 0.7)(u, v), [0.92, 0.9, 0.86], sm(0.3, 0.4, u) * (1 - sm(0.5, 0.6, u)) * 0.8), head: (u, v) => { const dv = dvOf(v); return mx(mx(mx([0.95, 0.94, 0.9], [0.46, 0.4, 0.32], sm(0.6, 0.88, dv)), [0.08, 0.07, 0.07], (1 - sm(0.18, 0.42, Math.abs(dv))) * sm(0.05, 0.25, u)), [0.94, 0.92, 0.88], sm(-0.45, -0.7, dv)); }, neck: spot([0.5, 0.45, 0.36], [0.3, 0.26, 0.2], 16, 12, 0.8), bill: billTo([0.88, 0.8, 0.22], [0.06, 0.06, 0.06], 0.42), leg: [0.78, 0.82, 0.4], eye: [0.97, 0.88, 0.18], pupil: [0.02, 0.02, 0.02], tail: bars([0.42, 0.37, 0.3], [0.22, 0.19, 0.15], 5) },
 });
+// Bush stone-curlew: the "curlew" of the townships. Slimmer and longer in the leg than the beach bird, grey-brown streaked with dark, a pale brow over
+// the big yellow eye, a dark stripe from the eye down the neck, a short dark bill
+export const BUSHCURLEW = () => standing({
+  body: [[0.2, 0.013, 0.018, 0], [0.16, 0.052, 0.044, 0.004], [0.07, 0.078, 0.062, 0.01], [-0.05, 0.08, 0.064, 0.006], [-0.16, 0.058, 0.048, 0], [-0.27, 0.027, 0.027, -0.012], [-0.36, 0.009, 0.013, -0.02]],
+  tilt: 0.5, by: 0.4, neck: [0.15, 0.036, 0.03, 0.023, 0.0], head: [0.21, 0.62], hl: 0.092, hr: 0.039, hd: 0.012, eye: 0.0145, pupil: 0.0075, bill: { len: 0.05, r0: 0.012, r1: 0.005, drop: 0.0, bend: -0.1 },
+  leg: { x: -0.02, knee: 0.007, lean: 0.0, z: 0.03, r: 0.011, toe: 0.05, knob: 0.8 }, wing: [0.1, 0.3, 0.07], tail: [0.14, 0.045],
+  cols: { body: (u, v) => mx(spot([0.6, 0.56, 0.5], [0.2, 0.18, 0.15], 7, 20, 0.85)(u, v), spot([0.92, 0.89, 0.8], [0.3, 0.26, 0.22], 6, 18, 0.6)(u, v), sm(0.5, 0.72, v)), wing: (u, v) => mx(spot([0.5, 0.47, 0.42], [0.2, 0.18, 0.16], 4, 14, 0.8)(u, v), [0.86, 0.84, 0.78], sm(0.3, 0.38, u) * (1 - sm(0.46, 0.54, u)) * 0.6), head: (u, v) => { const dv = dvOf(v); return mx(mx(mx([0.94, 0.92, 0.86], [0.52, 0.49, 0.44], sm(0.55, 0.8, dv)), [0.16, 0.14, 0.13], (1 - sm(0.08, 0.24, Math.abs(dv + 0.12))) * sm(0.05, 0.25, u)), [0.93, 0.91, 0.86], sm(-0.5, -0.75, dv)); }, neck: spot([0.68, 0.64, 0.57], [0.24, 0.21, 0.18], 5, 16, 0.8), bill: billTo([0.5, 0.48, 0.3], [0.07, 0.07, 0.07], 0.25), leg: [0.62, 0.63, 0.46], eye: [0.97, 0.88, 0.18], pupil: [0.02, 0.02, 0.02], tail: bars([0.5, 0.47, 0.42], [0.2, 0.18, 0.15], 5) },
+});
 // Great cormorant standing on the sand: bolt upright, the long hooked bill pointing down, black with a bronze scalloped back, a yellow
 // throat pouch and a white chin patch. dry: wings held out to dry in the sun, the pose all cormorants take.
 export const CORMORANT_STAND = (dry = false) => {
@@ -236,9 +244,8 @@ const BIRD_FS = /* glsl */`varying vec3 vCol, vW, vLight, vFx; ${FEATHER_GLSL} v
 export function walkers(scene, geo, list, o) {
   if (!list.length) return null;
   spotWalk(o.name, list);
-  const g = new THREE.InstancedBufferGeometry();
-  g.index = geo.index; for (const k of ['position', 'normal', 'color', 'aFx']) g.setAttribute(k, geo.attributes[k]);
-  g.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(list), 4)); g.instanceCount = list.length / 4; g.boundingSphere = FAR;
+  const geoOf = (part) => { const g = new THREE.InstancedBufferGeometry(); g.index = geo.index; for (const k of ['position', 'normal', 'color', 'aFx']) g.setAttribute(k, geo.attributes[k]);
+    g.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(part), 4)); g.instanceCount = part.length / 4; g.boundingSphere = FAR; return g; };
   const mat = makeMat({
     side: THREE.DoubleSide, uniforms: { uK: { value: new THREE.Vector4(o.scale || 1, o.pace ?? 3, o.step ?? 0.23, o.night ? 1 : 0) } },
     vs: /* glsl */`
@@ -260,6 +267,10 @@ export function walkers(scene, geo, list, o) {
       }`,
     fs: BIRD_FS,
   });
-  const m = new THREE.Mesh(g, mat); m.name = o.name || 'walkers'; m.frustumCulled = false; scene.add(m); nearOnly(m, list, 4, o.see || 600, 14);
-  return m;
+  // (a long list is cut up by where on the island the birds are: each part is its own draw, made only when the viewer is near it)
+  let first = null;
+  for (const part of (list.length > 600 ? byPlace(list, 4, 900) : [list])) {
+    const m = new THREE.Mesh(geoOf(part), mat); m.name = o.name || 'walkers'; m.frustumCulled = false; scene.add(m); nearOnly(m, part, 4, o.see || 600, 14); first = first || m;
+  }
+  return first;
 }

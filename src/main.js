@@ -84,7 +84,7 @@ const rideWhere = (x, z) => {
   let best = null, bd = 1e9; for (const p of (features && features.places) || []) { if (/Whole island/.test(p.n)) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
   return best ? (bd < 400 ? best.n : best.n + ' ' + (bd / 1000).toFixed(1) + ' km') : '';
 };
-const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : []), ...(aboard && aboard.av.on ? [aboard.av] : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
+const ride = makeRide(camera, canvas, rideable, () => (boats ? boats.boats : []), { birds: flyers, others: () => [...(air ? air.planes : []), ...(trek ? trek.walkers : []), ...(aboard && aboard.av.on && aboard.av.m.visible ? [aboard.av] : [])], showWalker: (v) => trek && trek.show(v), sea: () => U.uSeaM.value * VEX, ground: (x, z) => meshY(x, z), where: rideWhere, wind: () => `${compass(wx.windDir)} ${Math.round(wx.wind / 1.852)} kn`, depth: (x, z) => U.uSeaM.value - heightAt(x, z) });
 function resize() {
   const w = +(Q.get('w') || window.innerWidth), h = +(Q.get('h') || window.innerHeight);
   renderer.setPixelRatio(pixelRatio()); renderer.setSize(w, h, false); composer.setPixelRatio(pixelRatio()); composer.setSize(w, h);
@@ -178,10 +178,10 @@ $('wxMode').addEventListener('click', (e) => { const m = e.target.dataset.m; if 
 $('btDepth').onclick = (e) => { U.uContour.value = U.uContour.value ? 0 : 1; e.currentTarget.classList.toggle('on', !!U.uContour.value); };
 
 // ---------- walking ----------
-function enterWalk(x, z) {
+function enterWalk(x, z, yaw) {
   const d = new THREE.Vector3(); camera.getWorldDirection(d);
   fly = null; controls.enabled = false; controls.autoRotate = false; $('btSpin').classList.remove('on');
-  walk.enter(x, z, Math.atan2(d.x, -d.z)); document.body.classList.add('walking'); $('btWalk').classList.add('on'); $('btWalk').textContent = 'Back to map';
+  walk.enter(x, z, yaw ?? Math.atan2(d.x, -d.z)); document.body.classList.add('walking'); $('btWalk').classList.add('on'); $('btWalk').textContent = 'Back to map';
 }
 function exitWalk() {
   if (!walk.active) return;
@@ -232,8 +232,13 @@ function stepGoal() {
 const say = (txt) => { const h = $('hint'); h.textContent = txt; h.style.opacity = 1; clearTimeout(say.t); say.t = setTimeout(() => { h.style.opacity = 0; }, 6000); };
 function getOut() {
   if (!ride.active || !aboard) return; const veh = ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane' ? ride.bird : null); if (!veh) return;
-  const kind = ride.car ? 'car' : ride.boat ? 'boat' : 'plane', view = ride.zoom; stopTour(); exitRide();
-  const me = aboard.leave(veh, kind); enterRide({ kind: 'bird', obj: me, control: true }); ride.setView(me.state === 'fall' ? 1 : 0); syncTravel();
+  const kind = ride.car ? 'car' : ride.boat ? 'boat' : 'plane'; stopTour(); exitRide();
+  const me = aboard.leave(veh, kind);
+  if (me.state === 'fall') { enterRide({ kind: 'bird', obj: me, control: true }); ride.setView(1); }
+  else {          // Walk mode, beside the vehicle and facing the way it faces. (The figure that stands for you is not drawn: it only keeps the vehicle parked until you get back in.)
+    me.m.visible = false; const off = kind === 'plane' ? 4 : 0; enterWalk(me.x + Math.sin(me.hd) * off, me.z + Math.cos(me.hd) * off, Math.PI / 2 - me.hd);
+  }
+  syncTravel();
 }
 // Leave the car / boat / yacht / jet ski steps out of it too (and a plane on the ground); Esc or M still go back up to the map
 ride.onExit = () => { const veh = ride.car || ride.boat || (ride.bird && ride.bird.kind === 'plane' ? ride.bird : null); if (veh && aboard) getOut(); else exitRide(); };
@@ -288,7 +293,7 @@ function syncHelp() {
     else if (k === 'person') t = 'Hold the mouse button on the view to walk, towards the left or the right to turn that way · or W to walk, A D to turn, S or down arrow to stop · the box at the bottom left has Forward, Stop and three speeds · hold Shift to go faster · scroll out to see yourself · double-click a vehicle to get in · M for the map';
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
-  } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
+  } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W walks and keeps walking · S slows to a halt · A D step sideways · Q E turn · hold Shift to go faster (Caps Lock keeps it on) · drag with the right or left mouse button to turn and look · Space to jump · in the water, look down and swim to dive · double-click a vehicle to get in · M for the map · gamepad: sticks, A jump, RT run, B map'; }
   else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu · drag any panel to move it, its corner to resize it' : 'W A S D or the arrow keys move the view, Q E turn it, Shift goes faster · drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu · drag any panel to move it, its corner to resize it';
   $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
 }
@@ -347,14 +352,14 @@ function layoutLeft() {
   canvas.addEventListener('pointerup', (e) => {
     const onFoot = ride.active && ride.bird && ride.bird.kind === 'person';            // (on foot you can still pick a vehicle to get into)
     const finger = e.pointerType !== 'mouse';            // (a finger is less exact than a mouse, and a little slower)
-    if (!down || e.button !== 0 || walk.active || (ride.active && !onFoot) || Math.hypot(e.clientX - down.x, e.clientY - down.y) > (finger ? 16 : 9) || performance.now() - down.t > 500) { down = null; return; }
+    if (!down || e.button !== 0 || (ride.active && !onFoot) || Math.hypot(e.clientX - down.x, e.clientY - down.y) > (finger ? 16 : 9) || performance.now() - down.t > 500) { down = null; return; }
     down = null; const now = performance.now();
     if (!(last && now - last.t < (finger ? 520 : 420) && Math.hypot(e.clientX - last.x, e.clientY - last.y) < (finger ? 46 : 30))) { last = { t: now, x: e.clientX, y: e.clientY }; return; }            // that was the first click: nothing happens until the second
     last = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit && !(aboard && hit.obj === aboard.av)) return enterRide(hit);
-    if (onFoot || !aboard) return;
-    // the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
+    if (onFoot || (walk.active && finger)) return;          // (walking by touch, a finger on the view walks: it does not also move you somewhere else)
+    // the ground or the sea: Walk mode there, standing (or swimming) and seeing through your own eyes; already walking, you are put down at the new spot
     const p = pickGround(camera, e.clientX, e.clientY); if (!p) return;
-    camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel();
+    if (walk.active) walk.enter(p.x, p.z, walk.yaw); else enterWalk(p.x, p.z); syncTravel();
   });
 }
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };

@@ -6,7 +6,7 @@ from crop_portraits import portrait
 SH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'shots') + os.sep
 MAP = {
   # waders and water birds
-  'curlew': ['bird_curlew_side', 'bird_curlew_front'], 'godwit': ['bird_godwit_side', 'bird_godwit_front'], 'stonecurlew': ['bird_stonecurlew_side', 'bird_stonecurlew_front'],
+  'curlew': ['bird_curlew_side', 'bird_curlew_front'], 'godwit': ['bird_godwit_side', 'bird_godwit_front'], 'stonecurlew': ['bird_stonecurlew_side', 'bird_stonecurlew_front'], 'bushcurlew': ['bird_bushcurlew_side', 'bird_bushcurlew_front'],
   'oystercatcher': ['bird_oystercatcher_side', 'bird_oystercatcher_front'], 'swan': ['bird_swan_side', 'bird_swan_front'],
   'greatcormorant': ['bird_cormorant_stand_side', 'bird_cormorant_dry_front', 'bird_cormorant_swim_side'],
   # raptors

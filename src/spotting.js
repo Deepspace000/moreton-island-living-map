@@ -13,7 +13,7 @@ import { meshY, maskAt, heightAt } from './terrain.js';
 
 const BY = Object.fromEntries(GUIDE.map(a => [a.id, a]));
 const NIGHT_ONLY = new Set(['stonecurlew', 'flyingfox', 'microbat', 'bandicoot', 'longnose', 'brushtail', 'ringtail', 'waterrat']);
-const DAY_ONLY = new Set([...GUIDE.filter(a => a.group === 'birds' && a.id !== 'stonecurlew').map(a => a.id), ...GUIDE.filter(a => a.group === 'insects').map(a => a.id)]);
+const DAY_ONLY = new Set([...GUIDE.filter(a => a.group === 'birds' && a.id !== 'stonecurlew' && a.id !== 'bushcurlew').map(a => a.id), ...GUIDE.filter(a => a.group === 'insects').map(a => a.id)]);
 const HIGH = { dolphin: 250, dugong: 250, humpback: 800, whaler: 160, tigershark: 220, greenturtle: 160, maskray: 90, shovelnose: 90 };          // how high above the water the eye may be and still count (default 70 m)
 const FLY = { pelican: ['pelican', 500], eagle: ['seaeagle', 700], osprey: ['osprey', 450], brahminy: ['brahminy', 450], whistling: ['whistling', 450], wedgetail: ['wedgetail', 700], peregrine: ['peregrine', 400], flyingfox: ['flyingfox', 260], microbat: ['microbat', 120] };
 const CLOSE = new Set([...GUIDE.filter(a => a.group === 'fish' && a.id !== 'whaler' && a.id !== 'tigershark').map(a => a.id), 'sandcrab', 'bluecrab', 'rockcrab', 'octopus', 'jellyfish']);          // spotted only from about 5 m, as a small notice
@@ -128,7 +128,7 @@ export function makeSpotting({ camera, controls, walk, F, state, openGuide }) {
       } else if (controls) controls.target.lerp(p, f);
     }
   }
-  const MOVE = /^(Key[WASDQEZ]|Arrow|Shift|Space|Tab|Control|Alt|Digit|F\d)/;          // keys for moving about do not take a frame away
+  const MOVE = /^(Key[WASDQEZ]|Arrow|Shift|Caps|Space|Tab|Control|Alt|Digit|F\d)/;          // keys for moving about do not take a frame away
   addEventListener('keydown', (e) => { if (!MOVE.test(e.code)) clearFocus(true); }, true);
 
   // ---- the looking

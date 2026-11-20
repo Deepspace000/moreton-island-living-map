@@ -1,4 +1,4 @@
-# Moreton Island Simulator: update note (release 170)
+# Moreton Island Simulator: update note (release 172)
 
 A living 3D map of Moreton Island (Mulgumpin), Queensland, that you can fly over, walk across, drive, sail and dive in. It runs in the browser and, now, as a Windows program of its own. This note says how it was built, stage by stage, and what has just changed.
 
@@ -40,3 +40,5 @@ Everything below was made in order, one round at a time. After each round the re
 Drag to move, right-drag or two fingers to turn, scroll or pinch to zoom; W A S D and Q E move and turn the view (Shift is faster); double-click a spot to stand there; double-click a 4WD, boat or bird to go along (H takes the controls); M returns to the map; right-click for a menu; every panel can be dragged and resized.
 
 Credits: terrain, aerial photography and seabed from the Queensland Government's open data; buildings and tracks from OpenStreetMap; satellite images from Sentinel-2; weather from Open-Meteo; and the owner's own photographs of the island.
+
+**Release 172.** Walk mode is now the one way of being on foot. Two clicks on any part of the island or the sea, the Walk button, and getting out of a car, a boat, a yacht, a jet ski or a plane on the ground all put you in it, seen through your own eyes (a fall from a plane in flight is still seen from behind). The keys are new: W sets you walking and you keep walking, S slows you to a halt, A and D step sideways, Q and E (or the left and right arrows) turn, and Shift goes faster, on land and in the water; with Caps Lock on you stay fast without holding Shift. A mouse button held on the view and dragged (right or left) turns you and looks up and down; the pointer is no longer caught by the view, so on foot two clicks on a vehicle get you into it and two clicks on the ground put you down there. More birds: pied oystercatchers in pairs and small parties along every beach (about 1,300, six times as many), silver gulls a few anywhere and in flocks on the sand within 350 m of a building, a camping area or a jetty (about 1,170 on foot), and a new bird, the bush stone-curlew, in pairs and small groups in the scrub round the houses of every township and at the camping areas (about 565), out by day and by night. It is in the Wildlife guide with its own pictures.

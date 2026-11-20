@@ -1,4 +1,6 @@
 // First-person walking: keyboard + mouse, touch or a gamepad.
+// Keys: W walks and keeps walking, S slows to a halt, A and D step sideways, Q and E (or the left and right arrows) turn, Shift goes faster
+// (Caps Lock keeps it on). A mouse button held and dragged on the view (right or left) turns and looks.
 // Touch: a finger on the view walks forward for as long as it is down (slide sideways = steer, far up = run);
 // two fingers down = stand still and drag to look around.
 import * as THREE from 'three';
@@ -11,7 +13,7 @@ const EYE = 1.72 * VEX;
 export function makeWalk(camera, canvas) {
   const W = { active: false, pos: new THREE.Vector3(), yaw: 0, pitch: -0.05, vy: 0, air: false, swim: false, dive: 0, under: false, speed: 0, onExit: null };
   const keys = new Set();
-  let bob = 0, feet = 0, anchor = null, tf = 0, tfGoal = 0, tTurn = 0, tRun = 0;
+  let bob = 0, feet = 0, anchor = null, tf = 0, tfGoal = 0, tTurn = 0, tRun = 0, cruise = 0, caps = false, mdrag = null;
   const fingers = new Map();                 // touch id -> last position
   const stick = document.getElementById('stick'), knob = stick?.firstElementChild;
   const stickR = () => clamp(Math.min(innerWidth, innerHeight) * 0.2, 60, 110);
@@ -29,11 +31,15 @@ export function makeWalk(camera, canvas) {
     if (stick) stick.style.cssText = `display:block; left:${x}px; top:${y}px; --r:${stickR()}px`;
   };
   const look = (dx, dy, k) => { W.yaw += dx * k * OPT.invX; W.pitch = clamp(W.pitch - dy * k * OPT.invY, -1.5, 1.5); };
-  addEventListener('keydown', (e) => { if (!W.active) return; keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
-  addEventListener('keyup', (e) => keys.delete(e.code));
+  const capsOf = (e) => { if (e.getModifierState) caps = e.getModifierState('CapsLock'); };          // (Caps Lock on: fast for as long as it stays on)
+  addEventListener('keydown', (e) => { capsOf(e); if (!W.active) return; keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
+  addEventListener('keyup', (e) => { capsOf(e); keys.delete(e.code); });
   addEventListener('blur', () => keys.clear());
-  document.addEventListener('mousemove', (e) => { if (W.active && document.pointerLockElement === canvas) look(e.movementX, e.movementY, 0.0021); });
-  canvas.addEventListener('click', () => { if (W.active && document.pointerLockElement !== canvas && matchMedia('(pointer: fine)').matches) canvas.requestPointerLock?.(); });
+  // a mouse button held on the view and dragged turns you and tips the view up and down (the right button or the left); the pointer stays free,
+  // so two clicks still pick a vehicle to get into or a spot to stand on
+  canvas.addEventListener('pointerdown', (e) => { capsOf(e); if (W.active && e.pointerType === 'mouse' && (e.button === 0 || e.button === 2)) mdrag = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
+  addEventListener('pointermove', (e) => { if (!W.active || !mdrag || e.pointerId !== mdrag.id) return; look(e.clientX - mdrag.x, e.clientY - mdrag.y, 0.0042); mdrag.x = e.clientX; mdrag.y = e.clientY; });
+  for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, () => { mdrag = null; });
   // one finger anywhere on the view walks forward; with two fingers down you stand still and drag to look around
   canvas.addEventListener('touchstart', (e) => {
     if (!W.active) return; e.preventDefault();
@@ -58,17 +64,18 @@ export function makeWalk(camera, canvas) {
   canvas.addEventListener('touchend', endTouch); canvas.addEventListener('touchcancel', endTouch);
 
   W.enter = (x, z, yaw) => {
-    W.active = true; W.pos.set(x, Math.max(meshY(x, z), U.uSeaM.value * VEX) + EYE, z); W.vy = 0; W.pitch = -0.04; if (yaw != null) W.yaw = yaw;
+    W.active = true; W.pos.set(x, Math.max(meshY(x, z), U.uSeaM.value * VEX) + EYE, z); W.vy = 0; W.pitch = -0.04; if (yaw != null) W.yaw = yaw; cruise = 0; mdrag = null;
     camera.fov = innerWidth < innerHeight ? 80 : 70; camera.near = 0.25; camera.updateProjectionMatrix();
-    if (matchMedia('(pointer: fine)').matches) canvas.requestPointerLock?.();
   };
-  W.exit = () => { W.active = false; keys.clear(); stand(); fingers.clear(); tf = 0; if (document.pointerLockElement === canvas) document.exitPointerLock(); camera.near = 3; };
+  W.exit = () => { W.active = false; keys.clear(); stand(); fingers.clear(); tf = 0; cruise = 0; mdrag = null; if (document.pointerLockElement === canvas) document.exitPointerLock(); camera.near = 3; };
   W.update = (dt) => {
     tf += (tfGoal - tf) * Math.min(1, dt * 9); W.yaw += tTurn * dt;
-    let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + tf;
+    // W sets you walking and you keep walking; S slows you down to a halt (there is no walking backwards)
+    if (keys.has('KeyW') || keys.has('ArrowUp')) cruise = Math.min(1, cruise + dt * 4); else if (keys.has('KeyS') || keys.has('ArrowDown')) cruise = Math.max(0, cruise - dt * 1.7);
+    let f = cruise + tf;
     let s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
-    let run = keys.has('ShiftLeft') || keys.has('ShiftRight'), jump = keys.has('Space');
-    if (keys.has('ArrowLeft')) W.yaw -= dt * 1.6; if (keys.has('ArrowRight')) W.yaw += dt * 1.6;
+    let run = keys.has('ShiftLeft') || keys.has('ShiftRight') || caps, jump = keys.has('Space');
+    if (keys.has('KeyQ') || keys.has('ArrowLeft')) W.yaw -= dt * 1.9; if (keys.has('KeyE') || keys.has('ArrowRight')) W.yaw += dt * 1.9;
     const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g && g.connected) : null;
     if (gp) {
       const dz = (v) => Math.abs(v) < 0.15 ? 0 : v;
@@ -80,7 +87,7 @@ export function makeWalk(camera, canvas) {
     const mag = Math.hypot(f, s); if (mag > 1) { f /= mag; s /= mag; }
     const sea = U.uSeaM.value * VEX, gy = meshY(W.pos.x, W.pos.z);
     W.swim = gy < sea - 1.25 * VEX;
-    const sp = W.swim ? 3.2 : 5.2 + 11.8 * Math.max(run ? 1 : 0, tRun);
+    const sp = W.swim ? 3.2 + 3.3 * Math.max(run ? 1 : 0, tRun) : 5.2 + 11.8 * Math.max(run ? 1 : 0, tRun);
     // diving: once afloat, swimming forward while looking down takes you under, looking up brings you back (C and Space also sink and rise)
     if (W.swim) {
       const sink = (keys.has('KeyC') || keys.has('ControlLeft') ? 1 : 0) - (jump ? 1 : 0);

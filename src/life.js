@@ -15,7 +15,7 @@ import { wallaby, WALLABY_PAINT, goanna, bluetongue, LIZARD_PAINT } from './bodi
 const loftGeo = (m) => (g) => { attr(g, 'position', m.pos, 3); attr(g, 'normal', m.nrm, 3); attr(g, 'aK', m.part, 1); g.setIndex(m.idx); };
 import { buildWildPlants } from './wildplants.js';
 import { critters, WILD_PAINT, WATER_DRAGON, MAJOR_SKINK, LAND_MULLET, GARDEN_SKINK, LEGLESS, CARPET_PYTHON, GREEN_TREE_SNAKE, BLACK_SNAKE, WHIPSNAKE, LONGNECK_TURTLE, BANDICOOT, LONGNOSE_BANDICOOT, BRUSHTAIL, RINGTAIL, WATER_RAT, FLYINGFOX_FLY, FLYINGFOX_WING, MICROBAT_FLY, MICROBAT_WING } from './wildland.js';
-import { OSPREY_FLY, OSPREY_WING, BRAHMINY_FLY, BRAHMINY_WING, WHISTLING_FLY, WHISTLING_WING, WEDGETAIL_FLY, WEDGETAIL_WING, PEREGRINE_FLY, PEREGRINE_WING, CURLEW, GODWIT, OYSTERCATCHER, STONECURLEW, CORMORANT_STAND, GREAT_CORMORANT, BLACK_SWAN, walkers } from './wildbirds.js';
+import { OSPREY_FLY, OSPREY_WING, BRAHMINY_FLY, BRAHMINY_WING, WHISTLING_FLY, WHISTLING_WING, WEDGETAIL_FLY, WEDGETAIL_WING, PEREGRINE_FLY, PEREGRINE_WING, CURLEW, GODWIT, OYSTERCATCHER, STONECURLEW, BUSHCURLEW, CORMORANT_STAND, GREAT_CORMORANT, BLACK_SWAN, walkers } from './wildbirds.js';
 import { TAILOR, DART, TREVALLY, JEWFISH, LONGTOM, TARWHINE, SNAPPER, SWEETLIP, COD, MOSES, TUSK, MORWONG, MORAY, WPAINT } from './wildlife.js';
 import { spotAt } from './spot.js';
 import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
@@ -892,6 +892,15 @@ function buildBirds(scene, F) {
     const p = r.p[i], q = r.p[i + 1], gull = R() < 0.35, k = gull ? 2 + ((R() * 4) | 0) : 2, side = r.side || 1;
     for (let j = 0; j < k; j++) { const e = [p[0] + side * (5 + R() * 5) + (R() - .5) * 4, p[1] + (R() - .5) * 8, Math.atan2(-(q[1] - p[1]), q[0] - p[0]) + (R() < .5 ? 0 : Math.PI), R()]; if (gull) { sp.push(...e); sc.push(...GREY); } else oys.push(...e); }
   }
+  // Many more of both. Pied oystercatchers in pairs and small parties all along every beach, one lot every hundred metres or so. Silver gulls a few
+  // anywhere, and in flocks wherever there are people: a building, a camping area or a jetty within 350 m of the sand.
+  { const Rb = rng(4471), people = []; for (const b of F.buildings) if (b.k !== 'ship' && b.p.length) people.push(b.p[0]); for (const c of F.camps || []) people.push(c.p); for (const j of F.piers || []) if (j.p && j.p.length) people.push(j.p[0]);
+    const byPeople = (x, z) => { for (const q of people) { const ax = q[0] - x, az = q[1] - z; if (ax * ax + az * az < 122500) return true; } return false; };
+    for (const r of F.beach || []) for (let i = 7; i < r.p.length - 7; i += MOBILE ? 4 : 2) {
+      const p = r.p[i], q = r.p[i + 1], side = r.side || 1, hd = Math.atan2(-(q[1] - p[1]), q[0] - p[0]), town = byPeople(p[0], p[1]);
+      if (Rb() < 0.6) for (let j = 0, n = 2 + ((Rb() * 3) | 0); j < n; j++) oys.push(p[0] + side * (4 + Rb() * 6) + (Rb() - .5) * 4, p[1] + (Rb() - .5) * 12, hd + (Rb() < .5 ? 0 : Math.PI), Rb());
+      if (Rb() < (town ? 0.9 : 0.18)) for (let j = 0, n = town ? 7 + ((Rb() * 10) | 0) : 2 + ((Rb() * 4) | 0); j < n; j++) { sp.push(p[0] + side * (3 + Rb() * 8) + (Rb() - .5) * 4, p[1] + (Rb() - .5) * (town ? 44 : 10), town ? Rb() * 6.283 : hd + (Rb() < .5 ? 0 : Math.PI), Rb()); sc.push(...GREY); }
+    } }
   if (F.micat) { const M = F.micat, [dx, dz] = M.dir;            // a flock of silver gulls stands about on the sand beside the Micat's landing (the owner's photograph)
     for (let j = 0; j < 16; j++) { const up = 20 + R() * 16, out = 12 + R() * 26; sp.push(M.land[0] + dx * up - dz * out, M.land[1] + dz * up + dx * out, R() * 6.283, R()); sc.push(...GREY); } }
   spotAt('silvergull', sp, 4, 300, { rad: 10 }); ig.setAttribute('iP', new THREE.InstancedBufferAttribute(new Float32Array(sp), 4)); ig.setAttribute('iC', new THREE.InstancedBufferAttribute(new Float32Array(sc), 3)); ig.instanceCount = sp.length / 4; ig.boundingSphere = FAR;
@@ -1033,6 +1042,15 @@ function buildBirds(scene, F) {
       if (Rw() < 0.07) { const x = landward(p[0], p[1], side, 1.3, 2.8); if (x !== null) { const h0 = Rw() * 6.283; for (let j = 0; j < 2; j++) stc.push(x + (Rw() - .5) * 5, p[1] + j * 3 + (Rw() - .5) * 3, h0 + j * 0.6, Rw()); } }
       if (sheltered && Rw() < 0.05) { const x = seaward(p[0], p[1], side, 0.3, 0.9), dry = Rw() < 0.45; if (x !== null) for (let j = 0, n = 1 + ((Rw() * 4) | 0); j < n; j++) (dry ? cd : cs).push(x + (Rw() - .5) * 3, p[1] + j * 3 + (Rw() - .5) * 3, Rw() * 6.283, Rw()); }
     }
+    // Bush stone-curlews (the "curlews" of the townships) in the scrub round the houses and the camping areas: pairs and small groups standing about on dry
+    // ground a little way from a building, not on top of one. They are out by day and by night.
+    const bsc = []; { const Rc = rng(9177), cen = []; for (const b of F.buildings) { if (b.k === 'ship' || b.p.length < 3) continue; let mx = 0, mz = 0; for (const q of b.p) { mx += q[0] / b.p.length; mz += q[1] / b.p.length; } cen.push([mx, mz]); }
+      const clear = (x, z) => { for (const c of cen) { const ax = c[0] - x, az = c[1] - z; if (ax * ax + az * az < 81) return false; } return true; };
+      const group = (cx, cz, r0, r1) => { for (let t = 0; t < 8; t++) { const a = Rc() * 6.283, r = r0 + Rc() * (r1 - r0), x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; if (heightAt(x, z) < 1.5 || !clear(x, z)) continue; const h0 = Rc() * 6.283; for (let j = 0, n = 2 + ((Rc() * 3) | 0); j < n; j++) bsc.push(x + (Rc() - .5) * 7, z + (Rc() - .5) * 7, h0 + j * 0.9, Rc()); return; } };
+      for (const c of cen) if (Rc() < (MOBILE ? 0.18 : 0.34)) group(c[0], c[1], 13, 75);
+      for (const c of F.camps || []) if (Rc() < 0.7) group(c.p[0], c.p[1], 10, 60);
+    }
+    walkers(scene, BUSHCURLEW(), bsc, { scale: 1.5, pace: 0.5, night: 1, see: 450, name: 'bushcurlews' });
     const WS = 1.6;          // (the waders are shown larger than life, like the gulls: at a hundred metres a real one is a speck)
     walkers(scene, OYSTERCATCHER(), oys, { scale: WS, pace: 4, see: 650, name: 'oystercatchers' });
     walkers(scene, CURLEW(), cu, { scale: WS, pace: 3, see: 750, name: 'curlews' });
