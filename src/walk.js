@@ -33,6 +33,10 @@ export function makeWalk(camera, canvas) {
   addEventListener('keyup', (e) => keys.delete(e.code));
   addEventListener('blur', () => keys.clear());
   document.addEventListener('mousemove', (e) => { if (W.active && document.pointerLockElement === canvas) look(e.movementX, e.movementY, 0.0021); });
+  // without the mouse locked, the pointer itself steers: to the left or right of the middle turns you, up or down tilts the head
+  let mouse = null;
+  canvas.addEventListener('mousemove', (e) => { mouse = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('mouseleave', () => { mouse = null; });
   canvas.addEventListener('click', () => { if (W.active && document.pointerLockElement !== canvas && matchMedia('(pointer: fine)').matches) canvas.requestPointerLock?.(); });
   // one finger anywhere on the view walks forward; with two fingers down you stand still and drag to look around
   canvas.addEventListener('touchstart', (e) => {
@@ -65,6 +69,11 @@ export function makeWalk(camera, canvas) {
   W.exit = () => { W.active = false; keys.clear(); stand(); fingers.clear(); tf = 0; if (document.pointerLockElement === canvas) document.exitPointerLock(); camera.near = 3; };
   W.update = (dt) => {
     tf += (tfGoal - tf) * Math.min(1, dt * 9); W.yaw += tTurn * dt;
+    if (mouse && document.pointerLockElement !== canvas && !fingers.size) {
+      const nx = (mouse.x / innerWidth - 0.5) * 2, ny = (mouse.y / innerHeight - 0.5) * 2;
+      W.yaw += Math.sign(nx) * (Math.max(0, Math.abs(nx) - 0.15) / 0.85) ** 1.5 * 2.2 * dt * OPT.invX;
+      W.pitch += (clamp(-ny * 0.8, -1.2, 1.2) - W.pitch) * Math.min(1, dt * 4);
+    }
     let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + tf;
     let s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);          // (A and D step sideways; Q and E turn)
     let run = keys.has('ShiftLeft') || keys.has('ShiftRight'), jump = keys.has('Space');
