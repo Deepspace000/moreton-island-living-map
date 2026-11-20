@@ -160,6 +160,35 @@ export function buildSeabed(scene, F, o) {
   // and many smaller places in the shallows all round the island
   for (let t = 0, made = 0; t < 9000 && made < 120 * K; t++) { const x = (R() - 0.5) * (T.sx - 1200), z = (R() - 0.5) * (T.sz - 1200), d = depth(x, z); if (d < 0.7 || d > 7 || maskAt(x, z).shore < -900) continue; made++; site(x, z, 3.5 + R() * 4, 0.5 + R() * 0.5, false); }
 
+  // The small life of the shallows is everywhere, not only at the rocky places: loose groups on the sand, in water up to 3 m deep all round the island and
+  // over the banks, and a group just off every stretch of beach. Each has sea stars, shells and a sea snail or two; often a crab or two; sometimes sea
+  // urchins, a sea cucumber, a tight group of very small fish, and now and then an octopus.
+  const URCHINS = [[0.12, 0.08, 0.14], [0.08, 0.07, 0.08], [0.3, 0.1, 0.12]], CUCUMBERS = [[0.1, 0.09, 0.08], [0.32, 0.2, 0.12], [0.42, 0.34, 0.22]];
+  const urchin = (x, z, r) => {            // a small dark ball, half sunk in the sand, with spines standing out all round
+    const y = meshY(x, z) + r * 0.6, c = pick(URCHINS), b = A.pos.length / 3;
+    for (let i = 0; i < ICO0.count; i++) { const nx = ICO0.getX(i), ny = ICO0.getY(i), nz = ICO0.getZ(i); V(x + nx * r, y + ny * r * 0.7, z + nz * r, nx, ny, nz, c, 0.8 + 0.3 * Math.max(0, ny)); A.idx.push(b + i); }
+    for (let k = 0; k < 12; k++) { const an = R() * 6.283, e = R() * 1.4, dx = Math.cos(an) * Math.cos(e), dy = Math.sin(e), dz = Math.sin(an) * Math.cos(e), L = r * (1.6 + R() * 1.2), w = r * 0.12, q = A.pos.length / 3;
+      V(x + dx * r * 0.8 - dz * w, y + dy * r * 0.6, z + dz * r * 0.8 + dx * w, dx, dy + 0.3, dz, c, 0.9); V(x + dx * r * 0.8 + dz * w, y + dy * r * 0.6, z + dz * r * 0.8 - dx * w, dx, dy + 0.3, dz, c, 0.9); V(x + dx * (r + L), y + dy * (r * 0.7 + L), z + dz * (r + L), dx, dy + 0.3, dz, c, 1.3); A.idx.push(q, q + 1, q + 2); }
+  };
+  const cucumber = (x, z, len) => {            // a sea cucumber: a fat, lumpy sausage lying on the sand
+    const y = meshY(x, z) + len * 0.16, an = R() * 6.283, ca = Math.cos(an), sa = Math.sin(an), c = pick(CUCUMBERS), b = A.pos.length / 3, seed = R() * 20;
+    for (let i = 0; i < ICO1.count; i++) { const nx = ICO1.getX(i), ny = ICO1.getY(i), nz = ICO1.getZ(i), l = 1 + 0.12 * Math.sin(nx * 9 + seed), lx = nx * len * 0.5, lz = nz * len * 0.2 * l;
+      V(x + ca * lx - sa * lz, y + ny * len * 0.18 * l, z + sa * lx + ca * lz, nx * 0.4, ny + 0.2, nz, c, 0.75 + 0.35 * Math.max(0, ny) + 0.1 * Math.sin(nx * 31)); A.idx.push(b + i); }
+  };
+  const starField = (x, z) => {
+    const near = (f) => { const px = x + (R() - .5) * 5, pz = z + (R() - .5) * 5, d = depth(px, pz); if (d > 0.25) { at(px, pz); f(px, pz, d); } };
+    for (let j = 3 + ((R() * 6) | 0); j > 0; j--) near((px, pz) => star(px, pz, 0.1 + R() * 0.13));
+    for (let j = 4 + ((R() * 6) | 0); j > 0; j--) near((px, pz) => shell(px, pz, 0.05 + R() * 0.07));
+    for (let j = 1 + ((R() * 2) | 0); j > 0; j--) near((px, pz) => snail(px, meshY(px, pz), pz, 0.03 + R() * 0.035));
+    if (R() < 0.45) for (let j = 1 + ((R() * 2) | 0); j > 0; j--) near((px, pz) => crabs.push(px, pz, R() * 6.283, 0.09 + R() * 0.11, R() * 6.283, 0.5 + R() * 1.6, 0.25 + R() * 0.35, R()));
+    if (R() < 0.12) for (let j = 2 + ((R() * 3) | 0); j > 0; j--) near((px, pz) => urchin(px, pz, 0.035 + R() * 0.03));
+    if (R() < 0.12) near((px, pz) => cucumber(px, pz, 0.18 + R() * 0.14));
+    if (R() < 0.15) near((px, pz, d) => { if (d > 0.6) school(fry, px, pz, d, Math.round((8 + R() * 8) * K), 0.8 + R() * 1.6, 0.09 + R() * 0.06); });
+    if (R() < 0.03) near((px, pz, d) => { if (d > 0.7) octos.push(px, pz, R() * 6.283, 0.3 + R() * 0.2, R() * 6.283, 0.25 + R() * 0.35, 0.6 + R() * 0.8, R()); });
+  };
+  for (let t = 0, made = 0; t < 90000 && made < 2500 * K; t++) { const x = (R() - 0.5) * (T.sx - 1200), z = (R() - 0.5) * (T.sz - 1200), d = depth(x, z); if (d < 0.3 || d > 3 || maskAt(x, z).shore < -900) continue; made++; starField(x, z); }
+  for (const r of F.beach || []) for (let i = 4; i < r.p.length - 4; i += MOBILE ? 2 : 1) { const p = r.p[i]; for (let t = 0; t < 6; t++) { const x = p[0] + (r.side || 1) * (10 + R() * 70), z = p[1] + (R() - .5) * 30, d = depth(x, z); if (d > 0.3 && d < 2) { starField(x, z); break; } } }
+
   // ---- the drawings ----
   const still = makeMat({ side: THREE.DoubleSide,
     vs: /* glsl */`attribute vec3 aCol; attribute float aSway; varying vec3 vCol, vW;
