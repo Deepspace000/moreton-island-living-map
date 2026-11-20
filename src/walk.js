@@ -66,9 +66,9 @@ export function makeWalk(camera, canvas) {
   W.update = (dt) => {
     tf += (tfGoal - tf) * Math.min(1, dt * 9); W.yaw += tTurn * dt;
     let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + tf;
-    let s = (keys.has('KeyE') ? 1 : 0) - (keys.has('KeyQ') ? 1 : 0);          // (Q and E step sideways; A and D turn)
+    let s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);          // (A and D step sideways; Q and E turn)
     let run = keys.has('ShiftLeft') || keys.has('ShiftRight'), jump = keys.has('Space');
-    if (keys.has('ArrowLeft') || keys.has('KeyA')) W.yaw -= dt * 1.6; if (keys.has('ArrowRight') || keys.has('KeyD')) W.yaw += dt * 1.6;
+    if (keys.has('ArrowLeft') || keys.has('KeyQ')) W.yaw -= dt * 1.6; if (keys.has('ArrowRight') || keys.has('KeyE')) W.yaw += dt * 1.6;
     const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g && g.connected) : null;
     if (gp) {
       const dz = (v) => Math.abs(v) < 0.15 ? 0 : v;

@@ -717,6 +717,15 @@ function buildSeaLife(scene, F) {
   for (let i = 0; i < 12 * K; i++) { const s = deep(25, 400, true); if (!s) continue; const n = R() < 0.55 ? 2 : 1; for (let j = 0; j < n; j++) whales.push(s[0] + j * 28, s[1] + j * 20, 220 + R() * 260, 3 + R() * 4, R() * 6.283 + j * 0.05, 2.0 + R() * 0.5, 14.5 * (j && R() < 0.6 ? 0.45 : 0.9 + R() * 0.2), R() * 0.4); }
   const bigSharks = [];
   for (let i = 0; i < 30 * K; i++) { const s = deep(8, 80, false); if (s) bigSharks.push(s[0], s[1], 40 + R() * 90, 2 + R() * Math.min(6, s[2] * 0.4), R() * 6.283, 1.0 + R() * 0.6, 2.6 + R() * 1.6, R()); }
+  // More open-water life, thicker the deeper it is: little groups of small fish right at the beach, bream and baitfish over the sand,
+  // bigger fish (and bigger schools) further out, then sharks, dolphin pods and whales in the deep water
+  for (let i = 0; i < 170 * K; i++) { const s = anywhere(0.3, 1.4); if (s) school(small, s[0], s[1], s[2], 5 + ((R() * 6) | 0), 2 + R() * 4, 0.26 + R() * 0.12); }          // tiny groups in the wash at the edge
+  for (let i = 0; i < 90 * K; i++) { const s = anywhere(1.2, 3.5); if (s) school(i % 3 ? bream : whiting, s[0], s[1], s[2], 5 + ((R() * 5) | 0), 3 + R() * 5, i % 3 ? 0.8 : 0.32); }
+  for (let i = 0; i < 70 * K; i++) { const s = anywhere(3, 9); if (s) school(bream, s[0], s[1], s[2], 8 + ((R() * 8) | 0), 6 + R() * 8, 1.0 + R() * 0.25); }
+  for (let i = 0; i < 40 * K; i++) { const s = anywhere(6, 25); if (s) school(blue, s[0], s[1], s[2], 18 + ((R() * 14) | 0), 6 + R() * 10, 0.5); }          // bait balls out over the banks
+  for (let i = 0; i < 40 * K; i++) { const s = deep(12, 120, false); if (s) pod(dolphins, s, 3 + ((R() * 6) | 0), 3.1, 80); }
+  for (let i = 0; i < 26 * K; i++) { const s = deep(25, 500, false); if (!s) continue; const n = R() < 0.4 ? 2 : 1; for (let j = 0; j < n; j++) whales.push(s[0] + j * 28, s[1] + j * 20, 220 + R() * 260, 3 + R() * 4, R() * 6.283 + j * 0.05, 2.0 + R() * 0.5, 14.5 * (j && R() < 0.6 ? 0.45 : 0.9 + R() * 0.2), R() * 0.4); }
+  for (let i = 0; i < 60 * K; i++) { const s = deep(12, 300, false); if (s) bigSharks.push(s[0], s[1], 40 + R() * 120, 3 + R() * Math.min(16, s[2] * 0.5), R() * 6.283, 1.0 + R() * 0.6, 2.4 + R() * 2.2, R()); }
   const SILV = [0.86, 0.89, 0.9];
   swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'bream', amp: 0.13, rate: 8, colA: [0.34, 0.38, 0.36], colB: SILV, colC: [0.45, 0.47, 0.42], see: 420 }, bream);
   swimmers(scene, { ...SLIM, paint: PAINT.bait, name: 'blue', amp: 0.15, rate: 13, colA: [0.10, 0.42, 0.50], colB: [0.80, 0.92, 0.80], colC: [0.5, 0.7, 0.6], eye: [0.39, 0.012, 0.02], see: 300, min: 0.5 }, blue);
@@ -760,6 +769,9 @@ function buildSeaLife(scene, F) {
     for (let t = 0; t < 40 * K; t++) { const s = anywhere(6, 30); if (s) { for (let i = 0; i < 1 + ((R() * 3) | 0); i++) one(snap, s[0] + R() * 12, s[1] + R() * 12, 6 + R() * 10, s[2], 0.75, 0.35); school(trev, s[0], s[1], s[2], 5, 10 + R() * 8, 0.9); } }
     for (let t = 0; t < 40 * K; t++) { const s = anywhere(1.5, 7); if (s) school(squi, s[0], s[1], s[2], 7 + ((R() * 5) | 0), 3 + R() * 4, 0.3); }
     { const c = F.lights.find(l => /Cape/.test(l.n || ''))?.p; if (c) for (let t = 0; t < 22; t++) { const s = spot(c[0] + 100, c[1] + 100, 1100, 3, 25); if (s) { school(morw, s[0], s[1], s[2], 3, 6, 0.58); one(jew, s[0], s[1], 5, s[2], 1.3, 0.3); one(swee, s[0], s[1], 5, s[2], 0.66, 0.3); one(eel, s[0], s[1], 0.8, 0, 0.8, 0.1); one(tusk, s[0], s[1], 4, s[2], 0.5, 0.3); one(cod, s[0], s[1], 1, 0, 1.0, 0.15); } } }       // the rocky ground off Cape Moreton
+    for (let t = 0; t < 60 * K; t++) { const s = anywhere(2, 7); if (s) school(tailor, s[0], s[1], s[2], 10 + ((R() * 8) | 0), 5 + R() * 9, 0.6); }          // more fish out past the first bar
+    for (let t = 0; t < 80 * K; t++) { const s = anywhere(8, 40); if (s) { school(trev, s[0], s[1], s[2], 8 + ((R() * 8) | 0), 12 + R() * 14, 0.9 + R() * 0.2); if (R() < 0.6) one(jew, s[0] + 6, s[1] + 4, 8 + R() * 10, s[2] * 0.7, 1.5, 0.3); if (R() < 0.5) one(snap, s[0], s[1], 8 + R() * 8, s[2] * 0.8, 0.8, 0.35); } }          // bigger fish, in bigger groups, as the water gets deeper
+    for (let t = 0; t < 30 * K; t++) { const s = anywhere(15, 80); if (s) { school(trev, s[0], s[1], s[2], 10 + ((R() * 8) | 0), 14 + R() * 16, 1.1); one(jew, s[0], s[1], 10, s[2] * 0.8, 1.7, 0.3); } }
     const S = [0.86, 0.89, 0.9];
     swimmers(scene, { ...TAILOR, paint: WPAINT.tailor, name: 'tailor', amp: 0.16, rate: 11, colA: [0.2, 0.36, 0.38], colB: [0.86, 0.9, 0.9], colC: [0.5, 0.58, 0.55], eye: [0.39, 0.015, 0.02], see: 420, min: 0.8 }, tailor);
     swimmers(scene, { ...DART, paint: WPAINT.dart, name: 'dart', amp: 0.13, rate: 12, colA: [0.62, 0.68, 0.66], colB: [0.92, 0.9, 0.8], colC: [0.8, 0.74, 0.4], eye: [0.38, 0.03, 0.022], see: 300, min: 0.5 }, dart);
