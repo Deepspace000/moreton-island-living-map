@@ -283,7 +283,7 @@ function syncHelp() {
     else if (k === 'person') t = 'Hold the mouse button on the view to walk, towards the left or the right to turn that way · or W to walk, A D to turn, down arrow to stop · the box at the bottom left has Forward, Stop and three speeds · hold Shift to go faster, S slower · scroll out to see yourself · double-click a vehicle to get in · M for the map';
     else t = 'A D turn · W climb · down arrow sink · hold Shift to go faster, S to go slower · H to let it fly on' + (k === 'plane' ? ' · land on a strip' : '') + out + ' · M for the map';
     t += touch ? ' · double-tap the mini map to head for that spot' : ' · double-click the mini map to head for that spot';
-  } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W A S D or arrows to move · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
+  } else if (walk.active) { name = 'Walking'; t = touch ? 'Put a finger on the view to walk · slide it sideways to steer, far up to run · two fingers: stand still and look around' : 'W S walk · A D turn · Q E step sideways · Shift to run · Space to jump · click the view, then the mouse looks · M for the map · gamepad: sticks, A jump, RT run, B map'; }
   else t = touch ? 'Drag to move · twist two fingers to turn · pinch to zoom · double-tap a spot to stand there · double-tap a 4WD, a boat or a bird to go along, or use Travel · hold a finger still for a menu · drag any panel to move it, its corner to resize it' : 'W A S D or the arrow keys move the view, Q E turn it, Shift goes faster · drag to move · right-drag to turn · scroll to zoom · double-click a spot to stand there · double-click a 4WD, a boat or a bird to go along, or use Travel · right-click for a menu · drag any panel to move it, its corner to resize it';
   $('helpTxt').innerHTML = '<b>' + name + '</b> ' + t;
 }
@@ -346,10 +346,10 @@ function layoutLeft() {
     down = null; const now = performance.now();
     if (!(last && now - last.t < (finger ? 520 : 420) && Math.hypot(e.clientX - last.x, e.clientY - last.y) < (finger ? 46 : 30))) { last = { t: now, x: e.clientX, y: e.clientY }; return; }            // that was the first click: nothing happens until the second
     last = null; const hit = boats ? ride.pick(e.clientX, e.clientY) : null; if (hit && !(aboard && hit.obj === aboard.av)) return enterRide(hit);
-    if (onFoot || !aboard) return;
-    // the ground or the sea: you stand (or swim) there and see through your own eyes; scroll or pinch out to see yourself from behind
+    if (onFoot) return;
+    // the ground or the sea: you stand (or swim) there in walk mode (A and D turn, Shift runs)
     const p = pickGround(camera, e.clientX, e.clientY); if (!p) return;
-    camera.getWorldDirection(lookDir); enterRide({ kind: 'bird', obj: aboard.place(p.x, p.z, Math.atan2(-lookDir.z, lookDir.x)), control: true }); ride.setView(0); syncTravel();
+    enterWalk(p.x, p.z);
   });
 }
 $('btWalk').onclick = () => { if (ride.active) exitRide(); if (walk.active) exitWalk(); else enterWalk(controls.target.x, controls.target.z); };
