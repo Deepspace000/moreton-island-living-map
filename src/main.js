@@ -687,7 +687,7 @@ function frame() {
   const camDist = walk.active || ride.active ? 0 : camera.position.distanceTo(t);
   detail.update(t, camDist, acc, dt);
   life.update(dt, acc, t, camDist, renderer);
-  seabed.update(camDist);
+  seabed.update(camDist, t);
   if (spotter) spotter.update(dt);
   // (only for what goes on the ground: someone walking, a 4WD being driven, the traveller; never for a boat, a bird or a plane)
   if (camDist < 200 && !ride.boat && !(ride.bird && ride.bird.kind !== 'walker' && ride.bird.kind !== 'person') && !(ride.car && !ride.car.drive)) probe.look(renderer, t.x, t.z);          // where the trees, big bushes and logs stand round the view, for whatever walks or drives there

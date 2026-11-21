@@ -18,7 +18,7 @@ import { critters, WILD_PAINT, WATER_DRAGON, MAJOR_SKINK, LAND_MULLET, GARDEN_SK
 import { OSPREY_FLY, OSPREY_WING, BRAHMINY_FLY, BRAHMINY_WING, WHISTLING_FLY, WHISTLING_WING, WEDGETAIL_FLY, WEDGETAIL_WING, PEREGRINE_FLY, PEREGRINE_WING, CURLEW, GODWIT, OYSTERCATCHER, STONECURLEW, BUSHCURLEW, CORMORANT_STAND, GREAT_CORMORANT, BLACK_SWAN, walkers } from './wildbirds.js';
 import { TAILOR, DART, TREVALLY, JEWFISH, LONGTOM, TARWHINE, SNAPPER, SWEETLIP, COD, MOSES, TUSK, MORWONG, MORAY, WPAINT } from './wildlife.js';
 import { spotAt } from './spot.js';
-import { swimmers, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
+import { swimmers, swimmersLive, PAINT, PELICAN, PELICAN_STAND, CORMORANT, PELICAN_FLY, PELICAN_WING, EAGLE_FLY, EAGLE_WING, EAGLE_PERCH, BREAM, DAMSEL, ROUND, SLIM, FLATHEAD, SHARK, RAY, SHOVEL, TURTLE, DOLPHIN, DUGONG, WHALE } from './creatures.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6);
 const LIT_FS = /* glsl */`varying vec3 vCol, vW; void main(){ ${LOGF} gl_FragColor = vec4(applyFog(vCol, vW), 1.0); }`;
@@ -61,6 +61,7 @@ function scatter(scene, n, cs, build, body, range, paint, pre, tab) {          /
         nrm = normalize(vec3(nrm.x * ca - nrm.z * sa, nrm.y, nrm.x * sa + nrm.z * ca));
         vec3 light = uLightCol * (max(dot(nrm, uLightDir), 0.0) * 0.8 + 0.1) * cloudShadow(wp) + mix(uAmbGnd, uAmbSky, nrm.y * 0.5 + 0.5) + carLamps(wp) * 1.2;
         vCol = c * light;
+        { float dw = (uSeaM * uVex - wp.y) / uVex; if(dw > 0.0){ vec3 Tm = exp(-vec3(0.42, 0.082, 0.105) * dw * 1.15); vCol = vCol * Tm + vec3(0.012, 0.20, 0.18) * (uLightCol * 0.3 + uAmbSky * 0.8) * (1.0 - Tm); } }          // what lies under water takes the colour of the water over it
         ${paint ? 'vCol = c; vLight = light; vObj = position; vNo = normal; vK = aK; vH = vec4(h1, h2, h3, h4);' : ''}
         vW = wp;
         gl_Position = s * fade <= 0.0 ? vec4(0.0, 0.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
@@ -80,7 +81,8 @@ function buildBeachLife(scene) {
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   }, /* glsl */`
         float wash = smoothstep(-0.25, 0.25, hgt) * (1.0 - smoothstep(2.3, 3.4, hgt));              // from the wet sand to the high-tide line
-        float star = step(h3, 0.012 * (1.0 - smoothstep(0.7, 1.6, hgt))), shell = (1.0 - star) * step(h3, 0.15);
+        float sub = step(hgt, -0.3) * step(-16.0, hgt);              // and they lie on the sea bed too, everywhere, out to 16 m of water: more of them there, and bigger
+        float star = step(h3, mix(0.012 * (1.0 - smoothstep(0.7, 1.6, hgt)), 0.035, sub)), shell = (1.0 - star) * step(h3, mix(0.15, 0.24, sub));
         float odd = mod(max(aK, 0.0), 2.0), rim = step(0.0, aK);
         if(star > 0.5){
           s = 0.10 + 0.07 * h1; float r = mix(1.0, 0.36, odd);
@@ -94,7 +96,7 @@ function buildBeachLife(scene) {
           vec3 tone = h2 < 0.45 ? vec3(0.93, 0.90, 0.84) : h2 < 0.7 ? vec3(0.90, 0.74, 0.66) : h2 < 0.88 ? vec3(0.62, 0.56, 0.62) : vec3(0.86, 0.66, 0.36);
           c = tone * (rim > 0.5 ? mix(1.0, 0.72, odd) : 1.05);
         }
-        s *= (star + shell) * sandy * wash;
+        s *= (star + shell) * max(sandy * wash, sub) * (1.0 + 0.7 * sub);
         nrm = rim > 0.5 ? normalize(vec3(position.x, 0.8, position.z)) : vec3(0.0, 1.0, 0.0);`, 150);
   // sticks and logs of driftwood along the high-tide line: a six-sided cylinder laid on the sand
   const stickGeo = (g) => {
@@ -246,7 +248,23 @@ function buildBeachLife(scene) {
         nrm = normalize(vec3(position.x, 0.7, position.z));
         c = aK > 0.5 ? vec3(0.85, 0.78, 0.65) * (0.55 + 0.6 * position.y) : mix(vec3(0.35, 0.25, 0.45), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
   probe.add(wood.m, { wp: 'vW', lo: 0.1, log: 1, cs: 3.4 }); probe.add(sticks.m, { wp: 'vW', lo: 0.12, log: 1, cs: 2.1 });          // logs on the beach and in the forest: walkers go round them (see drive.js)
-  return [shells, wood, sticks, litter, tufts, belt, ferns, crabs];
+  // seaweed on the sea bed, everywhere the water is between half a metre and 14 m deep: tufts of ribbons that lean and come back with the surge. It grows in
+  // patches, thick in places with bare sand between, green, olive-brown or red.
+  const weed = scatter(scene, dq(40, 52, 64), 1.3, (g) => {
+    const pos = [], k = [], idx = [];
+    for (let b = 0; b < 7; b++) { const a = b * 2.4 + 0.5, ca = Math.cos(a), sa = Math.sin(a), tall = 0.5 + 0.5 * ((b * 13) % 7) / 6, r0 = 0.04 + 0.16 * ((b * 7) % 5) / 4, lean = 0.1 + 0.25 * ((b * 37) % 10) / 10, q = pos.length / 3, N = 4;
+      for (let i = 0; i <= N; i++) { const t = i / N, out = r0 + lean * t, w = 0.05 * (1 - 0.7 * t) * (1 + 0.5 * Math.sin(t * 9 + b)); pos.push(ca * out - sa * w, tall * t, sa * out + ca * w, ca * out + sa * w, tall * t, sa * out - ca * w); k.push(t, t); }
+      for (let i = 0; i < N; i++) { const o = q + i * 2; idx.push(o, o + 1, o + 2, o + 2, o + 1, o + 3); } }
+    attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
+  }, /* glsl */`
+        float patchy = smoothstep(0.4, 0.62, texture2D(uNoise, xz / 37.0).r * 0.65 + texture2D(uNoise, xz / 7.0 + 0.3).g * 0.35);
+        s = (0.4 + 0.8 * h1) * step(h3, 0.06 + 0.7 * patchy) * step(hgt, -0.5) * step(-14.0, hgt);
+        s = min(s, max(-hgt - 0.3, 0.0));                      // short where the water is shallow, so that it stays under
+        vec2 sw = vec2(sin(uTime * 1.1 + xz.x * 0.7 + xz.y * 0.4), cos(uTime * 0.8 + xz.y * 0.6)) * aK * aK * 0.3;
+        lp = vec3(position.x + sw.x, position.y, position.z + sw.y);
+        nrm = normalize(vec3(position.x, 0.7, position.z));
+        c = (h2 < 0.5 ? vec3(0.10, 0.24, 0.07) : h2 < 0.82 ? vec3(0.22, 0.19, 0.06) : vec3(0.28, 0.08, 0.07)) * (0.5 + 0.5 * aK);`, 150);
+  return [shells, wood, sticks, litter, tufts, belt, ferns, crabs, weed];
 }
 
 // ---------------------------------------------------------------- 4WDs on the beach
@@ -1431,6 +1449,67 @@ function buildPelicans(scene, F) {
   };
 }
 
+// ---------------------------------------------------------------- fish wherever the view is
+// The schools placed above stand at fixed spots, and the sea is far too big for them: a swimmer, who sees some fifteen metres under water, could go a long way
+// and meet none. So the water round the view is filled as it moves. The sea is cut into squares, and what lives in a square is worked out from the square's own
+// place on the map, so the same fish are there whenever one comes back to it. The small fish, in squares of 6 m, are kept out to 50 m; the big ones, in squares
+// of 40 m, out to 280 m. The depth of the water decides the kinds: small fish and schools of them in the shallows, with a stingray here and there; further out
+// balls of baitfish and middling fish; and the deeper it is, the more of the big fish, the sharks and the dolphins.
+function buildRoamers(scene) {
+  const depth = (x, z) => -heightAt(x, z), Q = MOBILE ? 0.6 : 1, live = {}, L = {};
+  const SMALL = ['small', 'whiting', 'blue', 'bream', 'flathead', 'dart', 'tarwhine', 'squire', 'tailor', 'moses'], BIG = ['rays', 'trevally', 'snapper', 'jewfish', 'sweetlip', 'morwong', 'cod', 'bigsharks', 'dolphins'];
+  const CAP = { small: 2600, whiting: 700, blue: 3000, bream: 500, flathead: 80, dart: 300, tarwhine: 400, squire: 500, tailor: 500, moses: 500, rays: 80, trevally: 900, snapper: 400, jewfish: 200, sweetlip: 300, morwong: 300, cod: 80, bigsharks: 40, dolphins: 80 };
+  for (const name of [...SMALL, ...BIG]) { const s = swimmersLive(scene, name, CAP[name]); if (s) { live[name] = s; L[name] = []; } }
+  const put = (name, a, b, c, d, e, f, g, h) => { const l = L[name]; if (l) l.push(a, b, c, d, e, f, g, h); };
+  const school = (R, name, x, z, d, n, r0, size, dep, sp = 0.5) => { const ph = R() * 6.283, v = sp + R() * sp, way = R() < 0.5 ? 0.2 : 0.8;
+    for (let i = 0; i < n; i++) put(name, x + (R() - .5) * 2.5, z + (R() - .5) * 2.5, r0 + R() * 2, Math.max(0.15, Math.min(d - 0.25, dep + (R() - .5) * 0.9)), ph + i * 0.12 + R() * 0.2, v, size * (0.8 + R() * 0.4), way + R() * 0.15); };
+  const one = (R, name, x, z, rad, dep, size, sp) => put(name, x, z, rad, dep, R() * 6.283, sp + R() * sp * 0.6, size * (0.85 + R() * 0.3), R());
+  const inMap = (x, z) => Math.abs(x) < T.sx / 2 - 60 && Math.abs(z) < T.sz / 2 - 60;
+  const N = (R, a, b) => a + ((R() * (b - a + 1)) | 0);
+  const small = (R, cx, cz) => {
+    const x = (cx + R()) * 6, z = (cz + R()) * 6; if (!inMap(x, z)) return; const d = depth(x, z); if (d < 0.35) return;
+    const up = () => 0.4 + R() * Math.min(1.6, d * 0.6), any = () => d < 3 ? 0.4 + R() * (d - 0.5) : d * (0.12 + 0.8 * R()), low = () => Math.max(0.3, d - 0.5 - R() * 0.8);
+    if (d < 4) {
+      if (R() < 0.6 * Q) school(R, 'small', x, z, d, N(R, 6, 14), 1.5 + R() * 3.5, 0.28 + R() * 0.16, up());
+      if (d < 2.2 && R() < 0.18 * Q) school(R, 'whiting', x + 3, z - 2, d, N(R, 3, 7), 2 + R() * 3, 0.3 + R() * 0.1, low());
+      if (d > 0.8 && R() < 0.18 * Q) school(R, 'blue', x - 2, z + 3, d, N(R, 8, 16), 1.5 + R() * 2.5, 0.45, any());
+      if (d > 1 && R() < 0.05 * Q) school(R, 'bream', x, z, d, N(R, 2, 4), 4 + R() * 5, 0.95, any());
+      if (d < 2.5 && R() < 0.04 * Q) school(R, 'dart', x + 2, z + 2, d, N(R, 3, 6), 2 + R() * 3, 0.38, up());
+      if (d > 0.8 && R() < 0.04 * Q) school(R, 'tarwhine', x - 3, z - 3, d, N(R, 3, 6), 3 + R() * 4, 0.42, low());
+      if (R() < 0.03 * Q) one(R, 'flathead', x, z, 2 + R() * 3, 0, 0.6, 0.07);
+    } else {
+      if (R() < 0.22 * Q) school(R, 'blue', x, z, d, N(R, 10, 22), 2 + R() * 3, 0.5, any());
+      if (d < 12 && R() < 0.2 * Q) school(R, 'small', x + 3, z + 1, d, N(R, 6, 12), 2 + R() * 4, 0.3 + R() * 0.14, up());
+      if (d < 12 && R() < 0.07 * Q) school(R, 'bream', x, z, d, N(R, 2, 5), 4 + R() * 5, 0.95, any());
+      if (R() < 0.06 * Q) school(R, 'squire', x - 3, z + 2, d, N(R, 4, 8), 3 + R() * 3, 0.3, low());
+      if (R() < 0.05 * Q) school(R, 'tailor', x + 2, z - 3, d, N(R, 4, 8), 4 + R() * 5, 0.6, any());
+      if (d < 12 && R() < 0.05 * Q) school(R, 'tarwhine', x - 2, z - 2, d, N(R, 3, 6), 3 + R() * 4, 0.42, low());
+      if (R() < 0.05 * Q) school(R, 'moses', x + 1, z + 3, d, N(R, 5, 9), 3 + R() * 4, 0.42, low());
+    }
+  };
+  const big = (R, cx, cz) => {
+    const x = (cx + R()) * 40, z = (cz + R()) * 40; if (!inMap(x, z)) return; const d = depth(x, z); if (d < 0.5) return;
+    const at = (r) => [x + (R() - .5) * r, z + (R() - .5) * r], deep = () => Math.min(d - 0.6, 1.5 + R() * Math.max(1, d - 2.5));
+    if (d < 4) { if (R() < 0.12 * Q) one(R, 'rays', x, z, 5 + R() * 12, 0, 1.3, 0.35); return; }
+    if (d < 6) return;
+    const g = Math.max(0.12, Math.min(1, (d - 4) / 20)) * Q;          // more of them the deeper it is
+    if (R() < 0.30 * g) school(R, 'trevally', x, z, d, N(R, 5, 9), 10 + R() * 9, 0.9, deep(), 0.6);
+    if (R() < 0.28 * g) for (let j = N(R, 2, 4); j > 0; j--) { const p = at(14); one(R, 'snapper', p[0], p[1], 6 + R() * 10, deep(), 0.75, 0.35); }
+    if (R() < 0.16 * g) for (let j = N(R, 1, 2); j > 0; j--) { const p = at(10); one(R, 'jewfish', p[0], p[1], 6 + R() * 10, deep(), 1.4, 0.3); }
+    if (R() < 0.20 * g) for (let j = N(R, 2, 3); j > 0; j--) { const p = at(14); one(R, 'sweetlip', p[0], p[1], 4 + R() * 6, deep(), 0.66, 0.35); }
+    if (R() < 0.20 * g) for (let j = N(R, 2, 3); j > 0; j--) { const p = at(14); one(R, 'morwong', p[0], p[1], 4 + R() * 6, deep(), 0.56, 0.25); }
+    if (R() < 0.10 * g) one(R, 'cod', x, z, 0.6 + R() * 1.4, 0, 0.95, 0.15);
+    if (d > 12 && R() < 0.035 * g) one(R, 'bigsharks', x, z, 40 + R() * 90, 2 + R() * Math.min(8, d * 0.4), 3.4, 1.0);
+    if (d > 10 && R() < 0.012 * g) { const ph = R() * 6.283, sp = 2.2 + R() * 1.2, way = R() < 0.5 ? 0.2 : 0.8; for (let j = N(R, 3, 6); j > 0; j--) put('dolphins', x + (R() - .5) * 14, z + (R() - .5) * 14, 60 + R() * 14, 0.9 + R() * 1.2, ph + j * 0.09 + R() * 0.08, sp, 3.1 * (0.85 + R() * 0.3), way + R() * 0.15); }
+  };
+  const tiers = [{ cs: 6, reach: 8, fn: small, names: SMALL, cx: 1e9, cz: 1e9 }, { cs: 40, reach: 7, fn: big, names: BIG, cx: 1e9, cz: 1e9 }];
+  return (target) => { for (const t of tiers) {
+    const cx = Math.floor(target.x / t.cs), cz = Math.floor(target.z / t.cs); if (cx === t.cx && cz === t.cz) continue; t.cx = cx; t.cz = cz;
+    for (const n of t.names) if (L[n]) L[n].length = 0;
+    for (let j = -t.reach; j <= t.reach; j++) for (let i = -t.reach; i <= t.reach; i++) t.fn(rng((Math.imul(cx + i, 73856093) ^ Math.imul(cz + j, 19349663) ^ (t.cs * 7919)) >>> 0), cx + i, cz + j);
+    for (const n of t.names) if (live[n]) live[n].fill(L[n]);
+  } };
+}
 export function buildLife(scene, F) {
   const lights = makeLights(64); scene.add(lights.pts); lights.pts.material.uniforms.uPx.value = Math.min(window.devicePixelRatio || 1, 2);
   const near = [...buildBeachLife(scene), buildInsects(scene), buildDragonflies(scene), buildGnats(scene), buildWallabies(scene), ...buildLizards(scene), buildSnags(scene), buildCreeper(scene)];
@@ -1438,12 +1517,14 @@ export function buildLife(scene, F) {
   const pelicans = buildPelicans(scene, F);
   buildSeaLife(scene, F);
   buildWild(scene, F);
+  const roam = buildRoamers(scene);
   const plants = buildWildPlants(scene);
   return {
     update(dt, t, target, camDist, renderer) {
       for (const s of near) { s.g.on = camDist < s.range; if (s.g.on) s.set(target.x, target.z); }
       cars(dt, target, renderer); snork(dt, t); birds(dt, target); pelicans(dt, t);
       plants(target, camDist);
+      if (camDist < 1500) roam(target);
       { // which cars' headlamps light the ground: the eight nearest to the view that are under way, once it is getting dark
         const L = U.uCarL.value, dark = U.uNight.value > 0.2, list = dark ? rideable.filter(c => !c.parked || c.drive).map(c => [c, (c.m.position.x - target.x) ** 2 + (c.m.position.z - target.z) ** 2]).sort((a, b) => a[1] - b[1]) : [];
         for (let i = 0; i < 8; i++) { const c = list[i] && list[i][0]; if (!c) { L[i].set(0, 0, 0, 0); continue; } const yaw = c.m.rotation.y, fx = Math.cos(yaw), fz = -Math.sin(yaw); L[i].set(c.m.position.x + fx * 3.4, c.m.position.z + fz * 3.4, fx, fz); } }

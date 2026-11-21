@@ -27,6 +27,12 @@ const SWIM = { bream: 'bream', blue: 'baitfish', stripey: 'sergeant', neon: 'neo
   tailor: 'tailor', dart: 'dart', trevally: 'trevally', jewfish: 'jewfish', longtom: 'longtom', tarwhine: 'tarwhine', snapper: 'snapper', squire: 'squire', sweetlip: 'sweetlip', cod: 'cod', moses: 'moses', tuskfish: 'tusk', morwong: 'morwong', moray: 'moray', fry: 'baitfish', chromis: 'neon', sergeants: 'sergeant', reefbream: 'bream' };
 const SEE_SWIM = { baitfish: 30, hardyhead: 25, whiting: 25, neon: 25, humbug: 25, sergeant: 30, dart: 30, longtom: 35, bream: 45, tailor: 45, tarwhine: 40, squire: 35, moses: 40, flathead: 30, tusk: 40, morwong: 40, moray: 30, sweetlip: 50, cod: 45, trevally: 60, jewfish: 70, snapper: 60, greenturtle: 110, maskray: 70, shovelnose: 80, whaler: 130, tigershark: 160, dolphin: 260, dugong: 220, humpback: 900 };
 export function spotSwim(name, list, stride) { const id = SWIM[name]; if (id) spotAt(id, list, stride, SEE_SWIM[id] || 50, { radAt: 2, move: 'swim' }); }
+// swimmers whose list is filled again as the view moves (creatures.js swimmersLive): room for cap of them; set(list, n) puts the new ones in
+export function spotLive(name, cap) {
+  const id = SWIM[name]; if (!id) return null;
+  const s = { id, xz: new Float32Array(cap * 2), rad: new Float32Array(cap), n: 0, see: SEE_SWIM[id] || 50, data: new Float32Array(cap * 8), stride: 8, move: 'swim' }; SPOT.src.push(s);
+  return { set(list, n) { s.n = n; for (let i = 0; i < n; i++) { s.xz[i * 2] = list[i * 8]; s.xz[i * 2 + 1] = list[i * 8 + 1]; s.rad[i] = Math.min(Math.abs(list[i * 8 + 2]) || 0, 400); } for (let i = 0; i < n * 8; i++) s.data[i] = list[i]; } };
+}
 
 // birds on foot (wildbirds.js walkers): [x, z, turn, phase]
 const WALK = { oystercatchers: ['oystercatcher', 140], curlews: ['curlew', 220], godwits: ['godwit', 200], stonecurlews: ['stonecurlew', 120], bushcurlews: ['bushcurlew', 120], cormorants: ['greatcormorant', 180], cormorantsdry: ['greatcormorant', 180] };

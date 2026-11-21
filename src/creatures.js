@@ -2,7 +2,7 @@
 // edges), given curved fins, and painted per pixel: countershading, scales, bars and spots, an eye, fin rays, the
 // dancing light of the surface on its back, and the colour of the water it is seen through.
 import * as THREE from 'three';
-import { spotSwim } from './spot.js';
+import { spotSwim, spotLive } from './spot.js';
 import { makeMat, nearOnly, byPlace, LOGV, LOGF } from './common.js';
 
 const FAR = new THREE.Sphere(new THREE.Vector3(), 1e6), PI = Math.PI;
@@ -309,8 +309,18 @@ export const PAINT = {
 // visit: each animal has two more numbers, the way (x, z, in metres) to a shallower spot it swims in to now and then while the tide is up.
 // (They are drawn as one batch for each part of the map they live in, all sharing one shape and one material: a batch that is out of view,
 // or too far off to be seen, is then skipped whole.)
-export function swimmers(scene, o, all) { spotSwim(o.name, all, o.visit ? 10 : 8); let first = null; for (const list of byPlace(all, o.visit ? 10 : 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
-function swimmersAt(scene, o, list) {
+export const KINDS = {};          // every kind of swimmer made so far, by its name
+// One draw of a kind already made by swimmers(), with room for `cap` of them and none in it yet: fill(list) puts a new list in. For the fish that are placed
+// round the view as it moves (life.js buildRoamers).
+export function swimmersLive(scene, name, cap) {
+  const o = KINDS[name]; if (!o || o.visit) return null;
+  const m = swimmersAt(scene, o, new Float32Array(cap * 8), true), g = m.geometry, a = g.attributes.iA, b = g.attributes.iB, sp = spotLive(name, cap);
+  a.setUsage(THREE.DynamicDrawUsage); b.setUsage(THREE.DynamicDrawUsage); g.instanceCount = 0; m.visible = false;
+  return { m, fill(list) { const n = Math.min(cap, list.length >> 3); for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) { a.array[i * 4 + k] = list[i * 8 + k]; b.array[i * 4 + k] = list[i * 8 + 4 + k]; }
+    a.needsUpdate = b.needsUpdate = true; g.instanceCount = n; m.visible = n > 0; if (sp) sp.set(list, n); } };
+}
+export function swimmers(scene, o, all) { KINDS[o.name] = o; spotSwim(o.name, all, o.visit ? 10 : 8); let first = null; for (const list of byPlace(all, o.visit ? 10 : 8, 500)) { const m = swimmersAt(scene, o, list); first = first || m; } return first; }
+function swimmersAt(scene, o, list, live) {
   const st = o.visit ? 10 : 8, g = new THREE.InstancedBufferGeometry(), n = list.length / st, a = new Float32Array(n * 4), b = new Float32Array(n * 4), v = new Float32Array(n * 2), F = (arr, k) => new THREE.Float32BufferAttribute(arr, k), P = o.paint || {};
   for (let i = 0; i < n; i++) { a.set(list.slice(i * st, i * st + 4), i * 4); b.set(list.slice(i * st + 4, i * st + 8), i * 4); if (o.visit) v.set(list.slice(i * st + 8, i * st + 10), i * 2); }
   if (o.visit) g.setAttribute('iV', new THREE.InstancedBufferAttribute(v, 2));
@@ -406,6 +416,6 @@ function swimmersAt(scene, o, list) {
       }`,
   }));
   const m = new THREE.Mesh(g, mat); m.name = o.name; m.frustumCulled = false; scene.add(m);
-  { let reach = 0; for (let i = 0; i < n; i++) reach = Math.max(reach, list[i * 8 + 2] * 1.6 + list[i * 8 + 6] * 2); nearOnly(m, list, 8, o.see, reach + 20, 20); }          // not drawn at all while none of them is within sight
+  if (!live) { let reach = 0; for (let i = 0; i < n; i++) reach = Math.max(reach, list[i * st + 2] * 1.6 + list[i * st + 6] * 2); nearOnly(m, list, st, o.see, reach + 20, 20); }          // not drawn at all while none of them is within sight
   return m;
 }

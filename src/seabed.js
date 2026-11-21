@@ -232,6 +232,17 @@ export function buildSeabed(scene, F, o) {
         home += side * (smoothstep(-0.45, 0.45, s) * 2.0 - 1.0) * iB.y; lp.y += abs(sin(uTime * 15.0 + aX.x)) * aX.y * going;
         tint = iB.w < 0.35 ? vec3(0.62, 0.5, 0.36) : iB.w < 0.7 ? vec3(0.3, 0.42, 0.62) : vec3(0.5, 0.2, 0.12);            // sand crab, blue swimmer, red-brown rock crab`;
   crawl(crabGeo, crabs, CRAB_BODY);
+  // Crabs wherever the view is. The ones above stand at fixed spots, too far apart to be met by chance, so the sand round the view is given crabs as it moves:
+  // the sea bed is cut into squares of 6 m, and whether a square has a crab, and where, is worked out from the square's own place, so it is the same every time.
+  const liveGeo = new THREE.InstancedBufferGeometry(), LIVE = 700; liveGeo.index = crabGeo.index; for (const k of ['position', 'aCol', 'aX']) liveGeo.setAttribute(k, crabGeo.attributes[k]);
+  crawl(liveGeo, new Array(LIVE * 8).fill(0), CRAB_BODY); liveGeo.instanceCount = 0;
+  let rcx = 1e9, rcz = 1e9;
+  const roam = (x, z) => { const cx = Math.floor(x / 6), cz = Math.floor(z / 6); if (cx === rcx && cz === rcz) return; rcx = cx; rcz = cz;
+    const a = liveGeo.attributes.iA, b = liveGeo.attributes.iB; let n = 0;
+    for (let j = -10; j <= 10; j++) for (let i = -10; i <= 10 && n < LIVE; i++) { const Rc = rng((Math.imul(cx + i, 73856093) ^ Math.imul(cz + j, 19349663)) >>> 0); if (Rc() > 0.55) continue;
+      const px = (cx + i + Rc()) * 6, pz = (cz + j + Rc()) * 6; if (Math.abs(px) > T.sx / 2 - 60 || Math.abs(pz) > T.sz / 2 - 60) continue; const d = depth(px, pz); if (d < 0.3 || d > 14) continue;
+      a.setXYZW(n, px, pz, Rc() * 6.283, 0.09 + Rc() * 0.11); b.setXYZW(n, Rc() * 6.283, 0.5 + Rc() * 1.6, 0.25 + Rc() * 0.35, Rc()); n++; }
+    a.needsUpdate = b.needsUpdate = true; liveGeo.instanceCount = n; };
   // octopuses: a round mantle, a head with two eyes, eight arms that lie on the bed and curl. aX = arm's phase, how far along the arm (below 0: the body), the arm's bearing
   const octoGeo = build((v, I) => {
     const SK = [1, 1, 1], b = ICO1.count; for (let i = 0; i < b; i++) { const nx = ICO1.getX(i), ny = ICO1.getY(i), nz = ICO1.getZ(i); I.push(v(-0.3 + nx * 0.3, 0.24 + ny * 0.22, nz * 0.22, SK, 0.75 + 0.35 * Math.max(0, ny) + 0.12 * Math.sin(nx * 17 + nz * 13), 0, -1, 0)); }
@@ -254,5 +265,5 @@ export function buildSeabed(scene, F, o) {
   if (bream.length) swimmers(scene, { ...BREAM, paint: PAINT.bream, name: 'reefbream', amp: 0.13, rate: 8, colA: [0.36, 0.4, 0.38], colB: [0.86, 0.89, 0.9], colC: [0.46, 0.48, 0.43], see: 420, min: 0.8 }, bream);
   if (rays.length) swimmers(scene, { ...RAY, paint: PAINT.ray, name: 'wreckrays', vertical: 1, bottom: 1, amp: 0.1, rate: 2.2, colA: [0.36, 0.31, 0.22], colB: [0.80, 0.76, 0.66], eye: [0.3, 0.085, 0.02], see: 600, min: 0.25 }, rays);
   return { studio: { crab: (list) => crawl(crabGeo, list, CRAB_BODY), octo: (list) => crawl(octoGeo, list, OCTO_BODY) }, meshes, lists: { crabs, octos }, count: { verts, sergeants: sergeants.length / 8, bream: bream.length / 8, crabs: crabs.length / 8, octopus: octos.length / 8, fry: fry.length / 8, chromis: chromis.length / 8, rays: rays.length / 8, chunks: chunks.size },
-    update(camDist) { const on = camDist < 1600; for (const m of meshes) if (m.visible !== on) m.visible = on; } };
+    update(camDist, at) { const on = camDist < 1600; for (const m of meshes) if (m.visible !== on) m.visible = on; if (on && at) roam(at.x, at.z); } };
 }
