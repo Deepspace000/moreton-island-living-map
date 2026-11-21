@@ -651,6 +651,7 @@ function buildTrees(F, scene) {
           if(uStudio.z > 0.5){ xz = uStudio.xy; s = abs(iCell.x) + abs(iCell.y) < 0.5 ? 1.0 : 0.0; }          // (for the glossary pictures: the one tree of the middle cell, put where uStudio says)
           if(s <= 0.002){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // nothing grows in this cell: skip the rest
           vec3 base = vec3(xz.x, groundY(xz), xz.y);                    // the drawn ground, so nothing floats or sinks
+          if(uStudio.z < 0.5 && base.y < -1.06 * uVex){ gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }      // no tree stands with its foot more than half a metre below mean sea level: a mangrove at the water's edge is covered to the knee at high tide, never to the crown
           float ang = h1 * 6.2832, ca = cos(ang), sa = sin(ang);
           vec3 q = vec3(position.x * ca - position.z * sa, position.y, position.x * sa + position.z * ca);
           if(uMode > 1.5 && uMode < 2.5) q.y *= 1.0 - 0.82 * flatK(xz);          // the low plants lie down where a wheel has just been

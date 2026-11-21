@@ -249,7 +249,7 @@ function buildBeachLife(scene) {
         c = aK > 0.5 ? vec3(0.85, 0.78, 0.65) * (0.55 + 0.6 * position.y) : mix(vec3(0.35, 0.25, 0.45), mix(vec3(0.20, 0.42, 0.80), vec3(0.50, 0.72, 0.95), smoothstep(0.4, 0.95, position.y)), smoothstep(0.15, 0.45, position.y));`, 60);
   probe.add(wood.m, { wp: 'vW', lo: 0.1, log: 1, cs: 3.4 }); probe.add(sticks.m, { wp: 'vW', lo: 0.12, log: 1, cs: 2.1 });          // logs on the beach and in the forest: walkers go round them (see drive.js)
   // seaweed on the sea bed, everywhere the water is between half a metre and 14 m deep: tufts of ribbons that lean and come back with the surge. It grows in
-  // patches, thick in places with bare sand between, green, olive-brown or red.
+  // patches, thick in places with bare sand between, green, olive-brown or red; and whole stretches, hundreds of metres across, are mostly bare sand.
   const weed = scatter(scene, dq(40, 52, 64), 1.3, (g) => {
     const pos = [], k = [], idx = [];
     for (let b = 0; b < 7; b++) { const a = b * 2.4 + 0.5, ca = Math.cos(a), sa = Math.sin(a), tall = 0.5 + 0.5 * ((b * 13) % 7) / 6, r0 = 0.04 + 0.16 * ((b * 7) % 5) / 4, lean = 0.1 + 0.25 * ((b * 37) % 10) / 10, q = pos.length / 3, N = 4;
@@ -258,13 +258,22 @@ function buildBeachLife(scene) {
     attr(g, 'position', pos, 3); attr(g, 'aK', k, 1); g.setIndex(idx);
   }, /* glsl */`
         float patchy = smoothstep(0.4, 0.62, texture2D(uNoise, xz / 37.0).r * 0.65 + texture2D(uNoise, xz / 7.0 + 0.3).g * 0.35);
-        s = (0.4 + 0.8 * h1) * step(h3, 0.06 + 0.7 * patchy) * step(hgt, -0.5) * step(-14.0, hgt);
+        float beds = smoothstep(0.42, 0.6, texture2D(uNoise, xz / 1600.0 + 0.7).b * 0.6 + texture2D(uNoise, xz / 500.0 + 0.2).r * 0.4);          // whole stretches of the sea bed are open sand with hardly any weed; others are beds of it
+        s = (0.4 + 0.8 * h1) * step(h3, (0.015 + 0.7 * patchy) * mix(0.04, 1.0, beds)) * step(hgt, -0.5) * step(-14.0, hgt);
         s = min(s, max(-hgt - 0.3, 0.0));                      // short where the water is shallow, so that it stays under
         vec2 sw = vec2(sin(uTime * 1.1 + xz.x * 0.7 + xz.y * 0.4), cos(uTime * 0.8 + xz.y * 0.6)) * aK * aK * 0.3;
         lp = vec3(position.x + sw.x, position.y, position.z + sw.y);
         nrm = normalize(vec3(position.x, 0.7, position.z));
         c = (h2 < 0.5 ? vec3(0.10, 0.24, 0.07) : h2 < 0.82 ? vec3(0.22, 0.19, 0.06) : vec3(0.28, 0.08, 0.07)) * (0.5 + 0.5 * aK);`, 150);
-  return [shells, wood, sticks, litter, tufts, belt, ferns, crabs, weed];
+  // rocks on the sea bed, a few here and there and more among the weed: lumpy grey-brown stones from fist size to half a metre, sunk a little into the sand
+  const rocks = scatter(scene, dq(26, 32, 40), 3.2, (g) => { const p = new THREE.IcosahedronGeometry(1, 1).toNonIndexed().attributes.position; attr(g, 'position', Array.from(p.array), 3); attr(g, 'aK', new Array(p.count).fill(0), 1); }, /* glsl */`
+        float beds = smoothstep(0.42, 0.6, texture2D(uNoise, xz / 1600.0 + 0.7).b * 0.6 + texture2D(uNoise, xz / 500.0 + 0.2).r * 0.4);
+        s = (0.1 + 0.42 * h1 * h1) * step(h3, 0.025 + 0.11 * beds) * step(hgt, -0.6) * step(-16.0, hgt);
+        float lump = 0.75 + 0.5 * texture2D(uNoise, position.xz * 0.31 + position.y * 0.17 + h2).r;
+        lp = vec3(position.x * lump * (0.8 + 0.6 * h2), position.y * lump * 0.62 + 0.25, position.z * lump);
+        nrm = normalize(position + vec3(0.0, 0.3, 0.0));
+        c = mix(vec3(0.34, 0.31, 0.27), vec3(0.2, 0.2, 0.19), h2) * (0.7 + 0.6 * lump) * mix(vec3(1.0), vec3(0.6, 0.85, 0.5), smoothstep(0.2, 0.9, position.y) * step(0.5, h4) * 0.6);`, 150);
+  return [shells, wood, sticks, litter, tufts, belt, ferns, crabs, weed, rocks];
 }
 
 // ---------------------------------------------------------------- 4WDs on the beach
